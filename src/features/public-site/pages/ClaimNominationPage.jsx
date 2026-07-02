@@ -14,7 +14,7 @@ import PhotoUpload from '../../entry/components/PhotoUpload';
 import BuildCardDetailsStep from '../../entry/components/BuildCardDetailsStep';
 import SelfPitchStep from '../../entry/components/SelfPitchStep';
 import CreatePasswordStep from '../../entry/components/CreatePasswordStep';
-import ExistingAccountLogin from '../../entry/components/ExistingAccountLogin';
+import WelcomeBackStep from '../../entry/components/WelcomeBackStep';
 import CardReveal from '../../entry/components/CardReveal';
 import CompetitionBanner from '../../entry/components/CompetitionBanner';
 
@@ -41,6 +41,13 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
   const [nominee, setNominee] = useState(null);
   const [competition, setCompetition] = useState(null);
   const [error, setError] = useState(null);
+
+  // "Welcome back" greet: does this nominee's invite email already own an
+  // EliteRank account? If so, offer log-in (pre-fill + skip password) instead
+  // of a second signup.
+  const [hasExistingAccount, setHasExistingAccount] = useState(false);
+  const [greetChoice, setGreetChoice] = useState(null); // null | 'new'
+  const [loggedInViaGreet, setLoggedInViaGreet] = useState(false);
 
   const flowRef = useRef(null);
 
@@ -196,7 +203,9 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
   // Derive needsPassword inline rather than syncing via state — prevents the
   // page from getting stuck on the spinner if the auth check hangs.
   const isSelfNominee = nominee?.nominated_by === 'self';
-  const needsPassword = isSelfNominee ? !effectiveUser : !isNomineeUser;
+  // A returning nominee who logs in via the greet no longer needs the password
+  // step (the step list is memoized on needsPassword, so it drops automatically).
+  const needsPassword = isSelfNominee ? !effectiveUser : (!isNomineeUser && !loggedInViaGreet);
 
   // Initialize the Build Your Card flow
   // Self-nominees resuming via claim link use the self flow (no accept/decline step)
@@ -212,26 +221,43 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
     needsPassword,
   });
 
-  // ---- Returning user: auto-detect an existing account and greet with login ----
-  // If this nominee's email already has an account and they're not already
-  // logged in as that user, offer to log in up front. Logging in pre-fills the
-  // card from their profile and drops the password step.
-  const [emailHasAccount, setEmailHasAccount] = useState(null);
-  const [greetDismissed, setGreetDismissed] = useState(false);
-  const emailCheckedRef = useRef(false);
-
+  // Detect whether the nominee's invite email already owns an account, so we can
+  // greet returning nominees with a log-in instead of a second signup. Uses a
+  // token-scoped SECURITY DEFINER RPC (no email enumeration; callable by anon).
   useEffect(() => {
-    if (emailCheckedRef.current || !nominee?.email || isNomineeUser) return;
-    emailCheckedRef.current = true;
-    flow.checkEmailExists(nominee.email).then(setEmailHasAccount);
-  }, [nominee?.email, isNomineeUser, flow]);
+    let cancelled = false;
+    const inviteToken = nominee?.invite_token;
+    if (!inviteToken || isSelfNominee || isNomineeUser) {
+      setHasExistingAccount(false);
+      return;
+    }
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('nominee_invite_has_account', { p_token: inviteToken });
+        if (!cancelled) setHasExistingAccount(!!data);
+      } catch {
+        if (!cancelled) setHasExistingAccount(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [nominee?.invite_token, isSelfNominee, isNomineeUser]);
 
-  const showGreet = emailHasAccount === true && !isNomineeUser && !greetDismissed;
-
-  const handleGreetLogin = async (email, password) => {
-    const result = await flow.loginExistingAccount(email, password);
-    if (result?.success) setGreetDismissed(true);
-    return result;
+  // ---- Welcome-back greet handlers ----
+  const handleGreetLogin = async (password) => {
+    if (!nominee?.email) return;
+    const ok = await flow.loginExistingAccount(nominee.email, password);
+    if (ok) setLoggedInViaGreet(true);
+  };
+  const handleForgotPassword = async (email) => {
+    if (!email) return;
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      toast.success('Password reset link sent — check your email.');
+    } catch {
+      toast.error('Could not send reset email. Please try again.');
+    }
   };
 
   // Scroll to top on step change
@@ -319,20 +345,26 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
     );
   }
 
-  // ---- Returning user: greet with login before the flow ----
+  // ---- Welcome back: returning nominee whose email already has an account ----
+  const showGreet =
+    flowMode === 'third-party' &&
+    hasExistingAccount &&
+    !isNomineeUser &&
+    !loggedInViaGreet &&
+    greetChoice !== 'new';
   if (showGreet) {
     return (
       <div className="entry-flow" ref={flowRef}>
         <div className="entry-content">
-          <ExistingAccountLogin
-            email={nominee.email}
-            lockEmail
-            title="Welcome back!"
-            subtitle={`You've been nominated for ${competition?.name || 'this competition'}. Log in and we'll set up your entry with your details.`}
+          <WelcomeBackStep
+            nominee={nominee}
+            competition={competition}
+            email={nominee?.email || ''}
             onLogin={handleGreetLogin}
-            onForgotPassword={flow.sendPasswordReset}
-            onCancel={() => setGreetDismissed(true)}
-            cancelLabel="Continue as a new account"
+            onContinueAsNew={() => setGreetChoice('new')}
+            onForgotPassword={handleForgotPassword}
+            submitting={flow.isSubmitting}
+            error={flow.submitError}
           />
         </div>
       </div>

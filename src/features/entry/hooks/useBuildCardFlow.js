@@ -689,22 +689,7 @@ export function useBuildCardFlow({
     next();
   }, [next, nomineeId]);
 
-  // ---- Account collision: check if email exists ----
-  const checkEmailExists = useCallback(async (email) => {
-    if (!email?.trim()) return false;
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email.trim())
-        .maybeSingle();
-      return !!data;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // ---- Login existing account (account collision) ----
+  // ---- Login existing account (returning nominee / account collision) ----
   const loginExistingAccount = useCallback(async (email, password) => {
     setIsSubmitting(true);
     setSubmitError('');
@@ -750,10 +735,10 @@ export function useBuildCardFlow({
           .eq('id', nomineeId);
       }
 
-      return { success: true };
+      return true;
     } catch (err) {
       setSubmitError(err.message || 'Invalid email or password');
-      return { success: false, error: err.message || 'Incorrect email or password.' };
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -810,7 +795,6 @@ export function useBuildCardFlow({
     submitCard,
     createAccount,
     skipPassword,
-    checkEmailExists,
     loginExistingAccount,
     sendPasswordReset,
     setSubmitError,
