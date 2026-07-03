@@ -50,9 +50,10 @@ export function NominationsPhase() {
       ? `/${orgSlug}/id/${competition.id}/rules`
       : null;
 
-  // Real entry count — the stat card only appears once entries exist.
+  // Real nominee count — the stat card only appears once there are enough
+  // nominees to signal momentum (10+); below that we keep the count private.
   const entryCount = contestants?.length || 0;
-  const hasEntries = entryCount > 0;
+  const showNomineeCount = entryCount >= 10;
 
   // The timeline column (Timeline + Charity) only renders once a host has
   // added at least one date or a charity; otherwise the page drops to a
@@ -112,7 +113,7 @@ export function NominationsPhase() {
       </section>
 
       {/* Stats Row - Centered below CTA */}
-      <section className={`phase-stats ${hasEntries ? 'phase-stats-centered' : 'phase-stats-solo'}`}>
+      <section className={`phase-stats ${showNomineeCount ? 'phase-stats-centered' : 'phase-stats-solo'}`}>
         <div className="stat-card stat-card-urgent">
           <div className="stat-icon-wrap">
             <Clock size={20} className="stat-icon" />
@@ -120,13 +121,13 @@ export function NominationsPhase() {
           <CountdownDisplay label="" />
           <span className="stat-label">Nominations Close</span>
         </div>
-        {hasEntries && (
+        {showNomineeCount && (
           <div className="stat-card">
             <div className="stat-icon-wrap">
               <Users size={20} className="stat-icon" />
             </div>
             <span className="stat-value">{entryCount.toLocaleString()}</span>
-            <span className="stat-label">Entries</span>
+            <span className="stat-label">Nominees</span>
           </div>
         )}
       </section>
