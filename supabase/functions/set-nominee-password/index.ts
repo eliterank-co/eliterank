@@ -309,7 +309,7 @@ serve(async (req) => {
     // data and upsert into the profile to fill any gaps.
     const { data: fullNominee } = await supabase
       .from('nominees')
-      .select('name, email, avatar_url, bio, city, age, instagram, phone')
+      .select('name, email, avatar_url, bio, city, age, birthdate, instagram, phone')
       .eq('id', nominee.id)
       .single()
 
@@ -324,6 +324,7 @@ serve(async (req) => {
         bio: fullNominee.bio || null,
         city: fullNominee.city || null,
         age: fullNominee.age || null,
+        birthdate: fullNominee.birthdate || null,
         instagram: fullNominee.instagram || null,
         phone: fullNominee.phone || null,
         onboarded_at: new Date().toISOString(),

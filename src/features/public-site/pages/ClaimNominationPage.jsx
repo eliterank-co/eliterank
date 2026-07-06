@@ -14,6 +14,7 @@ import PhotoUpload from '../../entry/components/PhotoUpload';
 import BuildCardDetailsStep from '../../entry/components/BuildCardDetailsStep';
 import SelfPitchStep from '../../entry/components/SelfPitchStep';
 import CreatePasswordStep from '../../entry/components/CreatePasswordStep';
+import WelcomeBackStep from '../../entry/components/WelcomeBackStep';
 import CardReveal from '../../entry/components/CardReveal';
 import CompetitionBanner from '../../entry/components/CompetitionBanner';
 
@@ -40,6 +41,13 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
   const [nominee, setNominee] = useState(null);
   const [competition, setCompetition] = useState(null);
   const [error, setError] = useState(null);
+
+  // "Welcome back" greet: does this nominee's invite email already own an
+  // EliteRank account? If so, offer log-in (pre-fill + skip password) instead
+  // of a second signup.
+  const [hasExistingAccount, setHasExistingAccount] = useState(false);
+  const [greetChoice, setGreetChoice] = useState(null); // null | 'new'
+  const [loggedInViaGreet, setLoggedInViaGreet] = useState(false);
 
   const flowRef = useRef(null);
 
@@ -195,7 +203,9 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
   // Derive needsPassword inline rather than syncing via state — prevents the
   // page from getting stuck on the spinner if the auth check hangs.
   const isSelfNominee = nominee?.nominated_by === 'self';
-  const needsPassword = isSelfNominee ? !effectiveUser : !isNomineeUser;
+  // A returning nominee who logs in via the greet no longer needs the password
+  // step (the step list is memoized on needsPassword, so it drops automatically).
+  const needsPassword = isSelfNominee ? !effectiveUser : (!isNomineeUser && !loggedInViaGreet);
 
   // Initialize the Build Your Card flow
   // Self-nominees resuming via claim link use the self flow (no accept/decline step)
@@ -210,6 +220,45 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
     nominee,
     needsPassword,
   });
+
+  // Detect whether the nominee's invite email already owns an account, so we can
+  // greet returning nominees with a log-in instead of a second signup. Uses a
+  // token-scoped SECURITY DEFINER RPC (no email enumeration; callable by anon).
+  useEffect(() => {
+    let cancelled = false;
+    const inviteToken = nominee?.invite_token;
+    if (!inviteToken || isSelfNominee || isNomineeUser) {
+      setHasExistingAccount(false);
+      return;
+    }
+    (async () => {
+      try {
+        const { data } = await supabase.rpc('nominee_invite_has_account', { p_token: inviteToken });
+        if (!cancelled) setHasExistingAccount(!!data);
+      } catch {
+        if (!cancelled) setHasExistingAccount(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [nominee?.invite_token, isSelfNominee, isNomineeUser]);
+
+  // ---- Welcome-back greet handlers ----
+  const handleGreetLogin = async (password) => {
+    if (!nominee?.email) return;
+    const ok = await flow.loginExistingAccount(nominee.email, password);
+    if (ok) setLoggedInViaGreet(true);
+  };
+  const handleForgotPassword = async (email) => {
+    if (!email) return;
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      toast.success('Password reset link sent — check your email.');
+    } catch {
+      toast.error('Could not send reset email. Please try again.');
+    }
+  };
 
   // Scroll to top on step change
   useEffect(() => {
@@ -291,6 +340,36 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
         <div className="entry-loading">
           <div className="entry-spinner" />
           <p>Loading your nomination...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Welcome back: returning nominee whose email already has an account ----
+  // Only greet while still on the first step — the RPC resolves async, so
+  // without this a late response could replace a step the nominee has already
+  // advanced to (accept → photo → …).
+  const showGreet =
+    flowMode === 'third-party' &&
+    hasExistingAccount &&
+    !isNomineeUser &&
+    !loggedInViaGreet &&
+    greetChoice !== 'new' &&
+    flow.currentStepIndex === 0;
+  if (showGreet) {
+    return (
+      <div className="entry-flow" ref={flowRef}>
+        <div className="entry-content">
+          <WelcomeBackStep
+            nominee={nominee}
+            competition={competition}
+            email={nominee?.email || ''}
+            onLogin={handleGreetLogin}
+            onContinueAsNew={() => setGreetChoice('new')}
+            onForgotPassword={handleForgotPassword}
+            submitting={flow.isSubmitting}
+            error={flow.submitError}
+          />
         </div>
       </div>
     );
@@ -423,6 +502,7 @@ function renderClaimStep(flow, competition, nominee, handleDecline, handleInelig
           isSubmitting={flow.isSubmitting}
           error={flow.submitError}
           isSettingPassword={!!user}
+          onForgotPassword={flow.sendPasswordReset}
         />
       );
 

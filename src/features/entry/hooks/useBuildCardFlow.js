@@ -86,6 +86,7 @@ export function useBuildCardFlow({
     firstName: profile?.first_name || nameParts[0] || '',
     lastName: profile?.last_name || nameParts.slice(1).join(' ') || '',
     age: profile?.age || nominee?.age || '',
+    birthdate: profile?.birthdate || nominee?.birthdate || '',
     location: profile?.city || nominee?.city || getCityName(competition) || '',
     email: profile?.email || nominee?.email || user?.email || '',
     phone: profile?.phone || nominee?.phone || '',
@@ -114,6 +115,7 @@ export function useBuildCardFlow({
         firstName: prev.firstName || parts[0] || '',
         lastName: prev.lastName || parts.slice(1).join(' ') || '',
         age: prev.age || nominee.age || '',
+        birthdate: prev.birthdate || nominee.birthdate || '',
         location: prev.location || nominee.city || '',
         email: prev.email || nominee.email || user?.email || '',
         phone: prev.phone || nominee.phone || '',
@@ -332,6 +334,7 @@ export function useBuildCardFlow({
         phone: cardData.phone?.trim() || null,
         instagram: cardData.instagram?.trim() || null,
         age: cardData.age ? parseInt(cardData.age, 10) : null,
+        birthdate: cardData.birthdate || null,
         avatar_url: avatarUrl || null,
         city: cardData.location?.trim() || null,
         flow_stage: flowStage,
@@ -413,6 +416,7 @@ export function useBuildCardFlow({
         phone: cardData.phone?.trim() || null,
         instagram: cardData.instagram?.trim() || null,
         age: cardData.age ? parseInt(cardData.age, 10) : null,
+        birthdate: cardData.birthdate || null,
         avatar_url: avatarUrl || null,
         city: cardData.location?.trim() || null,
         bio: cardData.bio?.trim() || null,
@@ -471,6 +475,7 @@ export function useBuildCardFlow({
             bio: cardData.bio?.trim() || undefined,
             city: cardData.location?.trim() || undefined,
             age: cardData.age ? parseInt(cardData.age, 10) : undefined,
+            birthdate: cardData.birthdate || undefined,
             instagram: cardData.instagram?.trim() || undefined,
             updated_at: new Date().toISOString(),
           })
@@ -639,6 +644,7 @@ export function useBuildCardFlow({
             bio: cardData.bio?.trim() || null,
             city: cardData.location?.trim() || null,
             age: cardData.age ? parseInt(cardData.age, 10) : null,
+            birthdate: cardData.birthdate || null,
             instagram: cardData.instagram?.trim() || null,
             phone: cardData.phone?.trim() || null,
             onboarded_at: new Date().toISOString(),
@@ -683,22 +689,7 @@ export function useBuildCardFlow({
     next();
   }, [next, nomineeId]);
 
-  // ---- Account collision: check if email exists ----
-  const checkEmailExists = useCallback(async (email) => {
-    if (!email?.trim()) return false;
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email.trim())
-        .maybeSingle();
-      return !!data;
-    } catch {
-      return false;
-    }
-  }, []);
-
-  // ---- Login existing account (account collision) ----
+  // ---- Login existing account (returning nominee / account collision) ----
   const loginExistingAccount = useCallback(async (email, password) => {
     setIsSubmitting(true);
     setSubmitError('');
@@ -727,8 +718,12 @@ export function useBuildCardFlow({
           lastName: prev.lastName || profileData.last_name || '',
           age: prev.age || profileData.age || '',
           location: prev.location || profileData.city || '',
+          email: prev.email || profileData.email || '',
+          phone: prev.phone || profileData.phone || '',
           instagram: prev.instagram || profileData.instagram || '',
+          birthdate: prev.birthdate || profileData.birthdate || '',
           photoPreview: prev.photoPreview || profileData.avatar_url || '',
+          bio: prev.bio || profileData.bio || '',
         }));
       }
 
@@ -748,6 +743,28 @@ export function useBuildCardFlow({
       setIsSubmitting(false);
     }
   }, [nomineeId]);
+
+  // ---- Forgot password: send a reset email ----
+  // Rescues the dead-end where a logged-out existing user (who forgot their
+  // password) reaches the claim password step. Mirrors LoginPage's reset flow:
+  // Supabase emails a recovery link that lands on /reset-password.
+  const sendPasswordReset = useCallback(async (targetEmail) => {
+    const addr = (targetEmail || cardData.email || '').trim();
+    if (!addr) {
+      return { success: false, error: 'No email on file to send a reset to.' };
+    }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(addr, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        return { success: false, error: error.message || 'Failed to send reset email.' };
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Failed to send reset email.' };
+    }
+  }, [cardData.email]);
 
   return {
     // State
@@ -778,8 +795,8 @@ export function useBuildCardFlow({
     submitCard,
     createAccount,
     skipPassword,
-    checkEmailExists,
     loginExistingAccount,
+    sendPasswordReset,
     setSubmitError,
   };
 }

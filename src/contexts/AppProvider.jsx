@@ -1,7 +1,6 @@
 import React from 'react';
 import { AuthProvider } from './AuthContext';
 import { CompetitionProvider } from './CompetitionContext';
-import { NomineeProvider } from './NomineeContext';
 import { AnnouncementProvider } from './AnnouncementContext';
 
 /**
@@ -12,11 +11,9 @@ export function AppProvider({ children }) {
   return (
     <AuthProvider>
       <CompetitionProvider>
-        <NomineeProvider>
-          <AnnouncementProvider>
-            {children}
-          </AnnouncementProvider>
-        </NomineeProvider>
+        <AnnouncementProvider>
+          {children}
+        </AnnouncementProvider>
       </CompetitionProvider>
     </AuthProvider>
   );

@@ -37,7 +37,7 @@ export default function PhotoUpload({
     <div className="entry-step entry-step-photo">
       <h2 className="entry-step-title">Add your best photo</h2>
       <p className="entry-step-subtitle">
-        This will be your competition profile picture
+        This will be your competition profile picture — you can change it anytime.
       </p>
 
       <div className="entry-photo-area">

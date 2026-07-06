@@ -4,7 +4,7 @@ import { uploadPhoto } from '../utils/uploadPhoto';
 import { resolveNominationFormConfig } from '../../../utils/nominationFormDefaults';
 
 // Columns added by later migrations — strip if migration hasn't run yet
-const NEW_COLUMNS = ['city', 'flow_stage', 'gender'];
+const NEW_COLUMNS = ['city', 'flow_stage', 'gender', 'birthdate'];
 
 function stripNewColumns(record) {
   const clean = { ...record };
@@ -90,6 +90,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     phone: profile?.phone || '',
     instagram: profile?.instagram || '',
     age: profile?.age || '',
+    birthdate: profile?.birthdate || '',
     location: profile?.city || '',
     photoFile: null,
     photoPreview: profile?.avatar_url || '',
@@ -204,6 +205,7 @@ export function useEntryFlow(competition, profile, options = {}) {
           phone: existingNominee.phone || prev.phone,
           instagram: existingNominee.instagram || prev.instagram,
           age: existingNominee.age ? String(existingNominee.age) : prev.age,
+          birthdate: existingNominee.birthdate || prev.birthdate,
           location: existingNominee.city || prev.location,
           photoPreview: existingNominee.avatar_url || prev.photoPreview,
           bio: existingNominee.bio || prev.bio,
@@ -282,7 +284,8 @@ export function useEntryFlow(competition, profile, options = {}) {
         email: prev.email || profile.email || '',
         phone: prev.phone || profile.phone || '',
         instagram: prev.instagram || profile.instagram || '',
-        age: prev.age || profile.age || '',
+        age: prev.age || (profile.age ? String(profile.age) : ''),
+        birthdate: prev.birthdate || profile.birthdate || '',
         location: prev.location || profile.city || '',
         photoPreview: prev.photoPreview || profile.avatar_url || '',
       }));
@@ -360,6 +363,7 @@ export function useEntryFlow(competition, profile, options = {}) {
         phone: selfData.phone?.trim() || null,
         instagram: selfData.instagram?.trim() || null,
         age: selfData.age ? parseInt(selfData.age, 10) : null,
+        birthdate: selfData.birthdate || null,
         city: selfData.location?.trim() || null,
         gender: selfData.gender || null,
         avatar_url: avatarUrl || null,
@@ -382,6 +386,7 @@ export function useEntryFlow(competition, profile, options = {}) {
           phone: record.phone,
           instagram: record.instagram,
           age: record.age,
+          birthdate: record.birthdate,
           city: record.city,
           gender: record.gender,
           avatar_url: record.avatar_url,
@@ -451,7 +456,8 @@ export function useEntryFlow(competition, profile, options = {}) {
         bio: selfData.bio,
         isNomination: false,
       });
-      const target = isLoggedIn ? steps.indexOf('card') : steps.indexOf('password');
+      const pwIndex = steps.indexOf('password');
+      const target = pwIndex >= 0 ? pwIndex : steps.indexOf('card');
       setCurrentStepIndex(target >= 0 ? target : steps.length - 1);
       setIsSubmitting(false);
       return;
@@ -475,6 +481,7 @@ export function useEntryFlow(competition, profile, options = {}) {
         bio: selfData.bio.trim() || null,
         avatar_url: avatarUrl || null,
         age: selfData.age ? parseInt(selfData.age, 10) : null,
+        birthdate: selfData.birthdate || null,
         city: selfData.location?.trim() || null,
         gender: selfData.gender || null,
         // Anon users still need the password step — set 'bio' so resume
@@ -546,6 +553,7 @@ export function useEntryFlow(competition, profile, options = {}) {
         if (selfData.bio?.trim()) profileUpdate.bio = selfData.bio.trim();
         if (selfData.location?.trim()) profileUpdate.city = selfData.location.trim();
         if (selfData.age) profileUpdate.age = parseInt(selfData.age, 10);
+        if (selfData.birthdate) profileUpdate.birthdate = selfData.birthdate;
         if (selfData.instagram?.trim()) profileUpdate.instagram = selfData.instagram.trim();
 
         const { error: profileErr } = await supabase
@@ -568,12 +576,13 @@ export function useEntryFlow(competition, profile, options = {}) {
         isNomination: false,
       });
 
-      // Move to card reveal (skip password for logged-in) or to password step
-      if (!isLoggedIn) {
-        setCurrentStepIndex(steps.indexOf('password'));
-      } else {
-        setCurrentStepIndex(steps.indexOf('card'));
-      }
+      // Advance to the password step if this flow has one, else to the card.
+      // Keying off the (frozen) step list rather than isLoggedIn avoids a race:
+      // right after a mid-flow login, loginAndPrefill swaps to the no-password
+      // step list before the async profile load flips isLoggedIn — using
+      // isLoggedIn here would indexOf('password') → -1 → bounce to mode select.
+      const pwIndex = steps.indexOf('password');
+      setCurrentStepIndex(pwIndex >= 0 ? pwIndex : steps.indexOf('card'));
     } catch (err) {
       setSubmitError(err.message || 'Failed to submit entry');
     } finally {
@@ -700,6 +709,7 @@ export function useEntryFlow(competition, profile, options = {}) {
             bio: selfData.bio?.trim() || null,
             city: selfData.location?.trim() || null,
             age: selfData.age ? parseInt(selfData.age, 10) : null,
+            birthdate: selfData.birthdate || null,
             instagram: selfData.instagram?.trim() || null,
             phone: selfData.phone?.trim() || null,
             onboarded_at: new Date().toISOString(),
@@ -852,6 +862,66 @@ export function useEntryFlow(competition, profile, options = {}) {
     setCurrentStepIndex(steps.indexOf('nominee'));
   }, [steps]);
 
+  // ---- Log in an existing user mid-flow and pre-fill their details ----
+  // Powers the optional "Already have an account? Log in" link on the details
+  // step. On success it fills empty self fields from the profile and switches
+  // to the authenticated step list so the password step is dropped. Safe to
+  // call from any step up through 'bio' — the anon/auth lists share that prefix.
+  const loginAndPrefill = useCallback(async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileData) {
+        setSelfData((prev) => ({
+          ...prev,
+          firstName: prev.firstName || profileData.first_name || '',
+          lastName: prev.lastName || profileData.last_name || '',
+          email: prev.email || profileData.email || '',
+          phone: prev.phone || profileData.phone || '',
+          instagram: prev.instagram || profileData.instagram || '',
+          age: prev.age || (profileData.age ? String(profileData.age) : ''),
+          birthdate: prev.birthdate || profileData.birthdate || '',
+          location: prev.location || profileData.city || '',
+          photoPreview: prev.photoPreview || profileData.avatar_url || '',
+          bio: prev.bio || profileData.bio || '',
+        }));
+      }
+
+      frozenStepsRef.current = selfStepsAuth;
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Incorrect email or password.' };
+    }
+  }, [selfStepsAuth]);
+
+  // ---- Forgot password: send a reset email ----
+  // Same rescue as the claim flow: a self-nominee who already has an account
+  // but forgot their password can trigger a reset instead of hitting a wall.
+  const sendPasswordReset = useCallback(async (targetEmail) => {
+    const addr = (targetEmail || selfData.email || '').trim();
+    if (!addr) {
+      return { success: false, error: 'No email on file to send a reset to.' };
+    }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(addr, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        return { success: false, error: error.message || 'Failed to send reset email.' };
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Failed to send reset email.' };
+    }
+  }, [selfData.email]);
+
   return {
     // State
     mode,
@@ -889,6 +959,8 @@ export function useEntryFlow(competition, profile, options = {}) {
     persistSelfProgress,
     createAccount,
     skipPassword,
+    loginAndPrefill,
+    sendPasswordReset,
     setSubmitError,
   };
 }

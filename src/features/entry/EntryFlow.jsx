@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { usePublicCompetition } from '../../contexts/PublicCompetitionContext';
@@ -9,6 +9,7 @@ import { getCompetitionTitle } from './utils/eligibilityEngine';
 // Step components
 import CompetitionBanner from './components/CompetitionBanner';
 import ModeSelect from './components/ModeSelect';
+import ExistingAccountLogin from './components/ExistingAccountLogin';
 import EligibilityStep from './components/EligibilityStep';
 import PhotoUpload from './components/PhotoUpload';
 import BuildCardDetailsStep from './components/BuildCardDetailsStep';
@@ -47,6 +48,18 @@ export default function EntryFlow() {
   const flow = useEntryFlow(competition, profile, { isPreview });
   const flowRef = useRef(null);
 
+  // Optional login on the details step. New users just enter their details as
+  // usual (best for conversion — no wall); returning self-entrants can tap a
+  // small "Already have an account? Log in" link to pre-fill their details and
+  // skip the password step. Not shown to nominators or logged-in users.
+  const [showLogin, setShowLogin] = useState(false);
+
+  const handleDetailsLogin = async (email, password) => {
+    const result = await flow.loginAndPrefill(email, password);
+    if (result?.success) setShowLogin(false);
+    return result;
+  };
+
   const competitionTitle = getCompetitionTitle(competition);
 
   // Scroll to top on step change to prevent layout jump
@@ -73,6 +86,11 @@ export default function EntryFlow() {
 
   // Handle back to competition page
   const handleBack = () => {
+    // If the self-entry login panel is open, back just closes it → mode select.
+    if (showLogin) {
+      setShowLogin(false);
+      return;
+    }
     if (flow.currentStep !== 'mode' && flow.currentStep !== 'card') {
       flow.back();
     } else {
@@ -195,7 +213,37 @@ export default function EntryFlow() {
           about,
           phase,
           organizationLogoUrl: organization?.logo_url,
+        }, {
+          showLogin,
+          setShowLogin,
+          onLogin: handleDetailsLogin,
+          sendPasswordReset: flow.sendPasswordReset,
+          isLoggedIn: flow.isLoggedIn,
         })}
+
+        {/* "Already have an account?" link — sits directly beneath the step's
+            button across the early self steps. New users ignore it; returning
+            users log in to pre-fill. Hidden once logged in / on the nominate path. */}
+        {!showLogin && flow.mode === 'self' && !flow.isLoggedIn &&
+          ['eligibility', 'photo', 'details'].includes(flow.currentStep) && (
+          <div style={{ textAlign: 'center', marginTop: 16 }}>
+            <button
+              type="button"
+              onClick={() => setShowLogin(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                fontSize: 14,
+                padding: 0,
+                textDecoration: 'underline',
+              }}
+            >
+              Already have an account? Log in
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -204,7 +252,22 @@ export default function EntryFlow() {
 /**
  * Render the current step
  */
-function renderStep(flow, competition, competitionTitle, handleDone, handleNominateAnother, handleDetailsNext, guideContext = {}) {
+function renderStep(flow, competition, competitionTitle, handleDone, handleNominateAnother, handleDetailsNext, guideContext = {}, authCtx = {}) {
+  // Returning-user login can be opened from any early self step — render it in
+  // place of the current step's content while open.
+  if (authCtx.showLogin) {
+    return (
+      <ExistingAccountLogin
+        title="Log in to pre-fill"
+        subtitle="Already have an account? Log in and we'll fill in your details."
+        onLogin={authCtx.onLogin}
+        onForgotPassword={authCtx.sendPasswordReset}
+        onCancel={() => authCtx.setShowLogin(false)}
+        cancelLabel="Back"
+      />
+    );
+  }
+
   switch (flow.currentStep) {
     case 'mode':
       return (
@@ -284,6 +347,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           isSubmitting={flow.isSubmitting}
           error={flow.submitError}
           isSettingPassword={false}
+          onForgotPassword={flow.sendPasswordReset}
         />
       );
 

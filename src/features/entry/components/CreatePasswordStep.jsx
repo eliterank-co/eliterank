@@ -18,11 +18,22 @@ export default function CreatePasswordStep({
   isSubmitting,
   error,
   isSettingPassword, // true = existing user setting password, false = new signup
+  onForgotPassword, // async (email) => { success, error } — sends reset email
 }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [resetStatus, setResetStatus] = useState('idle'); // idle | sending | sent
+  const [resetError, setResetError] = useState('');
+
+  // The account-collision error thrown by createAccount when a logged-out user
+  // already has an account but entered the wrong/forgotten password.
+  const accountExists = /already exists|existing password|reset it/i.test(error || '');
+
+  // Offer a reset path whenever a password already exists behind this email:
+  // an existing user setting a password, or the collision error above.
+  const showForgot = !!onForgotPassword && (isSettingPassword || accountExists);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -38,6 +49,19 @@ export default function CreatePasswordStep({
     }
 
     onSubmit(password);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!onForgotPassword || resetStatus === 'sending') return;
+    setResetError('');
+    setResetStatus('sending');
+    const result = await onForgotPassword(email);
+    if (result?.success) {
+      setResetStatus('sent');
+    } else {
+      setResetStatus('idle');
+      setResetError(result?.error || 'Failed to send reset email.');
+    }
   };
 
   return (
@@ -118,6 +142,39 @@ export default function CreatePasswordStep({
           ? (isSettingPassword ? 'Setting password...' : 'Creating account...')
           : (isSettingPassword ? 'Set Password & Continue' : 'Create Account & Continue')}
       </button>
+
+      {showForgot && (
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          {resetStatus === 'sent' ? (
+            <p className="entry-step-subtitle" style={{ margin: 0 }}>
+              Password reset email sent to {email}. Check your inbox, then come
+              back and continue.
+            </p>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetStatus === 'sending'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                {resetStatus === 'sending'
+                  ? 'Sending reset email...'
+                  : 'Already have an account? Reset your password'}
+              </button>
+              {resetError && <p className="entry-error">{resetError}</p>}
+            </>
+          )}
+        </div>
+      )}
     </form>
   );
 }
