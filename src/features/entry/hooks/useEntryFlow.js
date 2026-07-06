@@ -284,7 +284,7 @@ export function useEntryFlow(competition, profile, options = {}) {
         email: prev.email || profile.email || '',
         phone: prev.phone || profile.phone || '',
         instagram: prev.instagram || profile.instagram || '',
-        age: prev.age || profile.age || '',
+        age: prev.age || (profile.age ? String(profile.age) : ''),
         birthdate: prev.birthdate || profile.birthdate || '',
         location: prev.location || profile.city || '',
         photoPreview: prev.photoPreview || profile.avatar_url || '',
@@ -456,7 +456,8 @@ export function useEntryFlow(competition, profile, options = {}) {
         bio: selfData.bio,
         isNomination: false,
       });
-      const target = isLoggedIn ? steps.indexOf('card') : steps.indexOf('password');
+      const pwIndex = steps.indexOf('password');
+      const target = pwIndex >= 0 ? pwIndex : steps.indexOf('card');
       setCurrentStepIndex(target >= 0 ? target : steps.length - 1);
       setIsSubmitting(false);
       return;
@@ -575,12 +576,13 @@ export function useEntryFlow(competition, profile, options = {}) {
         isNomination: false,
       });
 
-      // Move to card reveal (skip password for logged-in) or to password step
-      if (!isLoggedIn) {
-        setCurrentStepIndex(steps.indexOf('password'));
-      } else {
-        setCurrentStepIndex(steps.indexOf('card'));
-      }
+      // Advance to the password step if this flow has one, else to the card.
+      // Keying off the (frozen) step list rather than isLoggedIn avoids a race:
+      // right after a mid-flow login, loginAndPrefill swaps to the no-password
+      // step list before the async profile load flips isLoggedIn — using
+      // isLoggedIn here would indexOf('password') → -1 → bounce to mode select.
+      const pwIndex = steps.indexOf('password');
+      setCurrentStepIndex(pwIndex >= 0 ? pwIndex : steps.indexOf('card'));
     } catch (err) {
       setSubmitError(err.message || 'Failed to submit entry');
     } finally {

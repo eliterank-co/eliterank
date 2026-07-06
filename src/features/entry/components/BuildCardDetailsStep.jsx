@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Mail, Instagram, MapPin, Calendar } from 'lucide-react';
 
 // Derive whole-year age from a YYYY-MM-DD birthdate string.
@@ -30,15 +30,23 @@ export default function BuildCardDetailsStep({
     onChange({ [field]: e.target.value });
   };
 
-  // Birthdate is the input; age is derived and stored so everything
-  // downstream (card display, eligibility, DB) keeps working off `age`.
+  // Birthdate is the single source of truth; age is always derived from it so
+  // everything downstream (card display, eligibility, DB) keeps working off
+  // `age` — and a prefilled DOB can never desync from a stale age field.
+  const derivedAge = ageFromBirthdate(data.birthdate);
+
   const handleBirthdate = (e) => {
-    const birthdate = e.target.value;
-    const derived = ageFromBirthdate(birthdate);
-    onChange({ birthdate, age: derived != null ? String(derived) : '' });
+    onChange({ birthdate: e.target.value });
   };
 
-  const derivedAge = data.age ? parseInt(data.age, 10) : null;
+  // Keep the stored `age` in sync with the birthdate, including prefilled DOBs
+  // that never passed through the change handler.
+  useEffect(() => {
+    const a = derivedAge != null ? String(derivedAge) : '';
+    if ((data.age || '') !== a) onChange({ age: a });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.birthdate]);
+
   const todayStr = new Date().toISOString().split('T')[0];
 
   const hasEmail = data.email?.trim() && data.email.includes('@');

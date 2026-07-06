@@ -23,6 +23,17 @@ export default function WelcomeBackStep({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [resetStatus, setResetStatus] = useState('idle'); // idle | sending | sent
+
+  const handleForgot = async () => {
+    if (resetStatus !== 'idle') return; // guard against duplicate reset emails
+    setResetStatus('sending');
+    try {
+      await onForgotPassword(email);
+    } finally {
+      setResetStatus('sent');
+    }
+  };
 
   const firstName = nominee?.name?.split(' ')[0] || '';
   const competitionName =
@@ -89,10 +100,14 @@ export default function WelcomeBackStep({
         <button
           type="button"
           className="entry-link-btn"
-          onClick={() => onForgotPassword(email)}
-          disabled={submitting}
+          onClick={handleForgot}
+          disabled={submitting || resetStatus !== 'idle'}
         >
-          Forgot your password?
+          {resetStatus === 'idle'
+            ? 'Forgot your password?'
+            : resetStatus === 'sending'
+              ? 'Sending reset email…'
+              : 'Reset link sent — check your email'}
         </button>
       )}
 

@@ -156,7 +156,7 @@ export default function ExistingAccountLogin({
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--color-text-secondary, #888)',
+              color: 'var(--color-text-secondary)',
               cursor: 'pointer',
               fontSize: 13,
               padding: 0,

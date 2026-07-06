@@ -346,12 +346,16 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
   }
 
   // ---- Welcome back: returning nominee whose email already has an account ----
+  // Only greet while still on the first step — the RPC resolves async, so
+  // without this a late response could replace a step the nominee has already
+  // advanced to (accept → photo → …).
   const showGreet =
     flowMode === 'third-party' &&
     hasExistingAccount &&
     !isNomineeUser &&
     !loggedInViaGreet &&
-    greetChoice !== 'new';
+    greetChoice !== 'new' &&
+    flow.currentStepIndex === 0;
   if (showGreet) {
     return (
       <div className="entry-flow" ref={flowRef}>
