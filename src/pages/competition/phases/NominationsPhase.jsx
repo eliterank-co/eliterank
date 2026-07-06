@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
+import { useNomineeCount } from '../../../hooks/useNomineeCount';
 import { Users, Clock } from 'lucide-react';
 import { Rewards } from '../components/Rewards';
 import { WhoCompetes } from '../components/WhoCompetes';
@@ -26,7 +27,7 @@ import { JudgesSection } from '../components/JudgesSection';
 export function NominationsPhase() {
   const {
     competition, orgSlug, competitionSlug, votingRounds, nominationPeriods,
-    about, events, contestants, isPreview,
+    about, events, isPreview,
   } = usePublicCompetition();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -50,10 +51,12 @@ export function NominationsPhase() {
       ? `/${orgSlug}/id/${competition.id}/rules`
       : null;
 
-  // Real nominee count — the stat card only appears once there are enough
-  // nominees to signal momentum (10+); below that we keep the count private.
-  const entryCount = contestants?.length || 0;
-  const showNomineeCount = entryCount >= 10;
+  // Real nominee count — counts every nomination submitted (the `nominees`
+  // table), NOT the contestants roster (which excludes nominees who haven't
+  // accepted + completed entry). The stat card only appears once there are
+  // enough nominees to signal momentum (10+); below that we keep it private.
+  const { count: nomineeCount } = useNomineeCount(competition?.id);
+  const showNomineeCount = nomineeCount >= 10;
 
   // The timeline column (Timeline + Charity) only renders once a host has
   // added at least one date or a charity; otherwise the page drops to a
@@ -126,7 +129,7 @@ export function NominationsPhase() {
             <div className="stat-icon-wrap">
               <Users size={20} className="stat-icon" />
             </div>
-            <span className="stat-value">{entryCount.toLocaleString()}</span>
+            <span className="stat-value">{nomineeCount.toLocaleString()}</span>
             <span className="stat-label">Nominees</span>
           </div>
         )}
