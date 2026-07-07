@@ -33,8 +33,8 @@ const FORMAT_CARDS = [
 
 const FORMAT_SPECS = {
   publicVote: { Winner: 'Public votes', Voting: 'Free + paid', 'Entry fee': 'None', Charity: 'Required', Judges: 'None' },
-  hybrid: { Winner: 'Judges', Voting: 'Free + paid', 'Entry fee': 'Optional', Charity: 'Optional', Judges: 'Panel of 3' },
-  judged: { Winner: 'Judges', Voting: 'None', 'Entry fee': 'Required', Charity: 'Optional', Judges: 'Panel of 3' },
+  hybrid: { Winner: 'Judges', Voting: 'Free + paid', 'Entry fee': 'Optional', Charity: 'Optional', Judges: 'Panel of 3+' },
+  judged: { Winner: 'Judges', Voting: 'None', 'Entry fee': 'Required', Charity: 'Optional', Judges: 'Panel of 3+' },
 };
 
 // Applicability shorthands.
