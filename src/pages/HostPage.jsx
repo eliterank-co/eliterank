@@ -53,7 +53,7 @@ const GROUPS = [
     lead: 'Bring people in, then let them run their own profiles.',
     icon: Users,
     features: [
-      { name: 'Nominations or applications', blurb: 'A quick nomination (by the contestant or anyone who backs them) or a longer self-submitted application. You approve every entry.', formats: ALL },
+      { name: 'Nominations or applications', blurb: 'A quick nomination (by the contestant or anyone who backs them) or a longer self-submitted application. Nominees accept and set up their profile right from an automated email invite, and you approve every entry.', formats: ALL },
       { name: 'Add your own lineup', blurb: 'Optionally skip nominations/applications entirely and upload contestants yourself from your contact list.', formats: ALL },
       { name: 'Branded onboarding', blurb: 'Custom qualifying questions in a flow that matches your competition.', formats: ALL },
       { name: 'Self-serve profiles', blurb: 'Contestants manage their own page and track performance in real time.', formats: ALL },
