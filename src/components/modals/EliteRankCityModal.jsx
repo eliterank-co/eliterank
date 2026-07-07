@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   X, Crown, MapPin, Calendar, Trophy, Clock, ChevronRight, Sparkles, Users,
-  Activity, Info, Briefcase, User, Megaphone, Award, Building, Heart,
+  Activity, Info, User, Megaphone, Award, Building, Heart,
   Home, Search, Bell, Menu, ArrowRight, Play, ExternalLink
 } from 'lucide-react';
 import { Button, Badge, OrganizationLogo, ProfileIcon, NotificationBell, EliteRankCrown, CrownIcon } from '../ui';
@@ -41,7 +41,6 @@ const TABS = [
   { id: 'competitions', label: 'Explore', icon: CrownIconWrapper, mobileIcon: Home },
   { id: 'events', label: 'Events', icon: Calendar, mobileIcon: Calendar },
   { id: 'announcements', label: 'News', icon: Megaphone, mobileIcon: Bell },
-  { id: 'opportunities', label: 'Join', icon: Briefcase, mobileIcon: Briefcase },
   { id: 'about', label: 'About', icon: Info, mobileIcon: Info },
 ];
 
@@ -1614,17 +1613,17 @@ export default function EliteRankCityModal({
                     gap: spacing.xs,
                     padding: `${spacing.sm} ${spacing.lg}`,
                     background: 'transparent',
-                    border: `1px solid ${colors.border.focus}`,
+                    border: 'none',
                     borderRadius: borderRadius.lg,
-                    color: colors.gold.primary,
+                    color: colors.text.secondary,
                     fontSize: typography.fontSize.sm,
-                    fontWeight: typography.fontWeight.semibold,
+                    fontWeight: typography.fontWeight.medium,
                     cursor: 'pointer',
                     transition: `all ${transitions.fast}`,
                   }}
                 >
                   <Building size={16} />
-                  For Hosts
+                  Host
                 </button>
               )}
             </nav>
@@ -1726,15 +1725,15 @@ export default function EliteRankCityModal({
                 padding: spacing.sm,
                 background: 'none',
                 border: 'none',
-                color: colors.gold.primary,
+                color: colors.text.muted,
                 cursor: 'pointer',
                 transition: `all ${transitions.fast}`,
                 flex: 1,
               }}
             >
               <Building size={22} />
-              <span style={{ fontSize: '10px', fontWeight: typography.fontWeight.semibold }}>
-                Hosts
+              <span style={{ fontSize: '10px', fontWeight: typography.fontWeight.normal }}>
+                Host
               </span>
             </button>
           )}
