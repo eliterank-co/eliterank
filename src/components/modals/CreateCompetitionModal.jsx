@@ -193,6 +193,11 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
 
       // Resolve Sponsor-of-record org.
       let organizationId, orgName;
+      // For a brand-new org, the name the host typed is also their legal entity
+      // (e.g. "Creator Social LLC"). We persist it as legal_entity_name AFTER the
+      // competition is created — the org UPDATE policy (hosts_update_own_org)
+      // only grants access once a competition links this host to the org.
+      let newOrgLegalEntityName = null;
       if (form.hostType === 'individual') {
         const personal = lookups.orgs.find((o) => o.org_type === 'individual');
         if (personal) { organizationId = personal.id; orgName = personal.name; }
@@ -208,16 +213,7 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
           p_logo_url: form.orgLogoUrl || null, p_website_url: form.orgWebsite || null, p_instagram: form.orgInstagram || null,
         });
         if (e) throw e; organizationId = org.id; orgName = org.name;
-        // Also store the entered name as the legal entity name so the branding
-        // page / Official Rules show it explicitly instead of "Not set" (it's
-        // the value the rules already fall back to). Non-critical — the org is
-        // already created and the caller owns it, so a failure here just leaves
-        // legal_entity_name null (which still falls back to the org name).
-        const { error: leErr } = await supabase
-          .from('organizations')
-          .update({ legal_entity_name: name })
-          .eq('id', org.id);
-        if (leErr) console.warn('Could not set legal_entity_name on new org:', leErr);
+        newOrgLegalEntityName = name;
       } else {
         organizationId = form.organizationId; orgName = lookups.orgs.find((o) => o.id === organizationId)?.name;
       }
@@ -278,6 +274,20 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
       };
       if (form.charityYes) updates.charity_percentage = Number(form.charityPercentage) || null;
       await supabase.from('competitions').update(updates).eq('id', comp.id);
+
+      // Seed the new org's legal entity name from the name the host entered, so
+      // the branding page / Official Rules show it explicitly instead of "Not
+      // set". Done here (not at org creation) because the org UPDATE policy only
+      // grants access now that this competition links the host to the org.
+      // Non-critical: on failure legal_entity_name stays null and still falls
+      // back to the org name.
+      if (newOrgLegalEntityName) {
+        const { error: leErr } = await supabase
+          .from('organizations')
+          .update({ legal_entity_name: newOrgLegalEntityName })
+          .eq('id', organizationId);
+        if (leErr) console.warn('Could not set legal_entity_name on new org:', leErr);
+      }
 
       onCreated?.(comp);
     } catch (err) {
