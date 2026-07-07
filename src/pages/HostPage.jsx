@@ -99,6 +99,7 @@ const GROUPS = [
     icon: Megaphone,
     features: [
       { name: 'Self-transforming page', blurb: 'Shifts automatically from entries, to live competition, to winner showcase.', formats: ALL },
+      { name: 'Multiple winners', blurb: 'Crown more than one winner, for example split by gender or category, all featured in the winner showcase.', formats: ALL },
       { name: 'Auto share cards', blurb: 'Shareable social cards generated for votes, advancement, and wins.', formats: ALL },
       { name: 'Fan follows & digests', blurb: 'Fans follow contestants they back, with opt-in weekly digests.', formats: ALL },
       { name: 'Automated updates', blurb: 'Lifecycle emails and in-app updates reach your audience for you.', formats: ALL },
