@@ -37,8 +37,6 @@ const FORMAT_SPECS = {
   judged: { Winner: 'Judges', Voting: 'None', 'Entry fee': 'Required', Charity: 'Optional', Judges: 'Panel of 3' },
 };
 
-const LABEL = { all: 'All formats', publicVote: 'Public Vote', hybrid: 'Hybrid', judged: 'Judged-Only' };
-
 // Applicability shorthands.
 const ALL = REAL_FORMATS;
 const VOTE = ['publicVote', 'hybrid'];   // vote-based mechanics
@@ -120,8 +118,6 @@ const GROUPS = [
   },
 ];
 
-const TOTAL = GROUPS.reduce((n, g) => n + g.features.length, 0);
-
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
@@ -200,10 +196,6 @@ const styles = {
 
   resetRow: { display: 'flex', alignItems: 'center', gap: spacing[3], marginTop: spacing[4], flexWrap: 'wrap' },
   resetText: { fontSize: typography.fontSize.sm, color: colors.text.tertiary },
-  resetBtn: {
-    background: 'none', border: 'none', color: colors.gold.primary, cursor: 'pointer',
-    fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, padding: 0,
-  },
 
   // Snapshot strip (shown when a specific format is selected)
   snapshot: {
@@ -282,11 +274,6 @@ export default function HostPage() {
       .filter((g) => g.features.length > 0);
   }, [selected, specific]);
 
-  const shownCount = useMemo(
-    () => visibleGroups.reduce((n, g) => n + g.features.length, 0),
-    [visibleGroups],
-  );
-
   return (
     <div style={styles.page}>
       <div style={styles.container}>
@@ -351,24 +338,14 @@ export default function HostPage() {
         </div>
 
         {specific ? (
-          <>
-            <div style={styles.snapshot}>
-              {Object.entries(FORMAT_SPECS[selected]).map(([k, v]) => (
-                <div key={k} style={styles.snapItem}>
-                  <span style={styles.snapKey}>{k}</span>
-                  <span style={styles.snapVal}>{v}</span>
-                </div>
-              ))}
-            </div>
-            <div style={styles.resetRow}>
-              <span style={styles.resetText}>
-                Showing the {shownCount} features that apply to {LABEL[selected]}.
-              </span>
-              <button style={styles.resetBtn} onClick={() => setSelected('all')}>
-                See all {TOTAL} features
-              </button>
-            </div>
-          </>
+          <div style={styles.snapshot}>
+            {Object.entries(FORMAT_SPECS[selected]).map(([k, v]) => (
+              <div key={k} style={styles.snapItem}>
+                <span style={styles.snapKey}>{k}</span>
+                <span style={styles.snapVal}>{v}</span>
+              </div>
+            ))}
+          </div>
         ) : (
           <div style={{ ...styles.resetRow, marginTop: spacing[5] }}>
             <span style={styles.resetText}>Everything below is included. Pick a format to narrow it down.</span>
