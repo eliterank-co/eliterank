@@ -72,6 +72,7 @@ function sponsorToWizardForm(sponsor) {
     providesContestantRewards: prizes.length > 0,
     recipient,
     topXCount: sponsor.rewardTopXCount != null ? String(sponsor.rewardTopXCount) : '',
+    recipientGender: sponsor.recipientGender || 'all',
     prizes,
   };
 }
@@ -86,6 +87,7 @@ function wizardFormToSponsor(form) {
     websiteUrl: form.websiteUrl,
     recipient: form.recipient,
     topXCount: form.topXCount ?? null,
+    recipientGender: form.recipientGender || 'all',
     prizes: form.prizes || [],
   };
 }
@@ -992,6 +994,7 @@ export default function CompetitionDashboard({
         onClose={() => setSponsorModal({ isOpen: false, sponsor: null })}
         sponsor={sponsorModal.sponsor ? sponsorToWizardForm(sponsorModal.sponsor) : null}
         tierAvailability={computeTierAvailability(data.sponsors, sponsorModal.sponsor)}
+        genderSplit={!!competition?.winnersSplitByGender}
         onSave={async (wizardData) => {
           const sponsorData = wizardFormToSponsor(wizardData);
           if (sponsorModal.sponsor) {

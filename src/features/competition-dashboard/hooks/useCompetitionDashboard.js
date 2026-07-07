@@ -489,6 +489,7 @@ export function useCompetitionDashboard(competitionId) {
         sortOrder: s.sort_order,
         rewardRecipient: s.reward_recipient || '',
         rewardTopXCount: s.reward_top_x_count ?? null,
+        recipientGender: s.recipient_gender || 'all',
         prizes: (prizesBySponsorId.get(s.id) || []).sort((a, b) => a.sortOrder - b.sortOrder),
       }));
 
@@ -1402,6 +1403,7 @@ export function useCompetitionDashboard(competitionId) {
           website_url: sponsorData.websiteUrl || null,
           reward_recipient: sponsorData.recipient || null,
           reward_top_x_count: sponsorData.topXCount ?? null,
+          recipient_gender: sponsorData.recipientGender || 'all',
           sort_order: maxSort + 1,
         })
         .select('id')
@@ -1449,6 +1451,7 @@ export function useCompetitionDashboard(competitionId) {
           website_url: sponsorData.websiteUrl || null,
           reward_recipient: sponsorData.recipient || null,
           reward_top_x_count: sponsorData.topXCount ?? null,
+          recipient_gender: sponsorData.recipientGender || 'all',
         })
         .eq('id', sponsorId);
 

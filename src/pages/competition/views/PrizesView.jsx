@@ -3,7 +3,7 @@ import { CrownIcon } from '../../../components/ui/icons';
 import { Gift, Trophy } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
 import { useResponsive } from '../../../hooks/useResponsive';
-import { formatPrizeRecipient } from '../../../utils/formatters';
+import { formatPrizeRecipient, formatPrizeGender } from '../../../utils/formatters';
 
 const styles = {
   container: {
@@ -148,6 +148,7 @@ export function PrizesView() {
  */
 function PrizeCard({ prize, isMobile }) {
   const recipientLabel = formatPrizeRecipient(prize);
+  const genderLabel = formatPrizeGender(prize);
   const Wrapper = prize.external_url ? 'a' : 'div';
   const wrapperProps = prize.external_url
     ? { href: prize.external_url, target: '_blank', rel: 'noopener noreferrer', style: { textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' } }
@@ -243,19 +244,22 @@ function PrizeCard({ prize, isMobile }) {
             {prize.title}
           </h3>
 
-          {recipientLabel && (
-            <span style={{
-              display: 'inline-block',
-              marginBottom: spacing.xs,
-              fontSize: isMobile ? '10px' : typography.fontSize.xs,
-              fontWeight: typography.fontWeight.medium,
-              color: colors.gold.primary,
-              background: colors.gold.muted,
-              padding: `2px ${spacing.sm}`,
-              borderRadius: borderRadius.pill,
-            }}>
-              {recipientLabel}
-            </span>
+          {(genderLabel || recipientLabel) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs }}>
+              {[genderLabel, recipientLabel].filter(Boolean).map((label) => (
+                <span key={label} style={{
+                  display: 'inline-block',
+                  fontSize: isMobile ? '10px' : typography.fontSize.xs,
+                  fontWeight: typography.fontWeight.medium,
+                  color: colors.gold.primary,
+                  background: colors.gold.muted,
+                  padding: `2px ${spacing.sm}`,
+                  borderRadius: borderRadius.pill,
+                }}>
+                  {label}
+                </span>
+              ))}
+            </div>
           )}
 
           {prize.description && !isMobile && (

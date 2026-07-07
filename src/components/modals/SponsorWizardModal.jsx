@@ -16,6 +16,15 @@ const RECIPIENT_OPTIONS = [
   { key: 'all', label: 'All contestants', hint: 'Every participant receives it' },
 ];
 
+// Only offered when the competition crowns winners split by gender. Lets a host
+// send a prize to just the men or just the women (e.g. the male winner gets the
+// watch, the female winner does not). Defaults to 'all' — no restriction.
+const GENDER_OPTIONS = [
+  { key: 'all', label: 'Everyone', hint: 'Men and women both receive it' },
+  { key: 'male', label: 'Men only', hint: 'Only male recipients receive it' },
+  { key: 'female', label: 'Women only', hint: 'Only female recipients receive it' },
+];
+
 const emptyPrize = () => ({
   id: crypto.randomUUID(),
   title: '',
@@ -34,6 +43,7 @@ const INITIAL_STATE = {
   providesContestantRewards: false,
   recipient: '',
   topXCount: '',
+  recipientGender: 'all',
   prizes: [],
 };
 
@@ -42,6 +52,7 @@ export default function SponsorWizardModal({
   onClose,
   sponsor,
   tierAvailability = { platinum: 1, gold: 2, silver: 3 },
+  genderSplit = false,
   onSave,
 }) {
   const [step, setStep] = useState(1);
@@ -187,6 +198,7 @@ export default function SponsorWizardModal({
           prizeInputRef={prizeInputRef}
           uploadingPrizeId={uploadingPrizeId}
           handlePrizeImageUpload={handlePrizeImageUpload}
+          genderSplit={genderSplit}
         />
       )}
 
@@ -469,6 +481,7 @@ function Step3Rewards({
   prizeInputRef,
   uploadingPrizeId,
   handlePrizeImageUpload,
+  genderSplit,
 }) {
   const isInKind = form.sponsorshipType === 'in_kind';
   const [activePrizeId, setActivePrizeId] = useState(null);
@@ -585,6 +598,40 @@ function Step3Rewards({
                 placeholder="e.g., 5"
                 style={inputStyle}
               />
+            </Field>
+          )}
+
+          {genderSplit && (
+            <Field label="Restrict to a gender?">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {GENDER_OPTIONS.map((opt) => {
+                  const active = (form.recipientGender || 'all') === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => updateField('recipientGender', opt.key)}
+                      style={{
+                        ...cleanButtonStyle,
+                        padding: spacing.md,
+                        borderRadius: borderRadius.lg,
+                        background: active ? colors.gold.muted : colors.background.secondary,
+                        border: `1px solid ${active ? colors.gold.primary : colors.border.primary}`,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: transitions.all,
+                      }}
+                    >
+                      <div style={{ color: colors.text.primary, fontWeight: typography.fontWeight.medium, fontSize: typography.fontSize.md }}>
+                        {opt.label}
+                      </div>
+                      <div style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, marginTop: '2px' }}>
+                        {opt.hint}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </Field>
           )}
 

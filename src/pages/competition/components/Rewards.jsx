@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Crown, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
-import { formatPrizeRecipient } from '../../../utils/formatters';
+import { formatPrizeRecipient, formatPrizeGender } from '../../../utils/formatters';
 
 // Default rewards when no prizes are uploaded by the host
 const DEFAULT_REWARDS = [
@@ -60,6 +60,7 @@ function PrizeCarousel({ prizes, title }) {
 
   const currentPrize = prizes[currentIndex];
   const recipientLabel = formatPrizeRecipient(currentPrize);
+  const genderLabel = formatPrizeGender(currentPrize);
 
   return (
     <div
@@ -110,6 +111,9 @@ function PrizeCarousel({ prizes, title }) {
               <h4 className="reward-name reward-name-featured">{currentPrize.title}</h4>
               {currentPrize.sponsor_name && (
                 <span className="rewards-sponsor">by {currentPrize.sponsor_name}</span>
+              )}
+              {genderLabel && (
+                <span className="rewards-recipient">{genderLabel}</span>
               )}
               {recipientLabel && (
                 <span className="rewards-recipient">{recipientLabel}</span>
