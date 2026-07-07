@@ -278,6 +278,25 @@ export default function HostPage() {
       .filter((g) => g.features.length > 0);
   }, [selected, specific]);
 
+  // "What is a social competition?" explainer. On desktop it fills the blank
+  // space beside the hero; on mobile it moves below the format chooser so the
+  // interactive part stays near the top instead of being pushed below the fold.
+  const defPanel = (
+    <aside style={styles.defCard}>
+      <div style={styles.defCrownWrap}>
+        <EliteRankCrown size={32} />
+      </div>
+      <div style={styles.defEyebrow}>Social competition (n.)</div>
+      <h2 style={styles.defTitle}>What you're actually running</h2>
+      <p style={styles.defText}>
+        A multi-week contest where a curated lineup competes for a title, decided by
+        public votes, a judging panel, or a mix of both. Fans follow, vote, and share,
+        turning your audience into participants and participants into ambassadors who
+        keep promoting your brand long after the final vote.
+      </p>
+    </aside>
+  );
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>
@@ -302,19 +321,7 @@ export default function HostPage() {
             </p>
           </div>
 
-          <aside style={styles.defCard}>
-            <div style={styles.defCrownWrap}>
-              <EliteRankCrown size={32} />
-            </div>
-            <div style={styles.defEyebrow}>Social competition (n.)</div>
-            <h2 style={styles.defTitle}>What you're actually running</h2>
-            <p style={styles.defText}>
-              A multi-week contest where a curated lineup competes for a title, decided by
-              public votes, a judging panel, or a mix of both. Fans follow, vote, and share,
-              turning your audience into participants and participants into ambassadors who
-              keep promoting your brand long after the final vote.
-            </p>
-          </aside>
+          {!isMobile && defPanel}
         </div>
 
         {/* Step 1: format */}
@@ -355,6 +362,10 @@ export default function HostPage() {
             <span style={styles.resetText}>Everything below is included. Pick a format to narrow it down.</span>
           </div>
         )}
+
+        {/* On mobile, the explainer sits here (below the format chooser) so the
+            interactive part stays near the top of the page. */}
+        {isMobile && <div style={{ marginTop: spacing[8] }}>{defPanel}</div>}
 
         {/* Feature groups */}
         <div style={styles.groupsWrap}>
