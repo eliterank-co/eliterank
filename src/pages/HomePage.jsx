@@ -104,6 +104,10 @@ export default function HomePage({
     setShowGuide(false);
   }, []);
 
+  const handleHostInfo = useCallback(() => {
+    navigate('/host');
+  }, [navigate]);
+
   return (
     <Suspense fallback={<div className="min-h-screen bg-bg-primary" />}>
       <EliteRankCityModal
@@ -119,6 +123,7 @@ export default function HomePage({
         onAccountSettings={isAuthenticated ? handleAccountSettings : null}
         onHowToCompete={isStillCompeting ? handleHowToCompete : undefined}
         onLaunchCompetition={isAuthenticated ? handleLaunchCompetition : undefined}
+        onHostInfo={handleHostInfo}
         isAuthenticated={isAuthenticated}
         userRole={userRole}
         userName={userName}
