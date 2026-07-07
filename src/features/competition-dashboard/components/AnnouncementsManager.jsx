@@ -24,7 +24,7 @@ export default function AnnouncementsManager({
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
 
-  const authorName = isSuperAdmin ? 'EliteRank' : (host?.name || 'Host');
+  const authorName = isSuperAdmin ? 'SOCLUB' : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 
   const handleSubmit = async () => {
