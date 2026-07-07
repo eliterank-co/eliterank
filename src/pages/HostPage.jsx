@@ -224,6 +224,7 @@ const styles = {
   groupTitle: { fontSize: typography.fontSize.lg, fontWeight: typography.fontWeight.bold, color: colors.text.primary },
   groupLead: { fontSize: typography.fontSize.sm, color: colors.text.tertiary, margin: 0, marginBottom: spacing[4], marginLeft: '46px' },
 
+  featureList: { marginLeft: '46px' },
   featureRow: { display: 'flex', gap: spacing[3], padding: `${spacing[2.5]} 0`, borderTop: `1px solid ${colors.border.secondary}` },
   dot: { width: '6px', height: '6px', borderRadius: '50%', background: colors.gold.primary, flexShrink: 0, marginTop: '8px' },
   featureName: { fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, marginBottom: '2px' },
@@ -364,7 +365,7 @@ export default function HostPage() {
                   <h2 style={styles.groupTitle}>{group.title}</h2>
                 </div>
                 <p style={styles.groupLead}>{group.lead}</p>
-                <div>
+                <div style={styles.featureList}>
                   {group.features.map((feature) => (
                     <div key={feature.name} style={styles.featureRow}>
                       <span style={styles.dot} />
