@@ -290,7 +290,7 @@ export default function HostPage() {
       <h2 style={styles.defTitle}>What you're actually running</h2>
       <p style={styles.defText}>
         A contest where a curated group of contenders competes for a title, decided by public votes,
-        a judging panel, or a mix of both. Fans follow, vote, and share, turning your
+        a judging panel, or a mix of both. Fans follow along and share, turning your
         audience into participants and participants into ambassadors who keep promoting
         your brand long after the winner is crowned.
       </p>
