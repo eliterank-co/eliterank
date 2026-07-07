@@ -113,8 +113,8 @@ const GROUPS = [
     features: [
       { name: 'Stripe payouts', blurb: 'Live revenue insights and direct payouts to your own account.', formats: ALL },
       { name: 'Bot & fraud protection', blurb: 'Device-fingerprinted voting keeps results clean.', formats: ALL },
-      { name: 'Team roles', blurb: 'Share the dashboard with co-hosts, judges, and sponsors.', formats: ALL },
-      { name: 'Run every city', blurb: 'A competition switcher to launch and repeat seasons across metros.', formats: ALL },
+      { name: 'Co-hosts', blurb: 'Bring on co-hosts to run the competition alongside you on the same dashboard.', formats: ALL },
+      { name: 'Run multiple competitions', blurb: 'Launch as many competitions as you want from one account, whether repeat seasons, several cities, or a single statewide event, all from a built-in switcher.', formats: ALL },
     ],
   },
 ];
