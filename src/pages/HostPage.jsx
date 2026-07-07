@@ -54,7 +54,7 @@ const GROUPS = [
     icon: Users,
     features: [
       { name: 'Nominations or applications', blurb: 'A quick nomination (by the contestant or anyone who backs them) or a longer self-submitted application. You approve every entry.', formats: ALL },
-      { name: 'Add your own lineup', blurb: 'Skip public nominations and add contestants yourself, from your subscribers or by name and email, and upload their photos.', formats: ALL },
+      { name: 'Add your own lineup', blurb: 'Optionally skip nominations/applications entirely and upload contestants yourself from your contact list.', formats: ALL },
       { name: 'Branded onboarding', blurb: 'Custom qualifying questions in a flow that matches your competition.', formats: ALL },
       { name: 'Self-serve profiles', blurb: 'Contestants manage their own page and track performance in real time.', formats: ALL },
       { name: 'Waitlist capture', blurb: 'Your coming-soon page collects interest before entry opens.', formats: ALL },
@@ -102,7 +102,7 @@ const GROUPS = [
       { name: 'Self-transforming page', blurb: 'Shifts automatically from entries, to live competition, to winner showcase.', formats: ALL },
       { name: 'Multiple winners', blurb: 'Crown more than one winner, whether a set number of champions or a separate winner for each gender, all featured in the winner showcase.', formats: ALL },
       { name: 'Auto share cards', blurb: 'Shareable social cards generated for votes, advancement, and wins.', formats: ALL },
-      { name: 'Fan follows & digests', blurb: 'Fans follow contestants they back, with opt-in weekly digests.', formats: ALL },
+      { name: 'Fan follows & weekly digests', blurb: 'Fans can follow contestants and opt in to weekly contestant performance recap emails.', formats: ALL },
       { name: 'Automated updates', blurb: 'Lifecycle emails and in-app updates reach your audience for you.', formats: ALL },
     ],
   },
@@ -115,6 +115,7 @@ const GROUPS = [
       { name: 'Bot & fraud protection', blurb: 'Device-fingerprinted voting keeps results clean.', formats: ALL },
       { name: 'Co-hosts', blurb: 'Bring on co-hosts to run the competition alongside you on the same dashboard.', formats: ALL },
       { name: 'Run multiple competitions', blurb: 'Launch as many competitions as you want from one account, whether repeat seasons, several cities, or a single statewide event, all from a built-in switcher.', formats: ALL },
+      { name: 'Auto-generated rules', blurb: 'Official contest rules generate automatically from your setup, and settings lock once you publish.', formats: ALL },
     ],
   },
 ];
