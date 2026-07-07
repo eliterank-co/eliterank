@@ -1,10 +1,10 @@
 /**
  * HostPage - Public marketing page for prospective hosts.
  *
- * A focused, interactive "features by competition type" explorer. Visitors pick
- * a competition format (Public Vote / Hybrid / Judged-Only) and the page
- * highlights the features, engagement mechanics, and revenue channels that apply
- * to that format while dimming the ones that do not. Defaults to "All formats".
+ * A calm, benefit-led "features by competition type" explorer. Visitors pick a
+ * competition format (Public Vote / Hybrid / Judged-Only) and the feature lists
+ * filter down to just what applies to that format. Defaults to "All formats",
+ * which shows the full catalog grouped into scannable sections.
  *
  * Public route: /host  (see src/routes/index.jsx)
  * Follows the theme-token + inline-styles convention (see CLAUDE.md).
@@ -12,38 +12,30 @@
 
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Phone } from 'lucide-react';
+import {
+  ArrowLeft, ArrowRight, Phone, Users, Vote, Gavel, DollarSign, Megaphone, ShieldCheck,
+} from 'lucide-react';
 import { colors, spacing, typography, borderRadius, transitions, shadows } from '../styles/theme';
 
 // ---------------------------------------------------------------------------
 // Format model
 // ---------------------------------------------------------------------------
 
-const FORMATS = [
-  { id: 'all', label: 'All formats', short: 'All', tagline: 'See everything the platform can do' },
-  { id: 'publicVote', label: 'Public Vote', short: 'Public', tagline: 'Popularity decides' },
-  { id: 'hybrid', label: 'Hybrid', short: 'Hybrid', tagline: 'Votes + judges' },
-  { id: 'judged', label: 'Judged-Only', short: 'Judged', tagline: 'A panel decides, no voting' },
-];
-
-// The three real formats, in the order shown on availability pills.
 const REAL_FORMATS = ['publicVote', 'hybrid', 'judged'];
 
-// Attribute matrix shown when a specific format is selected.
+const FORMAT_CARDS = [
+  { id: 'publicVote', label: 'Public Vote', tagline: 'Popularity decides', note: 'Fans vote, free and paid. Quickest to launch.' },
+  { id: 'hybrid', label: 'Hybrid', tagline: 'Votes + judges', note: 'Public voting plus a judging panel for credibility.' },
+  { id: 'judged', label: 'Judged-Only', tagline: 'A panel decides', note: 'No public voting. Prestige and expert fields.' },
+];
+
 const FORMAT_SPECS = {
-  publicVote: {
-    winner: 'Public votes', voting: 'Free + paid', entryFee: 'None',
-    charity: 'Required', judges: 'None', bestFor: 'Quick start & viral growth',
-  },
-  hybrid: {
-    winner: 'Judges', voting: 'Free + paid', entryFee: 'Optional',
-    charity: 'Optional', judges: 'Panel of 3', bestFor: 'Credibility + engagement',
-  },
-  judged: {
-    winner: 'Judges', voting: 'None', entryFee: 'Required',
-    charity: 'Optional', judges: 'Panel of 3', bestFor: 'Prestige & expert fields',
-  },
+  publicVote: { Winner: 'Public votes', Voting: 'Free + paid', 'Entry fee': 'None', Charity: 'Required', Judges: 'None' },
+  hybrid: { Winner: 'Judges', Voting: 'Free + paid', 'Entry fee': 'Optional', Charity: 'Optional', Judges: 'Panel of 3' },
+  judged: { Winner: 'Judges', Voting: 'None', 'Entry fee': 'Required', Charity: 'Optional', Judges: 'Panel of 3' },
 };
+
+const LABEL = { all: 'All formats', publicVote: 'Public Vote', hybrid: 'Hybrid', judged: 'Judged-Only' };
 
 // Applicability shorthands.
 const ALL = REAL_FORMATS;
@@ -58,371 +50,192 @@ const FEE = ['hybrid', 'judged'];        // entry-fee formats
 const GROUPS = [
   {
     title: 'Entry & contestants',
+    lead: 'Bring people in, then let them run their own profiles.',
+    icon: Users,
     features: [
-      { name: 'Flexible entry', blurb: 'Two ways in: a quick nomination, submitted by the contestant or anyone who backs them, or a longer application the contestant completes themselves. You review and approve every entry.', formats: ALL },
-      { name: 'Branded onboarding', blurb: 'Custom qualifying questions and a branded flow that matches your competition.', formats: ALL },
-      { name: 'Self-serve contestant profiles', blurb: 'Contestants build and manage their own page, photos, and pitch, and track their performance in real time.', formats: ALL },
-      { name: 'Waitlist capture', blurb: 'Your coming-soon page collects interested nominees, fans, and sponsors before entry even opens.', formats: ALL },
+      { name: 'Nominations & applications', blurb: 'A quick nomination (by the contestant or anyone who backs them) or a longer self-submitted application. You approve every entry.', formats: ALL },
+      { name: 'Branded onboarding', blurb: 'Custom qualifying questions in a flow that matches your competition.', formats: ALL },
+      { name: 'Self-serve profiles', blurb: 'Contestants manage their own page and track performance in real time.', formats: ALL },
+      { name: 'Waitlist capture', blurb: 'Your coming-soon page collects interest before entry opens.', formats: ALL },
     ],
   },
   {
     title: 'Voting & engagement',
+    lead: 'Turn attention into daily, repeatable participation.',
+    icon: Vote,
     features: [
-      { name: 'Free daily voting', blurb: 'One free vote a day keeps fans coming back all season.', formats: VOTE },
-      { name: 'Tiered paid vote packs', blurb: 'Volume-discounted vote bundles that sell at every price point.', formats: VOTE },
-      { name: 'Double-vote days', blurb: 'Schedule days where every vote counts double to spike engagement.', formats: VOTE },
-      { name: 'Per-round vote resets', blurb: 'Reset tallies between advancement rounds to keep each round competitive.', formats: VOTE },
-      { name: 'Bonus-vote tasks & gamification', blurb: 'Sharing, referrals, and custom challenges award bonus votes. Contestants earn achievement cards and rank-up alerts as they climb.', formats: VOTE },
-      { name: 'Video challenges', blurb: 'Post a prompt, contestants respond on camera for bonus votes, you approve.', formats: VOTE },
+      { name: 'Free daily voting', blurb: 'One free vote a day keeps fans coming back.', formats: VOTE },
+      { name: 'Paid vote packs', blurb: 'Volume-discounted bundles at every price point.', formats: VOTE },
+      { name: 'Double-vote days', blurb: 'Scheduled days where every vote counts double.', formats: VOTE },
+      { name: 'Bonus votes & gamification', blurb: 'Tasks and challenges award bonus votes, with achievement cards and rank-up alerts.', formats: VOTE },
+      { name: 'Video challenges', blurb: 'Post a prompt, contestants respond on camera for bonus votes.', formats: VOTE },
     ],
   },
   {
     title: 'Judging',
+    lead: 'Add expert credibility with a scored panel.',
+    icon: Gavel,
     features: [
-      { name: 'Judge portal', blurb: 'Invite judges by email to score contestants against your weighted criteria, round by round.', formats: JUDGE },
-      { name: 'Weighted judging criteria', blurb: 'Define the rubric and the weight each criterion carries toward the result.', formats: JUDGE },
-      { name: 'Live votes + judges blend', blurb: 'Judge scores and public votes combine into one live leaderboard.', formats: ['hybrid'] },
+      { name: 'Judge portal', blurb: 'Invite judges by email to score against your criteria, round by round.', formats: JUDGE },
+      { name: 'Weighted criteria', blurb: 'Define the rubric and the weight each criterion carries.', formats: JUDGE },
+      { name: 'Votes + judges blend', blurb: 'Judge scores and public votes combine into one live leaderboard.', formats: ['hybrid'] },
     ],
   },
   {
     title: 'Monetization',
+    lead: 'Multiple revenue streams, designed to stack.',
+    icon: DollarSign,
     features: [
       { name: 'Paid vote revenue', blurb: 'The core revenue engine of vote-based competitions.', formats: VOTE },
-      { name: 'Entry fees', blurb: 'Applying is free; contestants are charged only after you accept them.', formats: FEE },
-      { name: 'Sponsorships', blurb: 'Title, prize, and per-event sponsors pay for visibility. You own the relationships.', formats: ALL },
-      { name: 'Paid events', blurb: 'VIP tickets, after-parties, and meet-and-greets that double as content.', formats: ALL },
-      { name: 'Charity overlay', blurb: 'Earmark a share of revenue to a cause. Required for pure public-vote formats.', formats: ALL },
-      { name: 'Prize pool', blurb: 'In-kind or cash prizes, funded by your brand or sponsors.', formats: ALL },
+      { name: 'Entry fees', blurb: 'Free to apply; contestants are charged only after you accept them.', formats: FEE },
+      { name: 'Sponsorships', blurb: 'Title, prize, and per-event sponsors pay for visibility.', formats: ALL },
+      { name: 'Paid events', blurb: 'VIP tickets and meet-and-greets that double as content.', formats: ALL },
+      { name: 'Charity & prizes', blurb: 'Earmark revenue to a cause and award in-kind or cash prizes.', formats: ALL },
     ],
   },
   {
     title: 'Marketing & audience',
+    lead: 'Your page and audience, working while you sleep.',
+    icon: Megaphone,
     features: [
-      { name: 'Auto-transforming public page', blurb: 'Your page shifts automatically from entries, to live competition, to winner showcase.', formats: ALL },
-      { name: 'Auto-generated share cards', blurb: 'Shareable social cards generated for votes, advancement, and wins.', formats: ALL },
-      { name: 'Fan follow + weekly digests', blurb: 'Fans follow the contestants they back, with opt-in weekly digests that keep them returning.', formats: ALL },
-      { name: 'Automated email + in-app updates', blurb: 'Lifecycle updates reach your audience without you lifting a finger.', formats: ALL },
+      { name: 'Self-transforming page', blurb: 'Shifts automatically from entries, to live competition, to winner showcase.', formats: ALL },
+      { name: 'Auto share cards', blurb: 'Shareable social cards generated for votes, advancement, and wins.', formats: ALL },
+      { name: 'Fan follows & digests', blurb: 'Fans follow contestants they back, with opt-in weekly digests.', formats: ALL },
+      { name: 'Automated updates', blurb: 'Lifecycle emails and in-app updates reach your audience for you.', formats: ALL },
     ],
   },
   {
     title: 'Payouts & control',
+    lead: 'Get paid, stay in control, and scale.',
+    icon: ShieldCheck,
     features: [
-      { name: 'Co-hosts + team roles', blurb: 'Share the dashboard with defined roles for hosts, co-hosts, judges, and sponsors.', formats: ALL },
-      { name: 'Email deliverability log', blurb: 'A per-competition delivery log shows exactly what went out and to whom.', formats: ALL },
-      { name: 'Real-time revenue + Stripe payouts', blurb: 'Live revenue insights and direct payouts to your own Stripe account.', formats: ALL },
-      { name: 'Bot & fraud protection', blurb: 'Device-fingerprinted voting and safeguards keep results clean.', formats: ALL },
-      { name: 'Run every city from one account', blurb: 'A built-in competition switcher lets you launch and repeat seasons across metros.', formats: ALL },
-      { name: 'Auto-generated rules + publish locks', blurb: 'Official rules generate automatically and settings lock at publish.', formats: ALL },
+      { name: 'Stripe payouts', blurb: 'Live revenue insights and direct payouts to your own account.', formats: ALL },
+      { name: 'Bot & fraud protection', blurb: 'Device-fingerprinted voting keeps results clean.', formats: ALL },
+      { name: 'Team roles', blurb: 'Share the dashboard with co-hosts, judges, and sponsors.', formats: ALL },
+      { name: 'Run every city', blurb: 'A competition switcher to launch and repeat seasons across metros.', formats: ALL },
     ],
   },
 ];
 
-const TOTAL_FEATURES = GROUPS.reduce((n, g) => n + g.features.length, 0);
+const TOTAL = GROUPS.reduce((n, g) => n + g.features.length, 0);
 
 // ---------------------------------------------------------------------------
 // Styles
 // ---------------------------------------------------------------------------
 
 const styles = {
-  page: {
-    minHeight: '100vh',
-    background: colors.background.primary,
-    color: colors.text.primary,
-  },
-  container: {
-    maxWidth: '1040px',
-    margin: '0 auto',
-    padding: `${spacing[8]} ${spacing[4]} ${spacing[16]}`,
-  },
+  page: { minHeight: '100vh', background: colors.background.primary, color: colors.text.primary },
+  container: { maxWidth: '960px', margin: '0 auto', padding: `${spacing[8]} ${spacing[5]} ${spacing[20]}` },
   backLink: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: spacing[2],
-    color: colors.text.secondary,
-    fontSize: typography.fontSize.base,
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    marginBottom: spacing[8],
-    transition: `color ${transitions.fast}`,
+    display: 'inline-flex', alignItems: 'center', gap: spacing[2],
+    color: colors.text.secondary, fontSize: typography.fontSize.base,
+    background: 'none', border: 'none', cursor: 'pointer',
+    marginBottom: spacing[10], transition: `color ${transitions.fast}`,
   },
+
+  // Hero
   eyebrow: {
-    fontSize: typography.fontSize.xs,
-    fontWeight: typography.fontWeight.semibold,
-    letterSpacing: '0.22em',
-    textTransform: 'uppercase',
-    color: colors.gold.primary,
-    marginBottom: spacing[3],
+    fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold,
+    letterSpacing: '0.22em', textTransform: 'uppercase', color: colors.gold.primary,
+    marginBottom: spacing[4],
   },
   title: {
-    fontSize: typography.fontSize['5xl'],
-    fontWeight: typography.fontWeight.bold,
-    lineHeight: typography.lineHeight.tight,
-    margin: 0,
-    marginBottom: spacing[3],
+    fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: typography.fontWeight.bold,
+    lineHeight: typography.lineHeight.tight, margin: 0, marginBottom: spacing[4], maxWidth: '18ch',
   },
   lede: {
-    fontSize: typography.fontSize.lg,
-    color: colors.text.secondary,
-    lineHeight: typography.lineHeight.relaxed,
-    maxWidth: '620px',
-    marginBottom: spacing[8],
+    fontSize: typography.fontSize.lg, color: colors.text.secondary,
+    lineHeight: typography.lineHeight.relaxed, maxWidth: '54ch', margin: 0,
   },
-  selectorLabel: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.secondary,
-    marginBottom: spacing[3],
+
+  // Step label
+  stepLabel: {
+    fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold,
+    color: colors.text.primary, marginTop: spacing[12], marginBottom: spacing[1],
   },
-  selectorRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: spacing[2],
-    marginBottom: spacing[6],
+  stepHint: { fontSize: typography.fontSize.sm, color: colors.text.tertiary, marginBottom: spacing[5] },
+
+  // Format chooser
+  formatGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: spacing[3],
   },
-  chipBase: {
-    display: 'inline-flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: spacing[0.5],
-    padding: `${spacing[2.5]} ${spacing[4]}`,
-    borderRadius: borderRadius.lg,
-    border: `1px solid ${colors.border.primary}`,
+  formatCard: {
+    textAlign: 'left', padding: spacing[5], borderRadius: borderRadius.xl,
+    border: `1px solid ${colors.border.primary}`, background: colors.background.secondary,
+    cursor: 'pointer', transition: transitions.all, display: 'flex', flexDirection: 'column', gap: spacing[1],
+  },
+  formatCardActive: {
+    border: `1px solid ${colors.gold.primary}`, background: colors.gold.muted, boxShadow: shadows.gold,
+  },
+  formatLabel: { fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.text.primary },
+  formatTagline: { fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, color: colors.gold.primary },
+  formatNote: { fontSize: typography.fontSize.sm, color: colors.text.secondary, lineHeight: typography.lineHeight.normal, marginTop: spacing[1] },
+
+  resetRow: { display: 'flex', alignItems: 'center', gap: spacing[3], marginTop: spacing[4], flexWrap: 'wrap' },
+  resetText: { fontSize: typography.fontSize.sm, color: colors.text.tertiary },
+  resetBtn: {
+    background: 'none', border: 'none', color: colors.gold.primary, cursor: 'pointer',
+    fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, padding: 0,
+  },
+
+  // Snapshot strip (shown when a specific format is selected)
+  snapshot: {
+    display: 'flex', flexWrap: 'wrap', gap: `${spacing[3]} ${spacing[6]}`,
+    padding: `${spacing[4]} ${spacing[5]}`, marginTop: spacing[5],
+    borderRadius: borderRadius.lg, border: `1px solid ${colors.border.secondary}`,
     background: colors.background.secondary,
-    cursor: 'pointer',
-    transition: transitions.all,
-    minWidth: '120px',
   },
-  chipActive: {
-    border: `1px solid ${colors.gold.primary}`,
-    background: colors.gold.muted,
-    boxShadow: shadows.goldInset,
+  snapItem: { display: 'flex', flexDirection: 'column', gap: '2px' },
+  snapKey: { fontSize: typography.fontSize.xs, textTransform: 'uppercase', letterSpacing: '0.05em', color: colors.text.tertiary },
+  snapVal: { fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.semibold, color: colors.text.primary },
+
+  // Feature groups
+  groupsWrap: {
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+    gap: `${spacing[10]} ${spacing[10]}`, marginTop: spacing[12],
   },
-  chipLabel: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
+  group: {},
+  groupHead: { display: 'flex', alignItems: 'center', gap: spacing[3], marginBottom: spacing[1] },
+  groupIcon: {
+    width: '34px', height: '34px', borderRadius: borderRadius.md, flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: colors.gold.muted, color: colors.gold.primary,
   },
-  chipTagline: {
-    fontSize: typography.fontSize.xs,
-    color: colors.text.tertiary,
-  },
-  // Format summary bar (shown when a specific format is selected)
-  summaryBar: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-    gap: spacing[3],
-    padding: spacing[5],
-    borderRadius: borderRadius.xl,
-    border: `1px solid ${colors.border.primary}`,
-    background: colors.background.secondary,
-    marginBottom: spacing[8],
-  },
-  summaryItem: { display: 'flex', flexDirection: 'column', gap: spacing[1] },
-  summaryKey: {
-    fontSize: typography.fontSize.xs,
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    color: colors.text.tertiary,
-  },
-  summaryVal: {
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-  },
-  countPill: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: spacing[2],
-    padding: `${spacing[2]} ${spacing[4]}`,
-    borderRadius: borderRadius.pill,
-    background: colors.gold.muted,
-    color: colors.gold.primary,
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    marginBottom: spacing[8],
-  },
-  groupTitle: {
-    fontSize: typography.fontSize.sm,
-    fontWeight: typography.fontWeight.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    color: colors.gold.primary,
-    paddingBottom: spacing[2],
-    borderBottom: `1px solid ${colors.gold.muted}`,
-    marginBottom: spacing[4],
-    marginTop: spacing[8],
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-    gap: spacing[3],
-  },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: spacing[2],
-    padding: spacing[4],
-    borderRadius: borderRadius.lg,
-    border: `1px solid ${colors.border.primary}`,
-    background: colors.background.card,
-    transition: transitions.all,
-  },
-  cardHead: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing[2],
-  },
-  cardName: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-  },
-  cardBlurb: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-    lineHeight: typography.lineHeight.normal,
-  },
-  checkDot: {
-    flexShrink: 0,
-    width: '22px',
-    height: '22px',
-    borderRadius: borderRadius.full,
-    background: colors.gold.muted,
-    color: colors.gold.primary,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pillRow: { display: 'flex', flexWrap: 'wrap', gap: spacing[1], marginTop: 'auto', paddingTop: spacing[2] },
-  pill: {
-    fontSize: '0.6875rem',
-    fontWeight: typography.fontWeight.semibold,
-    padding: `2px ${spacing[2]}`,
-    borderRadius: borderRadius.pill,
-    letterSpacing: '0.02em',
-  },
-  notAvailTag: {
-    fontSize: typography.fontSize.xs,
-    color: colors.text.muted,
-    fontStyle: 'italic',
-  },
+  groupTitle: { fontSize: typography.fontSize.lg, fontWeight: typography.fontWeight.bold, color: colors.text.primary },
+  groupLead: { fontSize: typography.fontSize.sm, color: colors.text.tertiary, margin: 0, marginBottom: spacing[4], marginLeft: '46px' },
+
+  featureRow: { display: 'flex', gap: spacing[3], padding: `${spacing[2.5]} 0`, borderTop: `1px solid ${colors.border.secondary}` },
+  dot: { width: '6px', height: '6px', borderRadius: '50%', background: colors.gold.primary, flexShrink: 0, marginTop: '8px' },
+  featureName: { fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.semibold, color: colors.text.primary, marginBottom: '2px' },
+  featureBlurb: { fontSize: typography.fontSize.sm, color: colors.text.secondary, lineHeight: typography.lineHeight.normal },
+
   // CTA
   cta: {
-    marginTop: spacing[16],
-    padding: spacing[8],
-    borderRadius: borderRadius.xl,
+    marginTop: spacing[20], padding: `${spacing[10]} ${spacing[6]}`, borderRadius: borderRadius.xl,
     border: `1px solid ${colors.border.primary}`,
-    background: colors.background.secondary,
-    textAlign: 'center',
+    background: colors.background.secondary, textAlign: 'center',
   },
-  ctaTitle: {
-    fontSize: typography.fontSize['3xl'],
-    fontWeight: typography.fontWeight.bold,
-    marginBottom: spacing[2],
-  },
+  ctaTitle: { fontSize: typography.fontSize['2xl'], fontWeight: typography.fontWeight.bold, marginBottom: spacing[2] },
   ctaText: {
-    fontSize: typography.fontSize.base,
-    color: colors.text.secondary,
-    marginBottom: spacing[6],
-    maxWidth: '480px',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    lineHeight: typography.lineHeight.relaxed,
+    fontSize: typography.fontSize.base, color: colors.text.secondary, marginBottom: spacing[6],
+    maxWidth: '46ch', marginLeft: 'auto', marginRight: 'auto', lineHeight: typography.lineHeight.relaxed,
   },
   ctaButtons: { display: 'flex', flexWrap: 'wrap', gap: spacing[3], justifyContent: 'center' },
   btnPrimary: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: spacing[2],
-    padding: `${spacing[3]} ${spacing[6]}`,
-    borderRadius: borderRadius.pill,
-    background: colors.gold.primary,
-    color: colors.text.inverse,
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    border: 'none',
-    cursor: 'pointer',
-    textDecoration: 'none',
-    transition: transitions.all,
+    display: 'inline-flex', alignItems: 'center', gap: spacing[2],
+    padding: `${spacing[3]} ${spacing[6]}`, borderRadius: borderRadius.pill,
+    background: colors.gold.primary, color: colors.text.inverse,
+    fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.semibold,
+    border: 'none', cursor: 'pointer', textDecoration: 'none', transition: transitions.all,
   },
   btnSecondary: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: spacing[2],
-    padding: `${spacing[3]} ${spacing[6]}`,
-    borderRadius: borderRadius.pill,
-    background: 'transparent',
-    color: colors.text.primary,
-    fontSize: typography.fontSize.base,
-    fontWeight: typography.fontWeight.semibold,
-    border: `1px solid ${colors.border.primary}`,
-    cursor: 'pointer',
-    textDecoration: 'none',
-    transition: transitions.all,
+    display: 'inline-flex', alignItems: 'center', gap: spacing[2],
+    padding: `${spacing[3]} ${spacing[6]}`, borderRadius: borderRadius.pill,
+    background: 'transparent', color: colors.text.primary,
+    fontSize: typography.fontSize.base, fontWeight: typography.fontWeight.semibold,
+    border: `1px solid ${colors.border.primary}`, cursor: 'pointer', textDecoration: 'none', transition: transitions.all,
   },
 };
-
-// ---------------------------------------------------------------------------
-// Small presentational helpers
-// ---------------------------------------------------------------------------
-
-function AvailabilityPills({ formats }) {
-  return (
-    <div style={styles.pillRow}>
-      {REAL_FORMATS.map((f) => {
-        const on = formats.includes(f);
-        const label = FORMATS.find((x) => x.id === f).short;
-        return (
-          <span
-            key={f}
-            style={{
-              ...styles.pill,
-              background: on ? colors.gold.muted : 'transparent',
-              color: on ? colors.gold.primary : colors.text.muted,
-              border: `1px solid ${on ? 'transparent' : colors.border.secondary}`,
-            }}
-          >
-            {label}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-function FeatureCard({ feature, selected }) {
-  const applicable = selected === 'all' || feature.formats.includes(selected);
-  const specific = selected !== 'all';
-
-  return (
-    <div
-      style={{
-        ...styles.card,
-        opacity: applicable ? 1 : 0.4,
-        borderColor: applicable && specific ? colors.border.focus : styles.card.border,
-        boxShadow: applicable && specific ? shadows.goldInset : 'none',
-        filter: applicable ? 'none' : 'grayscale(0.5)',
-      }}
-    >
-      <div style={styles.cardHead}>
-        <span style={styles.cardName}>{feature.name}</span>
-        {applicable && specific && (
-          <span style={styles.checkDot}><Check size={13} strokeWidth={3} /></span>
-        )}
-      </div>
-      <span style={styles.cardBlurb}>{feature.blurb}</span>
-      {applicable && !specific && <AvailabilityPills formats={feature.formats} />}
-      {!applicable && (
-        <span style={{ ...styles.notAvailTag, marginTop: 'auto', paddingTop: spacing[2] }}>
-          Not part of this format
-        </span>
-      )}
-      {applicable && specific && <AvailabilityPills formats={feature.formats} />}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -431,17 +244,20 @@ function FeatureCard({ feature, selected }) {
 export default function HostPage() {
   const navigate = useNavigate();
   const [selected, setSelected] = useState('all');
+  const specific = selected !== 'all';
 
-  const applicableCount = useMemo(() => {
-    if (selected === 'all') return TOTAL_FEATURES;
-    return GROUPS.reduce(
-      (n, g) => n + g.features.filter((f) => f.formats.includes(selected)).length,
-      0,
-    );
-  }, [selected]);
+  // Filter each group's features to what applies; drop empty groups.
+  const visibleGroups = useMemo(() => {
+    if (!specific) return GROUPS;
+    return GROUPS
+      .map((g) => ({ ...g, features: g.features.filter((f) => f.formats.includes(selected)) }))
+      .filter((g) => g.features.length > 0);
+  }, [selected, specific]);
 
-  const spec = selected !== 'all' ? FORMAT_SPECS[selected] : null;
-  const selectedLabel = FORMATS.find((f) => f.id === selected).label;
+  const shownCount = useMemo(
+    () => visibleGroups.reduce((n, g) => n + g.features.length, 0),
+    [visibleGroups],
+  );
 
   return (
     <div style={styles.page}>
@@ -456,74 +272,96 @@ export default function HostPage() {
           Back to EliteRank
         </button>
 
+        {/* Hero */}
         <div style={styles.eyebrow}>For Hosts</div>
-        <h1 style={styles.title}>Build your competition, your way.</h1>
+        <h1 style={styles.title}>Run a competition your audience can't look away from.</h1>
         <p style={styles.lede}>
-          EliteRank is a system, not a template. Pick how your winner is chosen and see exactly
-          which features, engagement mechanics, and revenue channels come with it.
+          EliteRank gives you everything to launch and run a branded social competition,
+          start to finish. Choose how your winner is chosen and see what comes with it.
         </p>
 
-        <div style={styles.selectorLabel}>Choose a format</div>
-        <div style={styles.selectorRow} role="tablist" aria-label="Competition format">
-          {FORMATS.map((f) => {
+        {/* Step 1: format */}
+        <div style={styles.stepLabel}>How is your winner chosen?</div>
+        <div style={styles.stepHint}>Pick a format, or explore everything the platform can do.</div>
+
+        <div style={styles.formatGrid}>
+          {FORMAT_CARDS.map((f) => {
             const active = selected === f.id;
             return (
               <button
                 key={f.id}
-                role="tab"
-                aria-selected={active}
-                onClick={() => setSelected(f.id)}
-                style={{ ...styles.chipBase, ...(active ? styles.chipActive : {}) }}
+                onClick={() => setSelected(active ? 'all' : f.id)}
+                aria-pressed={active}
+                style={{ ...styles.formatCard, ...(active ? styles.formatCardActive : {}) }}
                 onMouseEnter={(e) => { if (!active) e.currentTarget.style.borderColor = colors.border.focus; }}
                 onMouseLeave={(e) => { if (!active) e.currentTarget.style.borderColor = colors.border.primary; }}
               >
-                <span style={styles.chipLabel}>{f.label}</span>
-                <span style={styles.chipTagline}>{f.tagline}</span>
+                <span style={styles.formatLabel}>{f.label}</span>
+                <span style={styles.formatTagline}>{f.tagline}</span>
+                <span style={styles.formatNote}>{f.note}</span>
               </button>
             );
           })}
         </div>
 
-        {spec && (
-          <div style={styles.summaryBar}>
-            {[
-              ['Winner', spec.winner],
-              ['Voting', spec.voting],
-              ['Entry fee', spec.entryFee],
-              ['Charity', spec.charity],
-              ['Judges', spec.judges],
-              ['Best for', spec.bestFor],
-            ].map(([k, v]) => (
-              <div key={k} style={styles.summaryItem}>
-                <span style={styles.summaryKey}>{k}</span>
-                <span style={styles.summaryVal}>{v}</span>
-              </div>
-            ))}
+        {specific ? (
+          <>
+            <div style={styles.snapshot}>
+              {Object.entries(FORMAT_SPECS[selected]).map(([k, v]) => (
+                <div key={k} style={styles.snapItem}>
+                  <span style={styles.snapKey}>{k}</span>
+                  <span style={styles.snapVal}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <div style={styles.resetRow}>
+              <span style={styles.resetText}>
+                Showing the {shownCount} features that apply to {LABEL[selected]}.
+              </span>
+              <button style={styles.resetBtn} onClick={() => setSelected('all')}>
+                See all {TOTAL} features
+              </button>
+            </div>
+          </>
+        ) : (
+          <div style={{ ...styles.resetRow, marginTop: spacing[5] }}>
+            <span style={styles.resetText}>Everything below is included. Pick a format to narrow it down.</span>
           </div>
         )}
 
-        <div style={styles.countPill}>
-          {selected === 'all'
-            ? `${TOTAL_FEATURES} features across every format`
-            : `${applicableCount} of ${TOTAL_FEATURES} features available in ${selectedLabel}`}
+        {/* Feature groups */}
+        <div style={styles.groupsWrap}>
+          {visibleGroups.map((group) => {
+            const Icon = group.icon;
+            return (
+              <section key={group.title} style={styles.group}>
+                <div style={styles.groupHead}>
+                  <span style={styles.groupIcon}><Icon size={18} /></span>
+                  <h2 style={styles.groupTitle}>{group.title}</h2>
+                </div>
+                <p style={styles.groupLead}>{group.lead}</p>
+                <div>
+                  {group.features.map((feature) => (
+                    <div key={feature.name} style={styles.featureRow}>
+                      <span style={styles.dot} />
+                      <div>
+                        <div style={styles.featureName}>{feature.name}</div>
+                        <div style={styles.featureBlurb}>{feature.blurb}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
 
-        {GROUPS.map((group) => (
-          <section key={group.title}>
-            <h2 style={styles.groupTitle}>{group.title}</h2>
-            <div style={styles.grid}>
-              {group.features.map((feature) => (
-                <FeatureCard key={feature.name} feature={feature} selected={selected} />
-              ))}
-            </div>
-          </section>
-        ))}
-
+        {/* CTA */}
         <div style={styles.cta}>
           <div style={styles.ctaTitle}>Let's run your first competition.</div>
           <p style={styles.ctaText}>
-            Start building in the self-serve setup flow, or book a quick call and we'll map out
-            your first competition together.
+            Start building in the self-serve setup flow, or book a quick call and we'll map
+            out your first competition together.
           </p>
           <div style={styles.ctaButtons}>
             <button
@@ -533,6 +371,7 @@ export default function HostPage() {
               onMouseLeave={(e) => { e.currentTarget.style.background = colors.gold.primary; }}
             >
               Launch a competition
+              <ArrowRight size={16} />
             </button>
             <a
               href="mailto:info@eliterank.co?subject=Booking%20a%20call"
