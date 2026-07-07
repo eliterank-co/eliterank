@@ -412,7 +412,9 @@ export default function HostPage() {
               <ArrowRight size={16} />
             </button>
             <a
-              href="mailto:info@eliterank.co?subject=Booking%20a%20call"
+              href="https://calendly.com/crystal-mosteligibleusa/eliterank-info-session"
+              target="_blank"
+              rel="noopener noreferrer"
               style={styles.btnSecondary}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = colors.border.focus; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border.primary; }}
