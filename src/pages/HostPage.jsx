@@ -54,6 +54,7 @@ const GROUPS = [
     icon: Users,
     features: [
       { name: 'Nominations or applications', blurb: 'A quick nomination (by the contestant or anyone who backs them) or a longer self-submitted application. You approve every entry.', formats: ALL },
+      { name: 'Add your own lineup', blurb: 'Skip public nominations and add contestants yourself, from your subscribers or by name and email, and upload their photos.', formats: ALL },
       { name: 'Branded onboarding', blurb: 'Custom qualifying questions in a flow that matches your competition.', formats: ALL },
       { name: 'Self-serve profiles', blurb: 'Contestants manage their own page and track performance in real time.', formats: ALL },
       { name: 'Waitlist capture', blurb: 'Your coming-soon page collects interest before entry opens.', formats: ALL },
