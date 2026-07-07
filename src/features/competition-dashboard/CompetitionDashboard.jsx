@@ -886,6 +886,7 @@ export default function CompetitionDashboard({
               competition={competition}
               onRefresh={refresh}
               organizationId={competition?.organizationId}
+              organizationName={competition?.organizationName}
               organizationHeaderLogoUrl={competition?.organizationHeaderLogoUrl}
               organizationLogoUrl={competition?.organizationLogoUrl}
               organizationWebsiteUrl={competition?.organizationWebsiteUrl}

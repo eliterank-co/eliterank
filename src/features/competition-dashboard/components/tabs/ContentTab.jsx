@@ -16,6 +16,7 @@ export default function ContentTab({
   competition,
   onRefresh,
   organizationId,
+  organizationName,
   organizationHeaderLogoUrl,
   organizationLogoUrl,
   organizationWebsiteUrl,
@@ -65,6 +66,7 @@ export default function ContentTab({
         fallbackLogoUrl={organizationLogoUrl}
         currentWebsiteUrl={organizationWebsiteUrl}
         currentLegalEntityName={organizationLegalEntityName}
+        fallbackLegalEntityName={organizationName}
         currentInstagram={organizationInstagram}
         currentTiktok={organizationTiktok}
         currentFacebook={organizationFacebook}

@@ -208,6 +208,16 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
           p_logo_url: form.orgLogoUrl || null, p_website_url: form.orgWebsite || null, p_instagram: form.orgInstagram || null,
         });
         if (e) throw e; organizationId = org.id; orgName = org.name;
+        // Also store the entered name as the legal entity name so the branding
+        // page / Official Rules show it explicitly instead of "Not set" (it's
+        // the value the rules already fall back to). Non-critical — the org is
+        // already created and the caller owns it, so a failure here just leaves
+        // legal_entity_name null (which still falls back to the org name).
+        const { error: leErr } = await supabase
+          .from('organizations')
+          .update({ legal_entity_name: name })
+          .eq('id', org.id);
+        if (leErr) console.warn('Could not set legal_entity_name on new org:', leErr);
       } else {
         organizationId = form.organizationId; orgName = lookups.orgs.find((o) => o.id === organizationId)?.name;
       }

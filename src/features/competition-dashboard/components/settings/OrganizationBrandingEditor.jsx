@@ -12,9 +12,12 @@ import { useToast } from '../../../../contexts/ToastContext';
  * @param {string} organizationId - Organization UUID
  * @param {string} currentHeaderLogoUrl - Current header_logo_url
  * @param {string} currentWebsiteUrl - Current website_url
+ * @param {string} fallbackLegalEntityName - Org name, used to seed the legal
+ *   entity name when the host hasn't set one yet (it's the value the Official
+ *   Rules already fall back to).
  * @param {function} onSave - Callback when save completes
  */
-export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUrl, fallbackLogoUrl, currentWebsiteUrl, currentLegalEntityName, currentInstagram, currentTiktok, currentFacebook, onSave }) {
+export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUrl, fallbackLogoUrl, currentWebsiteUrl, currentLegalEntityName, fallbackLegalEntityName, currentInstagram, currentTiktok, currentFacebook, onSave }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
 
@@ -35,14 +38,21 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
   const seededHeaderLogoUrl = currentHeaderLogoUrl || fallbackLogoUrl || '';
   const usingFallbackLogo = !currentHeaderLogoUrl && !!fallbackLogoUrl;
 
+  // No legal entity name on file yet? Seed the field with the org name (the same
+  // value the Official Rules already fall back to) so the host sees "Creator
+  // Social LLC" instead of an empty box, and a single Save promotes it to a
+  // saved legal_entity_name.
+  const seededLegalEntityName = currentLegalEntityName || fallbackLegalEntityName || '';
+  const usingFallbackLegalName = !currentLegalEntityName && !!fallbackLegalEntityName;
+
   useEffect(() => {
     setHeaderLogoUrl(seededHeaderLogoUrl);
     setWebsiteUrl(currentWebsiteUrl || '');
-    setLegalEntityName(currentLegalEntityName || '');
+    setLegalEntityName(seededLegalEntityName);
     setInstagram(currentInstagram || '');
     setTiktok(currentTiktok || '');
     setFacebook(currentFacebook || '');
-  }, [seededHeaderLogoUrl, currentWebsiteUrl, currentLegalEntityName, currentInstagram, currentTiktok, currentFacebook]);
+  }, [seededHeaderLogoUrl, currentWebsiteUrl, seededLegalEntityName, currentInstagram, currentTiktok, currentFacebook]);
 
   const hasChanges = () => {
     return headerLogoUrl !== (currentHeaderLogoUrl || '') ||
@@ -93,7 +103,7 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
   const handleCancel = () => {
     setHeaderLogoUrl(seededHeaderLogoUrl);
     setWebsiteUrl(currentWebsiteUrl || '');
-    setLegalEntityName(currentLegalEntityName || '');
+    setLegalEntityName(seededLegalEntityName);
     setInstagram(currentInstagram || '');
     setTiktok(currentTiktok || '');
     setFacebook(currentFacebook || '');
@@ -370,6 +380,11 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
                 organizer on your competition's Official Rules. Leave blank to use
                 your organization name.
               </p>
+              {usingFallbackLegalName && (
+                <p style={{ ...styles.hint, color: colors.gold.primary }}>
+                  Pre-filled from your organization name. Save to confirm it, or edit if your registered entity differs.
+                </p>
+              )}
               <input
                 type="text"
                 value={legalEntityName}
@@ -378,8 +393,13 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
                 style={styles.input}
               />
             </>
-          ) : legalEntityName ? (
-            <p style={styles.readValue}>{legalEntityName}</p>
+          ) : currentLegalEntityName ? (
+            <p style={styles.readValue}>{currentLegalEntityName}</p>
+          ) : fallbackLegalEntityName ? (
+            <p style={styles.readValue}>
+              {fallbackLegalEntityName}
+              <span style={{ color: colors.text.muted }}> · from your organization name</span>
+            </p>
           ) : (
             <p style={styles.readValue}>Not set — your organization name is used</p>
           )}
