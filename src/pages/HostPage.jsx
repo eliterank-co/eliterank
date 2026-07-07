@@ -263,7 +263,7 @@ const styles = {
 export default function HostPage() {
   const navigate = useNavigate();
   const { isMobile } = useResponsive();
-  const [selected, setSelected] = useState('all');
+  const [selected, setSelected] = useState('hybrid');
   const specific = selected !== 'all';
 
   // Filter each group's features to what applies; drop empty groups.
