@@ -33,7 +33,7 @@ const FORMAT_CARDS = [
 
 const FORMAT_SPECS = {
   publicVote: { Winner: 'Public votes', Voting: 'Free + paid', 'Entry fee': 'None', Charity: 'Required', Judges: 'None' },
-  hybrid: { Winner: 'Judges', Voting: 'Free + paid', 'Entry fee': 'Optional', Charity: 'Optional', Judges: 'Panel of 3+' },
+  hybrid: { Winner: 'Votes + judges', Voting: 'Free + paid', 'Entry fee': 'Optional', Charity: 'Optional', Judges: 'Panel of 3+' },
   judged: { Winner: 'Judges', Voting: 'None', 'Entry fee': 'Required', Charity: 'Optional', Judges: 'Panel of 3+' },
 };
 
@@ -90,7 +90,7 @@ const GROUPS = [
       { name: 'Paid vote revenue', blurb: 'The core revenue engine of vote-based competitions.', formats: VOTE },
       { name: 'Entry fees', blurb: 'Free to apply; contestants are charged only after you accept them.', formats: FEE },
       { name: 'Sponsorships', blurb: 'Title, prize, and per-event sponsors pay for visibility.', formats: ALL },
-      { name: 'Paid events', blurb: 'VIP tickets and meet-and-greets that double as content.', formats: ALL },
+      { name: 'Events', blurb: 'Promote events with a ticket/RSVP link.', formats: ALL },
       { name: 'Charity & prizes', blurb: 'Earmark revenue to a cause and award in-kind or cash prizes.', formats: ALL },
     ],
   },
