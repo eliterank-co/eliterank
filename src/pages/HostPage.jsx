@@ -15,6 +15,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ArrowRight, Phone, Users, Vote, Gavel, DollarSign, Megaphone, ShieldCheck,
 } from 'lucide-react';
+import { EliteRankCrown } from '../components/ui';
+import { useResponsive } from '../hooks/useResponsive';
 import { colors, spacing, typography, borderRadius, transitions, shadows } from '../styles/theme';
 
 // ---------------------------------------------------------------------------
@@ -135,10 +137,34 @@ const styles = {
   },
 
   // Hero
+  heroGrid: { display: 'grid', gap: spacing[8], alignItems: 'start' },
   eyebrow: {
     fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold,
     letterSpacing: '0.22em', textTransform: 'uppercase', color: colors.gold.primary,
     marginBottom: spacing[4],
+  },
+  // "What is a social competition?" panel
+  defCard: {
+    padding: spacing[6], borderRadius: borderRadius.xl,
+    border: `1px solid ${colors.border.primary}`, background: colors.background.secondary,
+    display: 'flex', flexDirection: 'column', gap: spacing[3],
+  },
+  defCrownWrap: {
+    width: '56px', height: '56px', borderRadius: borderRadius.lg,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: colors.gold.muted, boxShadow: shadows.goldInset,
+  },
+  defEyebrow: {
+    fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold,
+    letterSpacing: '0.14em', textTransform: 'uppercase', color: colors.gold.primary,
+  },
+  defTitle: {
+    fontSize: typography.fontSize.lg, fontWeight: typography.fontWeight.bold,
+    color: colors.text.primary, margin: 0,
+  },
+  defText: {
+    fontSize: typography.fontSize.base, color: colors.text.secondary,
+    lineHeight: typography.lineHeight.relaxed, margin: 0,
   },
   title: {
     fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: typography.fontWeight.bold,
@@ -244,6 +270,7 @@ const styles = {
 
 export default function HostPage() {
   const navigate = useNavigate();
+  const { isMobile } = useResponsive();
   const [selected, setSelected] = useState('all');
   const specific = selected !== 'all';
 
@@ -274,12 +301,30 @@ export default function HostPage() {
         </button>
 
         {/* Hero */}
-        <div style={styles.eyebrow}>For Hosts</div>
-        <h1 style={styles.title}>Run a competition your audience can't look away from.</h1>
-        <p style={styles.lede}>
-          EliteRank gives you everything to launch and run a branded social competition,
-          start to finish. Choose how your winner is chosen and see what comes with it.
-        </p>
+        <div style={{ ...styles.heroGrid, gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.6fr) minmax(0, 1fr)' }}>
+          <div>
+            <div style={styles.eyebrow}>For Hosts</div>
+            <h1 style={styles.title}>Run a competition your audience can't look away from.</h1>
+            <p style={styles.lede}>
+              EliteRank gives you everything to launch and run a branded social competition,
+              start to finish. Choose how your winner is chosen and see what comes with it.
+            </p>
+          </div>
+
+          <aside style={styles.defCard}>
+            <div style={styles.defCrownWrap}>
+              <EliteRankCrown size={32} />
+            </div>
+            <div style={styles.defEyebrow}>Social competition (n.)</div>
+            <h2 style={styles.defTitle}>What you're actually running</h2>
+            <p style={styles.defText}>
+              A multi-week contest where a curated lineup competes for a title, decided by
+              public votes, a judging panel, or a mix of both. Fans follow, vote, and share,
+              turning your audience into participants and participants into ambassadors who
+              keep promoting your brand long after the final vote.
+            </p>
+          </aside>
+        </div>
 
         {/* Step 1: format */}
         <div style={styles.stepLabel}>How is your winner chosen?</div>
