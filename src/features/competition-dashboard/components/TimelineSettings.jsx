@@ -19,6 +19,7 @@ import {
   getStatusChangeRestriction,
   getNextAutoTransition,
 } from '../../../utils/competitionStatusEngine';
+import { renumberVotingTitles } from '../../../utils/renumberVotingTitles';
 import { SkeletonPulse, SkeletonText } from '../../../components/common/Skeleton';
 
 /**
@@ -798,7 +799,9 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       await reconcileOrderedRows({
         table: 'voting_rounds',
         competitionId: competition.id,
-        desired: votingRounds,
+        // Normalise placeholder round titles to schedule order on every save,
+        // so any drift (or already-drifted data) self-heals when persisted.
+        desired: renumberVotingTitles(votingRounds),
         orderField: 'round_order',
         buildPayload: (round, index) => ({
           title: round.title || `Round ${index + 1}`,
@@ -942,11 +945,15 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       }
     }
 
-    setVotingRounds(rounds);
+    // Renumber generic titles so an inserted round reads in schedule order
+    // (e.g. a round dropped before the judged final round doesn't leave
+    // "Voting Round 4" sitting ahead of "Voting Round 3").
+    const numbered = renumberVotingTitles(rounds);
+    setVotingRounds(numbered);
     setRoundDisplayValues(disps);
     // The last round may have changed (appended, or the slid final round) —
     // keep the finale from landing before it.
-    ensureFinaleAfterLast(rounds);
+    ensureFinaleAfterLast(numbered);
   };
 
   // ── How winners are decided (configured inline on the final round) ─────────
@@ -989,7 +996,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     // the last round, whatever its type.
     const rounds = pairs.map(({ r }) => ({ ...r, judge_weight: 0 }));
     if (rounds.length) rounds[rounds.length - 1] = { ...rounds[rounds.length - 1], judge_weight: w };
-    setVotingRounds(rounds);
+    setVotingRounds(renumberVotingTitles(rounds));
     setRoundDisplayValues(pairs.map(({ d }) => d));
     ensureFinaleAfterLast(rounds);
   };
@@ -1032,7 +1039,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     }
 
     const all = [...nonJudging, judging]; // judging round always last
-    setVotingRounds(all.map((p) => p.r));
+    setVotingRounds(renumberVotingTitles(all.map((p) => p.r)));
     setRoundDisplayValues(all.map((p) => p.d));
     ensureFinaleAfterLast(all.map((p) => p.r));
   };
@@ -1122,7 +1129,8 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // Stable refs (functional setState, no deps) so the memoized round cards only
   // re-render the row that actually changed — not every card on each keystroke.
   const removeVotingRound = useCallback((index) => {
-    setVotingRounds(prev => prev.filter((_, i) => i !== index));
+    // Renumber after removal so the remaining rounds stay 1, 2, 3… in order.
+    setVotingRounds(prev => renumberVotingTitles(prev.filter((_, i) => i !== index)));
     setRoundDisplayValues(prev => prev.filter((_, i) => i !== index));
   }, []);
 
