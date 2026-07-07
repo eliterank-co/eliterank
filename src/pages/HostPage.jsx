@@ -115,6 +115,7 @@ const GROUPS = [
       { name: 'Bot & fraud protection', blurb: 'Device-fingerprinted voting keeps results clean.', formats: ALL },
       { name: 'Co-hosts', blurb: 'Bring on co-hosts to run the competition alongside you on the same dashboard.', formats: ALL },
       { name: 'Run multiple competitions', blurb: 'Launch as many competitions as you want from one account, whether repeat seasons, several cities, or a single statewide event, all from a built-in switcher.', formats: ALL },
+      { name: 'Auto-generated rules', blurb: 'Official contest rules generate automatically from your setup, and settings lock once you publish.', formats: ALL },
     ],
   },
 ];
