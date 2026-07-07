@@ -36,6 +36,7 @@ const AchievementsPage = lazy(() => import('../pages/AchievementsPage'));
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'));
 const PerformancePage = lazy(() => import('../pages/PerformancePage'));
 const CompetitionLayout = lazy(() => import('../pages/competition/CompetitionLayout'));
+const HostPage = lazy(() => import('../pages/HostPage'));
 const PrivacyPage = lazy(() => import('../pages/PrivacyPage'));
 const TermsPage = lazy(() => import('../pages/TermsPage'));
 const CookiesPage = lazy(() => import('../pages/CookiesPage'));
@@ -171,6 +172,16 @@ export default function AppRoutes() {
         element={
           <SuspenseWrapper>
             <LoginPageWrapper />
+          </SuspenseWrapper>
+        }
+      />
+
+      {/* Host marketing page — interactive features-by-format explorer */}
+      <Route
+        path="/host"
+        element={
+          <SuspenseWrapper>
+            <HostPage />
           </SuspenseWrapper>
         }
       />

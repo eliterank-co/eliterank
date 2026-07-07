@@ -189,6 +189,7 @@ export const RESERVED_PATHS = [
   'events',   // Events
   'news',     // News/announcements
   'about',    // About page
+  'host',     // Host marketing page
   'join',     // Join/signup
   'photobooth', // Temporary event photo booth
 ];
