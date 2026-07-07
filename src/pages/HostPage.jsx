@@ -102,7 +102,7 @@ const GROUPS = [
       { name: 'Self-transforming page', blurb: 'Shifts automatically from entries, to live competition, to winner showcase.', formats: ALL },
       { name: 'Multiple winners', blurb: 'Crown more than one winner, whether a set number of champions or a separate winner for each gender, all featured in the winner showcase.', formats: ALL },
       { name: 'Auto share cards', blurb: 'Shareable social cards generated for votes, advancement, and wins.', formats: ALL },
-      { name: 'Fan follows & digests', blurb: 'Fans follow contestants they back, with opt-in weekly digests.', formats: ALL },
+      { name: 'Fan follows & weekly digests', blurb: 'Fans can follow contestants and opt in to weekly contestant performance recap emails.', formats: ALL },
       { name: 'Automated updates', blurb: 'Lifecycle emails and in-app updates reach your audience for you.', formats: ALL },
     ],
   },
