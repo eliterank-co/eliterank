@@ -59,6 +59,7 @@ export default function EliteRankCityModal({
   onAccountSettings,
   onHowToCompete,
   onLaunchCompetition,
+  onHostInfo,
   isAuthenticated = false,
   userRole = 'fan',
   userName,
@@ -1605,6 +1606,27 @@ export default function EliteRankCityModal({
                   {tab.label}
                 </button>
               ))}
+              {onHostInfo && (
+                <button
+                  onClick={onHostInfo}
+                  style={{
+                    ...styleHelpers.flexCenter,
+                    gap: spacing.xs,
+                    padding: `${spacing.sm} ${spacing.lg}`,
+                    background: 'transparent',
+                    border: `1px solid ${colors.border.focus}`,
+                    borderRadius: borderRadius.lg,
+                    color: colors.gold.primary,
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: typography.fontWeight.semibold,
+                    cursor: 'pointer',
+                    transition: `all ${transitions.fast}`,
+                  }}
+                >
+                  <Building size={16} />
+                  For Hosts
+                </button>
+              )}
             </nav>
           )}
 
@@ -1694,6 +1716,28 @@ export default function EliteRankCityModal({
               </button>
             );
           })}
+          {onHostInfo && (
+            <button
+              onClick={onHostInfo}
+              style={{
+                ...styleHelpers.flexColumn,
+                ...styleHelpers.flexCenter,
+                gap: '2px',
+                padding: spacing.sm,
+                background: 'none',
+                border: 'none',
+                color: colors.gold.primary,
+                cursor: 'pointer',
+                transition: `all ${transitions.fast}`,
+                flex: 1,
+              }}
+            >
+              <Building size={22} />
+              <span style={{ fontSize: '10px', fontWeight: typography.fontWeight.semibold }}>
+                Hosts
+              </span>
+            </button>
+          )}
         </nav>
       )}
 
