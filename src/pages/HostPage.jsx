@@ -211,10 +211,12 @@ const styles = {
 
   // Feature groups
   groupsWrap: {
-    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-    gap: `${spacing[10]} ${spacing[10]}`, marginTop: spacing[12],
+    columnWidth: '360px', columnGap: spacing[10], marginTop: spacing[12],
   },
-  group: {},
+  group: {
+    breakInside: 'avoid', WebkitColumnBreakInside: 'avoid', pageBreakInside: 'avoid',
+    display: 'inline-block', width: '100%', marginBottom: spacing[10],
+  },
   groupHead: { display: 'flex', alignItems: 'center', gap: spacing[3], marginBottom: spacing[1] },
   groupIcon: {
     width: '34px', height: '34px', borderRadius: borderRadius.md, flexShrink: 0,
