@@ -861,6 +861,7 @@ export default function CompetitionDashboard({
           <>
             <AnnouncementsManager
               announcements={data.announcements}
+              competition={competition}
               host={data.host}
               isSuperAdmin={isSuperAdmin}
               onAddAnnouncement={addAnnouncement}

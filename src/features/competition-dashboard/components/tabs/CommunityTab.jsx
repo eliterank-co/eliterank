@@ -6,6 +6,7 @@ import { formatRelativeTime } from '../../../../utils/formatters';
 
 export default function CommunityTab({
   announcements,
+  competition,
   host,
   isSuperAdmin,
   onAddAnnouncement,
@@ -17,7 +18,9 @@ export default function CommunityTab({
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
 
-  const authorName = isSuperAdmin ? 'SOCLUB' : (host?.name || 'Host');
+  const authorName = isSuperAdmin
+    ? (competition?.organization?.name || 'EliteRank')
+    : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 
   const handleCreateAnnouncement = async () => {

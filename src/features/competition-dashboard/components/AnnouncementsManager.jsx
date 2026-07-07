@@ -12,6 +12,7 @@ import { formatRelativeTime } from '../../../utils/formatters';
  */
 export default function AnnouncementsManager({
   announcements = [],
+  competition,
   host,
   isSuperAdmin,
   onAddAnnouncement,
@@ -24,7 +25,11 @@ export default function AnnouncementsManager({
   const [editingAnnouncement, setEditingAnnouncement] = useState(null);
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
 
-  const authorName = isSuperAdmin ? 'SOCLUB' : (host?.name || 'Host');
+  // Super-admin posts are authored as the competition's organization/brand
+  // (competitions run under many different brands), not the platform.
+  const authorName = isSuperAdmin
+    ? (competition?.organization?.name || 'EliteRank')
+    : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 
   const handleSubmit = async () => {

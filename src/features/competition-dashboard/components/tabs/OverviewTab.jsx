@@ -143,7 +143,9 @@ export default function OverviewTab({
     }).slice(0, 3);
   }, [announcements]);
 
-  const authorName = isSuperAdmin ? 'SOCLUB' : (host?.name || 'Host');
+  const authorName = isSuperAdmin
+    ? (competition?.organization?.name || 'EliteRank')
+    : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 
   const handleSubmitAnnouncement = async () => {
