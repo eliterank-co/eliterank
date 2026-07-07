@@ -59,7 +59,7 @@ const GROUPS = [
   {
     title: 'Entry & contestants',
     features: [
-      { name: 'Flexible entry', blurb: 'Open by application, self-nomination, or fan nomination. You review and approve every entry.', formats: ALL },
+      { name: 'Flexible entry', blurb: 'Two ways in: a quick nomination, submitted by the contestant or anyone who backs them, or a longer application the contestant completes themselves. You review and approve every entry.', formats: ALL },
       { name: 'Branded onboarding', blurb: 'Custom qualifying questions and a branded flow that matches your competition.', formats: ALL },
       { name: 'Self-serve contestant profiles', blurb: 'Contestants build and manage their own page, photos, and pitch, and track their performance in real time.', formats: ALL },
       { name: 'Waitlist capture', blurb: 'Your coming-soon page collects interested nominees, fans, and sponsors before entry even opens.', formats: ALL },
