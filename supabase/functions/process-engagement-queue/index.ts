@@ -479,10 +479,11 @@ async function sendSms(to: string, body: string): Promise<{ success: boolean; si
 // =============================================================================
 
 async function sendEmail(
-  to: string, 
-  subject: string, 
-  html: string, 
-  text: string
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+  fromName: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const apiKey = Deno.env.get('SENDGRID_API_KEY')
   const fromEmail = Deno.env.get('EMAIL_FROM') || 'EliteRank <noreply@eliterank.co>'
@@ -501,7 +502,7 @@ async function sendEmail(
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: to }] }],
-        from: { email: fromEmail.includes('<') ? fromEmail.match(/<(.+)>/)?.[1] : fromEmail, name: 'EliteRank' },
+        from: { email: fromEmail.includes('<') ? fromEmail.match(/<(.+)>/)?.[1] : fromEmail, name: fromName },
         subject,
         content: [
           { type: 'text/plain', value: text },
@@ -521,6 +522,42 @@ async function sendEmail(
   } catch (err) {
     console.error('Email send failed:', err)
     return { success: false, error: String(err) }
+  }
+}
+
+// =============================================================================
+// BRAND RESOLUTION
+// =============================================================================
+
+/**
+ * Resolve the org/brand display name for a competition. Most competitions run
+ * under a different organization, so the email "from" name should be that org's
+ * name, not the platform. Best-effort: any failure yields the platform default.
+ */
+async function resolveBrandName(
+  supabase: ReturnType<typeof createClient>,
+  competitionId?: string | null
+): Promise<string> {
+  const platformDefault = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  if (!competitionId) return platformDefault
+  try {
+    const { data: comp, error: compErr } = await supabase
+      .from('competitions')
+      .select('organization_id')
+      .eq('id', competitionId)
+      .maybeSingle()
+    if (compErr || !comp?.organization_id) return platformDefault
+    const { data: org, error: orgErr } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', comp.organization_id)
+      .maybeSingle()
+    if (orgErr) return platformDefault
+    const name = typeof org?.name === 'string' ? org.name.trim() : ''
+    return name || platformDefault
+  } catch (err) {
+    console.warn('resolveBrandName error (non-blocking):', err)
+    return platformDefault
   }
 }
 
@@ -578,6 +615,16 @@ serve(async (req) => {
       errors: [] as string[],
     }
 
+    // Cache brand lookups within this batch — many rows share a competition.
+    const brandCache = new Map<string, string>()
+    const brandFor = async (competitionId?: string | null): Promise<string> => {
+      const key = competitionId || ''
+      if (brandCache.has(key)) return brandCache.get(key)!
+      const name = await resolveBrandName(supabase, competitionId)
+      brandCache.set(key, name)
+      return name
+    }
+
     for (const engagement of pending) {
       results.processed++
       const templateData = engagement.template_data as TemplateData
@@ -592,7 +639,8 @@ serve(async (req) => {
       // Send email if channel is 'email' or 'both' and we have an email address
       if ((channel === 'email' || channel === 'both') && engagement.email_to) {
         const { subject, html, text } = renderEmailTemplate(engagement.engagement_type, templateData)
-        const emailResult = await sendEmail(engagement.email_to, subject, html, text)
+        const fromName = await brandFor(engagement.competition_id)
+        const emailResult = await sendEmail(engagement.email_to, subject, html, text, fromName)
         
         if (emailResult.success) {
           emailSent = true

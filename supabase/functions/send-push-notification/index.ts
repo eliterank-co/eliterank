@@ -25,9 +25,15 @@ const corsHeaders = {
  *   - new_reward:         "You have a new reward!" push to contestant
  *   - generic:            Custom title/body push
  *
+ * The default/generic notification title falls back to the competition's
+ * organization/brand name (resolved from competition_id, passed top-level or in
+ * `data`), or DEFAULT_BRAND_NAME / "EliteRank" when there's no competition.
+ *
  * Required Supabase secrets:
  *   ONESIGNAL_APP_ID   — OneSignal App ID
  *   ONESIGNAL_API_KEY  — OneSignal REST API Key
+ * Optional:
+ *   DEFAULT_BRAND_NAME — title for platform-level pushes (default "EliteRank")
  *
  * Body: {
  *   user_id: string,           // Supabase user UUID (used as OneSignal external_id)
@@ -56,12 +62,51 @@ interface PushRequest {
   nominee_name?: string
   nominator_name?: string
   competition_name?: string
+  // When set (top-level or inside `data`), the default notification title
+  // falls back to the competition's organization/brand name instead of the
+  // platform name.
+  competition_id?: string
   vote_count?: number
   old_rank?: number
   new_rank?: number
 }
 
-function getNotificationContent(req: PushRequest): { title: string; body: string } {
+/**
+ * Resolve the org/brand name for a competition. Most competitions run under a
+ * different organization, so a brand-less push should read as that org, not the
+ * platform. Best-effort: any failure yields the platform default.
+ */
+async function resolveBrandName(competitionId?: string | null): Promise<string> {
+  const platformDefault = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  if (!competitionId) return platformDefault
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!supabaseUrl || !serviceKey) return platformDefault
+    const supabase = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: comp, error: compErr } = await supabase
+      .from('competitions')
+      .select('organization_id')
+      .eq('id', competitionId)
+      .maybeSingle()
+    if (compErr || !comp?.organization_id) return platformDefault
+    const { data: org, error: orgErr } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', comp.organization_id)
+      .maybeSingle()
+    if (orgErr) return platformDefault
+    const name = typeof org?.name === 'string' ? org.name.trim() : ''
+    return name || platformDefault
+  } catch (err) {
+    console.warn('resolveBrandName error (non-blocking):', err)
+    return platformDefault
+  }
+}
+
+function getNotificationContent(req: PushRequest, brandName: string): { title: string; body: string } {
   // If caller provides explicit title/body, use those
   if (req.title && req.body) {
     return { title: req.title, body: req.body }
@@ -149,7 +194,7 @@ function getNotificationContent(req: PushRequest): { title: string; body: string
 
     default:
       return {
-        title: req.title || 'EliteRank',
+        title: req.title || brandName,
         body: req.body || 'You have a new notification.',
       }
   }
@@ -183,7 +228,13 @@ serve(async (req) => {
       )
     }
 
-    const { title, body: messageBody } = getNotificationContent(body)
+    // Brand the notification with the competition's organization name. The
+    // competition id may arrive top-level or nested in `data` (callers vary).
+    const competitionId =
+      body.competition_id || (body.data?.competition_id as string | undefined)
+    const brandName = await resolveBrandName(competitionId)
+
+    const { title, body: messageBody } = getNotificationContent(body, brandName)
 
     // Build the deep link URL
     const actionUrl = body.url ? `${appUrl}${body.url.startsWith('/') ? '' : '/'}${body.url}` : appUrl
