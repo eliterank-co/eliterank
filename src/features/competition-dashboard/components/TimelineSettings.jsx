@@ -19,6 +19,8 @@ import {
   getStatusChangeRestriction,
   getNextAutoTransition,
 } from '../../../utils/competitionStatusEngine';
+import { renumberVotingTitles } from '../../../utils/renumberVotingTitles';
+import { getVotingBeforeNominationsWarning } from '../../../utils/votingScheduleWarnings';
 import { SkeletonPulse, SkeletonText } from '../../../components/common/Skeleton';
 
 /**
@@ -651,6 +653,25 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     ? new Date(new Date(nominationCloseIso).getTime() + 5 * 86400000).toISOString()
     : null;
 
+  // Voting rounds are pre-filled from a planned-launch estimate and don't
+  // recompute when the host later sets their real nomination window — so they
+  // can end up scheduled before nominations even close. Detect that so we can
+  // nudge the host to re-run Auto-fill (which rebuilds from nominations close).
+  const votingWindowWarning = getVotingBeforeNominationsWarning(
+    votingRounds,
+    nominationCloseIso
+  );
+
+  // Voting dates are derived from the nomination close, so a host can't build
+  // a sensible voting schedule until their nomination window is SAVED. Gate
+  // creating rounds (Auto-fill / Add Voting) on that. It's prop-driven, so it
+  // unlocks automatically once the Nomination Form section saves and the parent
+  // refetches. Existing rounds are never hidden — this only gates *new* ones,
+  // so no live competition's timeline is affected.
+  const hasSavedNominationWindow =
+    !!nominationCloseIso ||
+    nominationPeriods.some((p) => p.start_date && p.end_date);
+
   // Validate dates
   const validateDates = () => {
     const validationErrors = [];
@@ -691,10 +712,10 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
         validationErrors.push(`${roundType} Round ${index + 1}: End date must be after start date`);
       }
 
-      // Only warn if strictly before (allow overlap for flexibility)
-      if (prevRoundEnd && roundStart && roundStart < prevRoundEnd) {
-        // This is now just a warning, not an error - allow overlapping rounds
-      }
+      // Overlapping rounds are allowed by design (rolling schedules), so we
+      // don't error when a round starts before the previous ends. Voting that
+      // starts before nominations close is surfaced separately as a non-blocking
+      // warning (see getVotingBeforeNominationsWarning / the Voting Rounds banner).
 
       prevRoundEnd = roundEnd;
     });
@@ -798,7 +819,9 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       await reconcileOrderedRows({
         table: 'voting_rounds',
         competitionId: competition.id,
-        desired: votingRounds,
+        // Normalise placeholder round titles to schedule order on every save,
+        // so any drift (or already-drifted data) self-heals when persisted.
+        desired: renumberVotingTitles(votingRounds),
         orderField: 'round_order',
         buildPayload: (round, index) => ({
           title: round.title || `Round ${index + 1}`,
@@ -884,6 +907,9 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // Voting/Judging round management
   const ROUND_LEN_MS = 7 * 86400000; // default round length when we auto-fill
   const addVotingRound = (roundType = 'voting') => {
+    // Voting dates derive from the nomination close — don't create rounds until
+    // the nomination window is saved (mirrors the disabled button state).
+    if (!hasSavedNominationWindow) return;
     const typeLabel = roundType === 'judging' ? 'Judging' : 'Voting';
 
     // Keep judging glued to the FINAL round. In a judged competition, if the
@@ -942,11 +968,15 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       }
     }
 
-    setVotingRounds(rounds);
+    // Renumber generic titles so an inserted round reads in schedule order
+    // (e.g. a round dropped before the judged final round doesn't leave
+    // "Voting Round 4" sitting ahead of "Voting Round 3").
+    const numbered = renumberVotingTitles(rounds);
+    setVotingRounds(numbered);
     setRoundDisplayValues(disps);
     // The last round may have changed (appended, or the slid final round) —
     // keep the finale from landing before it.
-    ensureFinaleAfterLast(rounds);
+    ensureFinaleAfterLast(numbered);
   };
 
   // ── How winners are decided (configured inline on the final round) ─────────
@@ -989,7 +1019,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     // the last round, whatever its type.
     const rounds = pairs.map(({ r }) => ({ ...r, judge_weight: 0 }));
     if (rounds.length) rounds[rounds.length - 1] = { ...rounds[rounds.length - 1], judge_weight: w };
-    setVotingRounds(rounds);
+    setVotingRounds(renumberVotingTitles(rounds));
     setRoundDisplayValues(pairs.map(({ d }) => d));
     ensureFinaleAfterLast(rounds);
   };
@@ -1032,7 +1062,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     }
 
     const all = [...nonJudging, judging]; // judging round always last
-    setVotingRounds(all.map((p) => p.r));
+    setVotingRounds(renumberVotingTitles(all.map((p) => p.r)));
     setRoundDisplayValues(all.map((p) => p.d));
     ensureFinaleAfterLast(all.map((p) => p.r));
   };
@@ -1112,6 +1142,8 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   };
 
   const handleAutofillClick = () => {
+    // Auto-fill derives dates from the nomination close — require it saved first.
+    if (!hasSavedNominationWindow) return;
     if (votingRounds.length > 0 || settings.finals_date) {
       setConfirmingAutofill(true);
     } else {
@@ -1122,7 +1154,8 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // Stable refs (functional setState, no deps) so the memoized round cards only
   // re-render the row that actually changed — not every card on each keystroke.
   const removeVotingRound = useCallback((index) => {
-    setVotingRounds(prev => prev.filter((_, i) => i !== index));
+    // Renumber after removal so the remaining rounds stay 1, 2, 3… in order.
+    setVotingRounds(prev => renumberVotingTitles(prev.filter((_, i) => i !== index)));
     setRoundDisplayValues(prev => prev.filter((_, i) => i !== index));
   }, []);
 
@@ -1321,10 +1354,23 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
             Voting Rounds
           </h4>
           <div style={{ display: 'flex', gap: spacing.sm }}>
-            <Button size="sm" icon={Sparkles} onClick={handleAutofillClick}>
+            <Button
+              size="sm"
+              icon={Sparkles}
+              onClick={handleAutofillClick}
+              disabled={!hasSavedNominationWindow}
+              title={!hasSavedNominationWindow ? 'Save your nomination dates first' : undefined}
+            >
               Auto-fill recommended
             </Button>
-            <Button variant="secondary" size="sm" icon={Plus} onClick={() => addVotingRound('voting')}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Plus}
+              onClick={() => addVotingRound('voting')}
+              disabled={!hasSavedNominationWindow}
+              title={!hasSavedNominationWindow ? 'Save your nomination dates first' : undefined}
+            >
               Add Voting
             </Button>
           </div>
@@ -1341,6 +1387,26 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
           {usesJudges ? <> — judges decide the final round at <strong>60%</strong>. Prefer a judges-only finale? Change it on the final round below.</> : '. '}
           {' '}Adjust anything after.
         </p>
+
+        {votingWindowWarning && (
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: spacing.sm,
+            padding: spacing.md, marginBottom: spacing.md,
+            background: `${colors.status.warning}12`,
+            border: `1px solid ${colors.status.warning}55`,
+            borderRadius: borderRadius.md,
+          }}>
+            <AlertTriangle size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>
+              Your voting rounds start{' '}
+              <strong>{formatDateForDisplay(votingWindowWarning.earliestStartIso)}</strong>, before nominations
+              close (<strong>{formatDateForDisplay(votingWindowWarning.nominationCloseIso)}</strong>). They were
+              pre-filled from your planned launch and didn’t update when your nomination window changed. Click{' '}
+              <strong>Auto-fill recommended</strong> to rebuild the schedule from your nomination window, or set
+              each round’s dates by hand.
+            </span>
+          </div>
+        )}
 
         {confirmingAutofill && (
           <div style={{
@@ -1378,17 +1444,39 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
           ? (displayRounds[displayRounds.length - 1].round.title || `Round ${displayRounds.length}`)
           : '';
         return displayRounds.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: spacing.xl,
-            background: colors.background.card,
-            borderRadius: borderRadius.lg,
-            color: colors.text.secondary,
-          }}>
-            <Vote size={32} style={{ marginBottom: spacing.md, opacity: 0.5 }} />
-            <p>No voting rounds yet</p>
-            <p style={{ fontSize: typography.fontSize.sm }}>Use Auto-fill recommended, or add voting rounds to define the schedule</p>
-          </div>
+          !hasSavedNominationWindow ? (
+            // Gate: voting dates are built from the nomination close, so require
+            // a saved nomination window before any rounds can be created.
+            <div style={{
+              textAlign: 'center',
+              padding: spacing.xl,
+              background: colors.background.card,
+              border: `1px solid ${colors.gold.primary}33`,
+              borderRadius: borderRadius.lg,
+              color: colors.text.secondary,
+            }}>
+              <Calendar size={32} style={{ marginBottom: spacing.md, opacity: 0.6, color: colors.gold.primary }} />
+              <p style={{ color: colors.text.primary, fontWeight: typography.fontWeight.semibold }}>
+                Set your nomination window first
+              </p>
+              <p style={{ fontSize: typography.fontSize.sm }}>
+                Your voting schedule is built from your nomination dates. Add and <strong>save</strong> your
+                nomination window in the Nomination Form section above, then Auto-fill or add rounds here.
+              </p>
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              padding: spacing.xl,
+              background: colors.background.card,
+              borderRadius: borderRadius.lg,
+              color: colors.text.secondary,
+            }}>
+              <Vote size={32} style={{ marginBottom: spacing.md, opacity: 0.5 }} />
+              <p>No voting rounds yet</p>
+              <p style={{ fontSize: typography.fontSize.sm }}>Use Auto-fill recommended, or add voting rounds to define the schedule</p>
+            </div>
+          )
         ) : (
           <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
