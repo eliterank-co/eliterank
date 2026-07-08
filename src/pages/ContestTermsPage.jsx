@@ -175,6 +175,13 @@ export default function ContestTermsPage() {
             administrator unless explicitly identified as the Host.
           </p>
           <p style={styles.p}>
+            EliteRank operates some competitions itself (for example, Most Eligible), in which case EliteRank is the
+            Host. The <span style={styles.strong}>merchant of record</span> for purchased votes in a competition is
+            its operator &mdash; EliteRank for competitions it operates directly, and the third-party Host otherwise.
+            That operator is solely responsible for the products and services sold, refunds, chargebacks, and payment
+            disputes for its competition; EliteRank is not responsible for the obligations of any third-party Host.
+          </p>
+          <p style={styles.p}>
             "Promotion Entities" means the Host, EliteRank, their respective affiliates, and their officers,
             directors, employees, agents, contractors, judges, and sponsors of the competition.
           </p>

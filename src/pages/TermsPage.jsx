@@ -253,9 +253,30 @@ export default function TermsPage() {
             are responsible for any taxes associated with purchases.
           </p>
           <p style={styles.p}>
+            <span style={styles.strong}>Merchant of record.</span> The merchant of record for vote purchases in a
+            competition is that competition&rsquo;s operator: <span style={styles.strong}>EliteRank</span> for
+            competitions EliteRank operates directly (including Most Eligible), and the <span style={styles.strong}>
+            third-party host</span> for host-run competitions. The operator is responsible for the products and
+            services sold, refunds, chargebacks, payment disputes, and prize fulfillment for its competitions.
+          </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Hosts and prizes.</span> Except for competitions EliteRank operates itself,
+            EliteRank provides the Service as a neutral venue and is not the organizer of, or a party to, any
+            host&rsquo;s competition. The host alone is responsible for operating its competition, defining and
+            awarding prizes, satisfying all applicable laws (including contest, sweepstakes, tax, and registration
+            requirements), and meeting any obligation to contestants, voters, and sponsors. EliteRank does not
+            guarantee that any prize will be offered, awarded, or delivered.
+          </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Fees.</span> Any amount EliteRank retains as a platform or service fee is
+            earned when a purchase completes and is non-refundable, including where the underlying purchase is later
+            refunded, except as required by law.
+          </p>
+          <p style={styles.p}>
             We reserve the right to disqualify participants, void votes, withhold prizes, or modify competition
             outcomes if we detect fraud, manipulation, or violation of these Terms or the Contest Terms &amp;
-            Conditions.
+            Conditions. We do not guarantee any outcome, ranking, result, level of participation, earnings, or host
+            payout amount, and vote tallies and results may be adjusted to correct errors or address abuse.
           </p>
         </section>
 
