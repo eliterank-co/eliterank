@@ -475,6 +475,7 @@ export function useCompetitionDashboard(competitionId) {
           value: p.value || '',
           imageUrl: p.image_url || '',
           prizeType: p.prize_type || 'contestant',
+          recipientGender: p.recipient_gender || 'all',
           sortOrder: p.sort_order || 0,
         });
         prizesBySponsorId.set(p.sponsor_id, list);
@@ -1386,6 +1387,40 @@ export function useCompetitionDashboard(competitionId) {
   const defaultPrizeTypeFromRecipient = (recipient) =>
     recipient === 'winners' ? 'winner' : 'contestant';
 
+  // competition_prizes.recipient_gender (migration 114) can 404 in PostgREST's
+  // schema cache for a short window right after its migration, or if the frontend
+  // ships ahead of it. Detect that so a prize write can retry without the column
+  // rather than hard-failing — it falls back to the DB default ('all') until the
+  // cache catches up. Mirrors the nominees/contestants gender fallback.
+  const isMissingRecipientGender = (err) =>
+    !!err && (
+      err.code === 'PGRST204' ||
+      err.message?.includes('schema cache') ||
+      err.message?.includes('recipient_gender')
+    );
+
+  // eslint-disable-next-line no-unused-vars
+  const stripGender = ({ recipient_gender, ...rest }) => rest;
+
+  // Insert competition_prizes rows, retrying without recipient_gender on a
+  // schema-cache miss so a stale cache can never block saving a prize.
+  const insertPrizeRows = async (rows) => {
+    let { error } = await supabase.from('competition_prizes').insert(rows);
+    if (isMissingRecipientGender(error)) {
+      ({ error } = await supabase.from('competition_prizes').insert(rows.map(stripGender)));
+    }
+    return { error };
+  };
+
+  // Update one competition_prizes row, with the same recipient_gender fallback.
+  const updatePrizeRow = async (id, row) => {
+    let { error } = await supabase.from('competition_prizes').update(row).eq('id', id);
+    if (isMissingRecipientGender(error)) {
+      ({ error } = await supabase.from('competition_prizes').update(stripGender(row)).eq('id', id));
+    }
+    return { error };
+  };
+
   const addSponsor = useCallback(async (sponsorData) => {
     if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
 
@@ -1421,9 +1456,10 @@ export function useCompetitionDashboard(competitionId) {
           value: p.value ? String(p.value) : null,
           image_url: p.imageUrl || null,
           prize_type: prizeType,
+          recipient_gender: p.recipientGender || 'all',
           sort_order: idx,
         }));
-        const { error: prizeError } = await supabase.from('competition_prizes').insert(prizeRows);
+        const { error: prizeError } = await insertPrizeRows(prizeRows);
         if (prizeError) throw prizeError;
       }
 
@@ -1488,23 +1524,19 @@ export function useCompetitionDashboard(competitionId) {
           value: p.value ? String(p.value) : null,
           image_url: p.imageUrl || null,
           prize_type: newPrizeType,
+          recipient_gender: p.recipientGender || 'all',
           sort_order: i,
         };
 
         if (p.id && existingIds.has(p.id)) {
-          const { error: updErr } = await supabase
-            .from('competition_prizes')
-            .update(sharedFields)
-            .eq('id', p.id);
+          const { error: updErr } = await updatePrizeRow(p.id, sharedFields);
           if (updErr) throw updErr;
         } else {
-          const { error: insErr } = await supabase
-            .from('competition_prizes')
-            .insert({
-              competition_id: competitionId,
-              sponsor_id: sponsorId,
-              ...sharedFields,
-            });
+          const { error: insErr } = await insertPrizeRows([{
+            competition_id: competitionId,
+            sponsor_id: sponsorId,
+            ...sharedFields,
+          }]);
           if (insErr) throw insErr;
         }
       }

@@ -56,6 +56,7 @@ function sponsorToWizardForm(sponsor) {
     description: p.description || '',
     value: p.value ? String(p.value) : '',
     imageUrl: p.imageUrl || '',
+    recipientGender: p.recipientGender || 'all',
   }));
   // Prefer the stored recipient; fall back to inferring from the first prize's
   // prize_type for legacy sponsors saved before reward_recipient was persisted.
@@ -992,6 +993,13 @@ export default function CompetitionDashboard({
         onClose={() => setSponsorModal({ isOpen: false, sponsor: null })}
         sponsor={sponsorModal.sponsor ? sponsorToWizardForm(sponsorModal.sponsor) : null}
         tierAvailability={computeTierAvailability(data.sponsors, sponsorModal.sponsor)}
+        // The per-prize gender control only appears when the competition crowns
+        // winners split by gender. Known edge: if a super-admin later turns
+        // winners_split_by_gender OFF, any prizes already tagged male/female keep
+        // that value (and public chip) with no host UI to clear it. Acceptable
+        // because that flag is not expected to be toggled off once set; revisit
+        // if it becomes editable post-setup.
+        genderSplit={!!competition?.winnersSplitByGender}
         onSave={async (wizardData) => {
           const sponsorData = wizardFormToSponsor(wizardData);
           if (sponsorModal.sponsor) {

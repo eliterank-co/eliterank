@@ -219,6 +219,50 @@ export function formatPrizeRecipient(prize) {
 }
 
 /**
+ * Human label for the gender a prize is restricted to, from its sponsor's
+ * recipient_gender setting. Returns null for 'all' (or unset) so callers can
+ * skip rendering a chip when a prize is open to everyone. Only meaningful in
+ * competitions that crown winners split by gender.
+ * @param {object} prize - Prize with `recipient_gender`
+ * @returns {string|null}
+ */
+export function formatPrizeGender(prize) {
+  if (!prize) return null;
+  switch (prize.recipient_gender) {
+    case 'male':
+      return 'Men only';
+    case 'female':
+      return 'Women only';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Order a prize list so gendered prizes alternate men → women → men … with any
+ * "everyone" prizes kept after them. In a gender-split competition this makes it
+ * visually obvious that both genders are catered for (male prize, female prize,
+ * male prize…). When the list has no mix of male AND female prizes there's
+ * nothing to alternate, so the original order (by sort_order) is preserved.
+ * @param {Array<object>} prizes - Prizes carrying `recipient_gender`
+ * @returns {Array<object>}
+ */
+export function interleaveByGender(prizes) {
+  if (!Array.isArray(prizes) || prizes.length === 0) return prizes || [];
+  const male = prizes.filter((p) => p.recipient_gender === 'male');
+  const female = prizes.filter((p) => p.recipient_gender === 'female');
+  // Nothing to alternate unless both genders are represented.
+  if (male.length === 0 || female.length === 0) return prizes;
+  const neutral = prizes.filter((p) => p.recipient_gender !== 'male' && p.recipient_gender !== 'female');
+  const alternated = [];
+  for (let i = 0; i < Math.max(male.length, female.length); i++) {
+    if (male[i]) alternated.push(male[i]);
+    if (female[i]) alternated.push(female[i]);
+  }
+  return [...alternated, ...neutral];
+}
+
+/**
  * Get ordinal suffix for number (1st, 2nd, 3rd, etc.)
  * @param {number} n
  * @returns {string}

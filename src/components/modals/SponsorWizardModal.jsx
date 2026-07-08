@@ -16,12 +16,23 @@ const RECIPIENT_OPTIONS = [
   { key: 'all', label: 'All contestants', hint: 'Every participant receives it' },
 ];
 
+// Per-prize gender designation, only offered when the competition crowns winners
+// split by gender. Lets a host send a prize to just the men or just the women
+// (e.g. the male winner gets the watch, the female winner does not). A single
+// sponsor can mix genders across its prizes. Defaults to 'all' — no restriction.
+const GENDER_OPTIONS = [
+  { key: 'all', label: 'Everyone', hint: 'Men and women both receive it' },
+  { key: 'male', label: 'Men only', hint: 'Only male recipients receive it' },
+  { key: 'female', label: 'Women only', hint: 'Only female recipients receive it' },
+];
+
 const emptyPrize = () => ({
   id: crypto.randomUUID(),
   title: '',
   description: '',
   value: '',
   imageUrl: '',
+  recipientGender: 'all',
 });
 
 const INITIAL_STATE = {
@@ -42,6 +53,7 @@ export default function SponsorWizardModal({
   onClose,
   sponsor,
   tierAvailability = { platinum: 1, gold: 2, silver: 3 },
+  genderSplit = false,
   onSave,
 }) {
   const [step, setStep] = useState(1);
@@ -187,6 +199,7 @@ export default function SponsorWizardModal({
           prizeInputRef={prizeInputRef}
           uploadingPrizeId={uploadingPrizeId}
           handlePrizeImageUpload={handlePrizeImageUpload}
+          genderSplit={genderSplit}
         />
       )}
 
@@ -469,6 +482,7 @@ function Step3Rewards({
   prizeInputRef,
   uploadingPrizeId,
   handlePrizeImageUpload,
+  genderSplit,
 }) {
   const isInKind = form.sponsorshipType === 'in_kind';
   const [activePrizeId, setActivePrizeId] = useState(null);
@@ -619,6 +633,7 @@ function Step3Rewards({
                   onChange={(key, val) => updatePrize(prize.id, key, val)}
                   onUploadClick={() => triggerUpload(prize.id)}
                   uploading={uploadingPrizeId === prize.id}
+                  genderSplit={genderSplit}
                 />
               ))}
             </div>
@@ -629,7 +644,7 @@ function Step3Rewards({
   );
 }
 
-function PrizeCard({ prize, index, canRemove, onRemove, onChange, onUploadClick, uploading }) {
+function PrizeCard({ prize, index, canRemove, onRemove, onChange, onUploadClick, uploading, genderSplit }) {
   return (
     <SectionPanel>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
@@ -722,6 +737,39 @@ function PrizeCard({ prize, index, canRemove, onRemove, onChange, onUploadClick,
           style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
         />
       </Field>
+
+      {genderSplit && (
+        <Field label="Who's it for?" compact>
+          <div style={{ display: 'flex', gap: spacing.sm }}>
+            {GENDER_OPTIONS.map((opt) => {
+              const active = (prize.recipientGender || 'all') === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => onChange('recipientGender', opt.key)}
+                  title={opt.hint}
+                  style={{
+                    ...cleanButtonStyle,
+                    flex: 1,
+                    padding: `${spacing.sm} ${spacing.xs}`,
+                    borderRadius: borderRadius.lg,
+                    background: active ? colors.gold.muted : colors.background.tertiary,
+                    border: `1px solid ${active ? colors.gold.primary : colors.border.primary}`,
+                    color: colors.text.primary,
+                    cursor: 'pointer',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: active ? typography.fontWeight.semibold : typography.fontWeight.medium,
+                    transition: transitions.all,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
     </SectionPanel>
   );
 }

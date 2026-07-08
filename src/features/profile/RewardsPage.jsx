@@ -5,6 +5,7 @@ import { CrownIcon } from '../../components/ui/icons';
 import ClaimRewardModal from '../../components/modals/ClaimRewardModal';
 import { colors, spacing, borderRadius, typography } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
+import { formatPrizeGender } from '../../utils/formatters';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../hooks';
 import { SkeletonPulse, SkeletonCard } from '../../components/common/Skeleton';
@@ -153,7 +154,7 @@ export default function RewardsPage({ hostProfile }) {
           .from('competition_prizes')
           .select(`
             id, title, description, image_url, value, sponsor_name,
-            external_url, sort_order, prize_type,
+            external_url, sort_order, prize_type, recipient_gender,
             competition:competitions(id, name, season, city:cities(name))
           `)
           .in('competition_id', competitionIds)
@@ -1231,6 +1232,21 @@ function CompetitionPrizeCard({ prize, isMobile }) {
           }}>
             {prize.title}
           </h3>
+
+          {formatPrizeGender(prize) && (
+            <span style={{
+              display: 'inline-block',
+              marginBottom: spacing.xs,
+              fontSize: isMobile ? '10px' : typography.fontSize.xs,
+              fontWeight: typography.fontWeight.medium,
+              color: colors.gold.primary,
+              background: colors.gold.muted,
+              padding: `2px ${spacing.sm}`,
+              borderRadius: borderRadius.pill,
+            }}>
+              {formatPrizeGender(prize)}
+            </span>
+          )}
 
           {prize.description && !isMobile && (
             <p style={{
