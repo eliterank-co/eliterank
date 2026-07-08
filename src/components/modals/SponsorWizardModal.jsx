@@ -423,21 +423,6 @@ function Step2Deal({ form, updateField, tierAvailability }) {
         </Field>
       )}
 
-      {isInKind && (
-        <div
-          style={{
-            padding: spacing.md,
-            background: colors.background.secondary,
-            border: `1px solid ${colors.border.primary}`,
-            borderRadius: borderRadius.lg,
-            fontSize: typography.fontSize.sm,
-            color: colors.text.secondary,
-            lineHeight: 1.5,
-          }}
-        >
-          No cash figure here — the sponsorship value is added up from the prizes you enter on the next step.
-        </div>
-      )}
 
       {isPaid && (
         <SectionPanel>
