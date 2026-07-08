@@ -16,9 +16,10 @@ const RECIPIENT_OPTIONS = [
   { key: 'all', label: 'All contestants', hint: 'Every participant receives it' },
 ];
 
-// Only offered when the competition crowns winners split by gender. Lets a host
-// send a prize to just the men or just the women (e.g. the male winner gets the
-// watch, the female winner does not). Defaults to 'all' — no restriction.
+// Per-prize gender designation, only offered when the competition crowns winners
+// split by gender. Lets a host send a prize to just the men or just the women
+// (e.g. the male winner gets the watch, the female winner does not). A single
+// sponsor can mix genders across its prizes. Defaults to 'all' — no restriction.
 const GENDER_OPTIONS = [
   { key: 'all', label: 'Everyone', hint: 'Men and women both receive it' },
   { key: 'male', label: 'Men only', hint: 'Only male recipients receive it' },
@@ -31,6 +32,7 @@ const emptyPrize = () => ({
   description: '',
   value: '',
   imageUrl: '',
+  recipientGender: 'all',
 });
 
 const INITIAL_STATE = {
@@ -43,7 +45,6 @@ const INITIAL_STATE = {
   providesContestantRewards: false,
   recipient: '',
   topXCount: '',
-  recipientGender: 'all',
   prizes: [],
 };
 
@@ -601,40 +602,6 @@ function Step3Rewards({
             </Field>
           )}
 
-          {genderSplit && (
-            <Field label="Restrict to a gender?">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-                {GENDER_OPTIONS.map((opt) => {
-                  const active = (form.recipientGender || 'all') === opt.key;
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => updateField('recipientGender', opt.key)}
-                      style={{
-                        ...cleanButtonStyle,
-                        padding: spacing.md,
-                        borderRadius: borderRadius.lg,
-                        background: active ? colors.gold.muted : colors.background.secondary,
-                        border: `1px solid ${active ? colors.gold.primary : colors.border.primary}`,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: transitions.all,
-                      }}
-                    >
-                      <div style={{ color: colors.text.primary, fontWeight: typography.fontWeight.medium, fontSize: typography.fontSize.md }}>
-                        {opt.label}
-                      </div>
-                      <div style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, marginTop: '2px' }}>
-                        {opt.hint}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-          )}
-
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
               <label style={labelStyle}>Prize details *</label>
@@ -666,6 +633,7 @@ function Step3Rewards({
                   onChange={(key, val) => updatePrize(prize.id, key, val)}
                   onUploadClick={() => triggerUpload(prize.id)}
                   uploading={uploadingPrizeId === prize.id}
+                  genderSplit={genderSplit}
                 />
               ))}
             </div>
@@ -676,7 +644,7 @@ function Step3Rewards({
   );
 }
 
-function PrizeCard({ prize, index, canRemove, onRemove, onChange, onUploadClick, uploading }) {
+function PrizeCard({ prize, index, canRemove, onRemove, onChange, onUploadClick, uploading, genderSplit }) {
   return (
     <SectionPanel>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
@@ -769,6 +737,39 @@ function PrizeCard({ prize, index, canRemove, onRemove, onChange, onUploadClick,
           style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }}
         />
       </Field>
+
+      {genderSplit && (
+        <Field label="Who's it for?" compact>
+          <div style={{ display: 'flex', gap: spacing.sm }}>
+            {GENDER_OPTIONS.map((opt) => {
+              const active = (prize.recipientGender || 'all') === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => onChange('recipientGender', opt.key)}
+                  title={opt.hint}
+                  style={{
+                    ...cleanButtonStyle,
+                    flex: 1,
+                    padding: `${spacing.sm} ${spacing.xs}`,
+                    borderRadius: borderRadius.lg,
+                    background: active ? colors.gold.muted : colors.background.tertiary,
+                    border: `1px solid ${active ? colors.gold.primary : colors.border.primary}`,
+                    color: colors.text.primary,
+                    cursor: 'pointer',
+                    fontSize: typography.fontSize.sm,
+                    fontWeight: active ? typography.fontWeight.semibold : typography.fontWeight.medium,
+                    transition: transitions.all,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
     </SectionPanel>
   );
 }

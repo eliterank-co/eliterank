@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Crown, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
-import { formatPrizeRecipient, formatPrizeGender } from '../../../utils/formatters';
+import { formatPrizeRecipient, formatPrizeGender, interleaveByGender } from '../../../utils/formatters';
 
 // Default rewards when no prizes are uploaded by the host
 const DEFAULT_REWARDS = [
@@ -162,9 +162,10 @@ export function Rewards() {
 
   const hasPrizes = prizes && prizes.length > 0;
 
-  // Split prizes by type
-  const winnerPrizes = hasPrizes ? prizes.filter(p => (p.prize_type || 'winner') === 'winner') : [];
-  const contestantRewards = hasPrizes ? prizes.filter(p => p.prize_type === 'contestant') : [];
+  // Split prizes by type, then alternate men/women within each so it reads
+  // "male prize, female prize, male prize…" in gender-split competitions.
+  const winnerPrizes = hasPrizes ? interleaveByGender(prizes.filter(p => (p.prize_type || 'winner') === 'winner')) : [];
+  const contestantRewards = hasPrizes ? interleaveByGender(prizes.filter(p => p.prize_type === 'contestant')) : [];
 
   // Static fallback — same as before
   if (!hasPrizes) {

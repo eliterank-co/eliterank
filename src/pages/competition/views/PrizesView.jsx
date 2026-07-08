@@ -3,7 +3,7 @@ import { CrownIcon } from '../../../components/ui/icons';
 import { Gift, Trophy } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
 import { useResponsive } from '../../../hooks/useResponsive';
-import { formatPrizeRecipient, formatPrizeGender } from '../../../utils/formatters';
+import { formatPrizeRecipient, formatPrizeGender, interleaveByGender } from '../../../utils/formatters';
 
 const styles = {
   container: {
@@ -87,11 +87,13 @@ export function PrizesView() {
 
   const hasPrizes = prizes && prizes.length > 0;
 
+  // Alternate men/women within each section so it reads "male prize, female
+  // prize, male prize…" in gender-split competitions.
   const winnerPrizes = hasPrizes
-    ? prizes.filter(p => (p.prize_type || 'winner') === 'winner')
+    ? interleaveByGender(prizes.filter(p => (p.prize_type || 'winner') === 'winner'))
     : [];
   const contestantRewards = hasPrizes
-    ? prizes.filter(p => p.prize_type === 'contestant')
+    ? interleaveByGender(prizes.filter(p => p.prize_type === 'contestant'))
     : [];
 
   const gridStyle = getGridStyle(breakpoint);

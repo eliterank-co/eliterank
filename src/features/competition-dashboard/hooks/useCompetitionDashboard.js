@@ -475,6 +475,7 @@ export function useCompetitionDashboard(competitionId) {
           value: p.value || '',
           imageUrl: p.image_url || '',
           prizeType: p.prize_type || 'contestant',
+          recipientGender: p.recipient_gender || 'all',
           sortOrder: p.sort_order || 0,
         });
         prizesBySponsorId.set(p.sponsor_id, list);
@@ -489,7 +490,6 @@ export function useCompetitionDashboard(competitionId) {
         sortOrder: s.sort_order,
         rewardRecipient: s.reward_recipient || '',
         rewardTopXCount: s.reward_top_x_count ?? null,
-        recipientGender: s.recipient_gender || 'all',
         prizes: (prizesBySponsorId.get(s.id) || []).sort((a, b) => a.sortOrder - b.sortOrder),
       }));
 
@@ -1387,11 +1387,11 @@ export function useCompetitionDashboard(competitionId) {
   const defaultPrizeTypeFromRecipient = (recipient) =>
     recipient === 'winners' ? 'winner' : 'contestant';
 
-  // recipient_gender (migration 113) can 404 in PostgREST's schema cache for a
-  // short window right after its migration, or if the frontend ships ahead of it.
-  // Detect that specific failure so a sponsor save can retry without the column
-  // rather than hard-failing — the value falls back to the DB default ('all')
-  // until the cache catches up. Mirrors the nominees/contestants gender fallback.
+  // competition_prizes.recipient_gender (migration 114) can 404 in PostgREST's
+  // schema cache for a short window right after its migration, or if the frontend
+  // ships ahead of it. Detect that so a prize write can retry without the column
+  // rather than hard-failing — it falls back to the DB default ('all') until the
+  // cache catches up. Mirrors the nominees/contestants gender fallback.
   const isMissingRecipientGender = (err) =>
     !!err && (
       err.code === 'PGRST204' ||
@@ -1399,39 +1399,48 @@ export function useCompetitionDashboard(competitionId) {
       err.message?.includes('recipient_gender')
     );
 
+  // eslint-disable-next-line no-unused-vars
+  const stripGender = ({ recipient_gender, ...rest }) => rest;
+
+  // Insert competition_prizes rows, retrying without recipient_gender on a
+  // schema-cache miss so a stale cache can never block saving a prize.
+  const insertPrizeRows = async (rows) => {
+    let { error } = await supabase.from('competition_prizes').insert(rows);
+    if (isMissingRecipientGender(error)) {
+      ({ error } = await supabase.from('competition_prizes').insert(rows.map(stripGender)));
+    }
+    return { error };
+  };
+
+  // Update one competition_prizes row, with the same recipient_gender fallback.
+  const updatePrizeRow = async (id, row) => {
+    let { error } = await supabase.from('competition_prizes').update(row).eq('id', id);
+    if (isMissingRecipientGender(error)) {
+      ({ error } = await supabase.from('competition_prizes').update(stripGender(row)).eq('id', id));
+    }
+    return { error };
+  };
+
   const addSponsor = useCallback(async (sponsorData) => {
     if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
 
     try {
       const maxSort = data.sponsors.length > 0 ? Math.max(...data.sponsors.map(s => s.sortOrder || 0)) : 0;
-      const sponsorRecord = {
-        competition_id: competitionId,
-        name: sponsorData.name,
-        tier: sponsorData.tier,
-        amount: sponsorData.amount || 0,
-        logo_url: sponsorData.logoUrl || null,
-        website_url: sponsorData.websiteUrl || null,
-        reward_recipient: sponsorData.recipient || null,
-        reward_top_x_count: sponsorData.topXCount ?? null,
-        recipient_gender: sponsorData.recipientGender || 'all',
-        sort_order: maxSort + 1,
-      };
-      let { data: inserted, error } = await supabase
+      const { data: inserted, error } = await supabase
         .from('sponsors')
-        .insert(sponsorRecord)
+        .insert({
+          competition_id: competitionId,
+          name: sponsorData.name,
+          tier: sponsorData.tier,
+          amount: sponsorData.amount || 0,
+          logo_url: sponsorData.logoUrl || null,
+          website_url: sponsorData.websiteUrl || null,
+          reward_recipient: sponsorData.recipient || null,
+          reward_top_x_count: sponsorData.topXCount ?? null,
+          sort_order: maxSort + 1,
+        })
         .select('id')
         .single();
-
-      // Retry without recipient_gender if that column isn't in the cache yet.
-      if (isMissingRecipientGender(error)) {
-        // eslint-disable-next-line no-unused-vars
-        const { recipient_gender, ...withoutGender } = sponsorRecord;
-        ({ data: inserted, error } = await supabase
-          .from('sponsors')
-          .insert(withoutGender)
-          .select('id')
-          .single());
-      }
 
       if (error) throw error;
 
@@ -1447,9 +1456,10 @@ export function useCompetitionDashboard(competitionId) {
           value: p.value ? String(p.value) : null,
           image_url: p.imageUrl || null,
           prize_type: prizeType,
+          recipient_gender: p.recipientGender || 'all',
           sort_order: idx,
         }));
-        const { error: prizeError } = await supabase.from('competition_prizes').insert(prizeRows);
+        const { error: prizeError } = await insertPrizeRows(prizeRows);
         if (prizeError) throw prizeError;
       }
 
@@ -1465,30 +1475,18 @@ export function useCompetitionDashboard(competitionId) {
     if (!supabase) return { success: false, error: 'Missing configuration' };
 
     try {
-      const sponsorUpdate = {
-        name: sponsorData.name,
-        tier: sponsorData.tier,
-        amount: sponsorData.amount || 0,
-        logo_url: sponsorData.logoUrl || null,
-        website_url: sponsorData.websiteUrl || null,
-        reward_recipient: sponsorData.recipient || null,
-        reward_top_x_count: sponsorData.topXCount ?? null,
-        recipient_gender: sponsorData.recipientGender || 'all',
-      };
-      let { error } = await supabase
+      const { error } = await supabase
         .from('sponsors')
-        .update(sponsorUpdate)
+        .update({
+          name: sponsorData.name,
+          tier: sponsorData.tier,
+          amount: sponsorData.amount || 0,
+          logo_url: sponsorData.logoUrl || null,
+          website_url: sponsorData.websiteUrl || null,
+          reward_recipient: sponsorData.recipient || null,
+          reward_top_x_count: sponsorData.topXCount ?? null,
+        })
         .eq('id', sponsorId);
-
-      // Retry without recipient_gender if that column isn't in the cache yet.
-      if (isMissingRecipientGender(error)) {
-        // eslint-disable-next-line no-unused-vars
-        const { recipient_gender, ...withoutGender } = sponsorUpdate;
-        ({ error } = await supabase
-          .from('sponsors')
-          .update(withoutGender)
-          .eq('id', sponsorId));
-      }
 
       if (error) throw error;
 
@@ -1526,23 +1524,19 @@ export function useCompetitionDashboard(competitionId) {
           value: p.value ? String(p.value) : null,
           image_url: p.imageUrl || null,
           prize_type: newPrizeType,
+          recipient_gender: p.recipientGender || 'all',
           sort_order: i,
         };
 
         if (p.id && existingIds.has(p.id)) {
-          const { error: updErr } = await supabase
-            .from('competition_prizes')
-            .update(sharedFields)
-            .eq('id', p.id);
+          const { error: updErr } = await updatePrizeRow(p.id, sharedFields);
           if (updErr) throw updErr;
         } else {
-          const { error: insErr } = await supabase
-            .from('competition_prizes')
-            .insert({
-              competition_id: competitionId,
-              sponsor_id: sponsorId,
-              ...sharedFields,
-            });
+          const { error: insErr } = await insertPrizeRows([{
+            competition_id: competitionId,
+            sponsor_id: sponsorId,
+            ...sharedFields,
+          }]);
           if (insErr) throw insErr;
         }
       }

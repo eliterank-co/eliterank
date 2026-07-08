@@ -32,9 +32,9 @@ const COMPETITION_SELECT = `
     external_shares, eliminated_in_round, advancement_status,
     current_round, created_at, updated_at
   ),
-  sponsors (id, name, tier, amount, logo_url, website_url, sort_order, reward_recipient, reward_top_x_count, recipient_gender),
+  sponsors (id, name, tier, amount, logo_url, website_url, sort_order, reward_recipient, reward_top_x_count),
   events (*),
-  competition_prizes (id, title, description, image_url, value, sponsor_name, external_url, sort_order, prize_type, sponsor_id),
+  competition_prizes (id, title, description, image_url, value, sponsor_name, external_url, sort_order, prize_type, sponsor_id, recipient_gender),
   competition_rules (id, section_title, section_content, sort_order),
   judging_criteria (id, label, description, weight, sort_order),
   bonus_vote_tasks (id, label, description, votes_awarded, enabled, sort_order),
@@ -202,11 +202,7 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
       const sponsorRewardById = new Map(
         (compData.sponsors || []).map((s) => [
           s.id,
-          {
-            recipient: s.reward_recipient || null,
-            count: s.reward_top_x_count ?? null,
-            gender: s.recipient_gender || 'all',
-          },
+          { recipient: s.reward_recipient || null, count: s.reward_top_x_count ?? null },
         ])
       );
       setPrizes(
@@ -217,7 +213,9 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
               ...p,
               recipient: reward?.recipient || null,
               recipient_top_x_count: reward?.count ?? null,
-              recipient_gender: reward?.gender || 'all',
+              // recipient_gender is a per-prize column (migration 114); default it
+              // for older rows that predate the column.
+              recipient_gender: p.recipient_gender || 'all',
             };
           })
           .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
