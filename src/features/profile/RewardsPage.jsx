@@ -5,7 +5,7 @@ import { CrownIcon } from '../../components/ui/icons';
 import ClaimRewardModal from '../../components/modals/ClaimRewardModal';
 import { colors, spacing, borderRadius, typography } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
-import { formatPrizeGender } from '../../utils/formatters';
+import { PrizeGenderBadge } from '../../components/ui/PrizeGenderBadge';
 import { supabase } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../hooks';
 import { SkeletonPulse, SkeletonCard } from '../../components/common/Skeleton';
@@ -1233,20 +1233,8 @@ function CompetitionPrizeCard({ prize, isMobile }) {
             {prize.title}
           </h3>
 
-          {formatPrizeGender(prize) && (
-            <span style={{
-              display: 'inline-block',
-              marginBottom: spacing.xs,
-              fontSize: isMobile ? '10px' : typography.fontSize.xs,
-              fontWeight: typography.fontWeight.medium,
-              color: colors.gold.primary,
-              background: colors.gold.muted,
-              padding: `2px ${spacing.sm}`,
-              borderRadius: borderRadius.pill,
-            }}>
-              {formatPrizeGender(prize)}
-            </span>
-          )}
+          <PrizeGenderBadge prize={prize} isMobile={isMobile} style={{ marginBottom: spacing.xs }} />
+
 
           {prize.description && !isMobile && (
             <p style={{

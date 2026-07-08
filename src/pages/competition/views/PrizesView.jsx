@@ -4,6 +4,7 @@ import { Gift, Trophy } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
 import { useResponsive } from '../../../hooks/useResponsive';
 import { formatPrizeRecipient, formatPrizeGender, interleaveByGender } from '../../../utils/formatters';
+import { PrizeGenderBadge } from '../../../components/ui/PrizeGenderBadge';
 
 const styles = {
   container: {
@@ -247,9 +248,10 @@ function PrizeCard({ prize, isMobile }) {
           </h3>
 
           {(genderLabel || recipientLabel) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.xs }}>
-              {[genderLabel, recipientLabel].filter(Boolean).map((label) => (
-                <span key={label} style={{
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
+              <PrizeGenderBadge prize={prize} isMobile={isMobile} />
+              {recipientLabel && (
+                <span style={{
                   display: 'inline-block',
                   fontSize: isMobile ? '10px' : typography.fontSize.xs,
                   fontWeight: typography.fontWeight.medium,
@@ -258,9 +260,9 @@ function PrizeCard({ prize, isMobile }) {
                   padding: `2px ${spacing.sm}`,
                   borderRadius: borderRadius.pill,
                 }}>
-                  {label}
+                  {recipientLabel}
                 </span>
-              ))}
+              )}
             </div>
           )}
 
