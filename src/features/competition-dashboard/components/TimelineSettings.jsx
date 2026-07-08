@@ -712,10 +712,10 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
         validationErrors.push(`${roundType} Round ${index + 1}: End date must be after start date`);
       }
 
-      // Only warn if strictly before (allow overlap for flexibility)
-      if (prevRoundEnd && roundStart && roundStart < prevRoundEnd) {
-        // This is now just a warning, not an error - allow overlapping rounds
-      }
+      // Overlapping rounds are allowed by design (rolling schedules), so we
+      // don't error when a round starts before the previous ends. Voting that
+      // starts before nominations close is surfaced separately as a non-blocking
+      // warning (see getVotingBeforeNominationsWarning / the Voting Rounds banner).
 
       prevRoundEnd = roundEnd;
     });
