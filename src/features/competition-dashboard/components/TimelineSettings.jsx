@@ -662,6 +662,16 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     nominationCloseIso
   );
 
+  // Voting dates are derived from the nomination close, so a host can't build
+  // a sensible voting schedule until their nomination window is SAVED. Gate
+  // creating rounds (Auto-fill / Add Voting) on that. It's prop-driven, so it
+  // unlocks automatically once the Nomination Form section saves and the parent
+  // refetches. Existing rounds are never hidden — this only gates *new* ones,
+  // so no live competition's timeline is affected.
+  const hasSavedNominationWindow =
+    !!nominationCloseIso ||
+    nominationPeriods.some((p) => p.start_date && p.end_date);
+
   // Validate dates
   const validateDates = () => {
     const validationErrors = [];
@@ -897,6 +907,9 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // Voting/Judging round management
   const ROUND_LEN_MS = 7 * 86400000; // default round length when we auto-fill
   const addVotingRound = (roundType = 'voting') => {
+    // Voting dates derive from the nomination close — don't create rounds until
+    // the nomination window is saved (mirrors the disabled button state).
+    if (!hasSavedNominationWindow) return;
     const typeLabel = roundType === 'judging' ? 'Judging' : 'Voting';
 
     // Keep judging glued to the FINAL round. In a judged competition, if the
@@ -1129,6 +1142,8 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   };
 
   const handleAutofillClick = () => {
+    // Auto-fill derives dates from the nomination close — require it saved first.
+    if (!hasSavedNominationWindow) return;
     if (votingRounds.length > 0 || settings.finals_date) {
       setConfirmingAutofill(true);
     } else {
@@ -1339,10 +1354,23 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
             Voting Rounds
           </h4>
           <div style={{ display: 'flex', gap: spacing.sm }}>
-            <Button size="sm" icon={Sparkles} onClick={handleAutofillClick}>
+            <Button
+              size="sm"
+              icon={Sparkles}
+              onClick={handleAutofillClick}
+              disabled={!hasSavedNominationWindow}
+              title={!hasSavedNominationWindow ? 'Save your nomination dates first' : undefined}
+            >
               Auto-fill recommended
             </Button>
-            <Button variant="secondary" size="sm" icon={Plus} onClick={() => addVotingRound('voting')}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Plus}
+              onClick={() => addVotingRound('voting')}
+              disabled={!hasSavedNominationWindow}
+              title={!hasSavedNominationWindow ? 'Save your nomination dates first' : undefined}
+            >
               Add Voting
             </Button>
           </div>
@@ -1416,17 +1444,39 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
           ? (displayRounds[displayRounds.length - 1].round.title || `Round ${displayRounds.length}`)
           : '';
         return displayRounds.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: spacing.xl,
-            background: colors.background.card,
-            borderRadius: borderRadius.lg,
-            color: colors.text.secondary,
-          }}>
-            <Vote size={32} style={{ marginBottom: spacing.md, opacity: 0.5 }} />
-            <p>No voting rounds yet</p>
-            <p style={{ fontSize: typography.fontSize.sm }}>Use Auto-fill recommended, or add voting rounds to define the schedule</p>
-          </div>
+          !hasSavedNominationWindow ? (
+            // Gate: voting dates are built from the nomination close, so require
+            // a saved nomination window before any rounds can be created.
+            <div style={{
+              textAlign: 'center',
+              padding: spacing.xl,
+              background: colors.background.card,
+              border: `1px solid ${colors.gold.primary}33`,
+              borderRadius: borderRadius.lg,
+              color: colors.text.secondary,
+            }}>
+              <Calendar size={32} style={{ marginBottom: spacing.md, opacity: 0.6, color: colors.gold.primary }} />
+              <p style={{ color: colors.text.primary, fontWeight: typography.fontWeight.semibold }}>
+                Set your nomination window first
+              </p>
+              <p style={{ fontSize: typography.fontSize.sm }}>
+                Your voting schedule is built from your nomination dates. Add and <strong>save</strong> your
+                nomination window in the Nomination Form section above, then Auto-fill or add rounds here.
+              </p>
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              padding: spacing.xl,
+              background: colors.background.card,
+              borderRadius: borderRadius.lg,
+              color: colors.text.secondary,
+            }}>
+              <Vote size={32} style={{ marginBottom: spacing.md, opacity: 0.5 }} />
+              <p>No voting rounds yet</p>
+              <p style={{ fontSize: typography.fontSize.sm }}>Use Auto-fill recommended, or add voting rounds to define the schedule</p>
+            </div>
+          )
         ) : (
           <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
