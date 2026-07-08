@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
-import { Crown } from 'lucide-react';
+import { EliteRankCrown } from '../../../components/ui/icons';
 import { isDoubleVoteDayForCompetition } from '../../../lib/doubleVoteDay';
 import { transformSupabaseImage, getOrgLogo } from '../../../lib/storageImage';
 
@@ -57,7 +57,7 @@ export function CompetitionHeader({ badge, badgeIcon: BadgeIcon, badgeVariant = 
   const logoContent = headerLogo ? (
     <img src={transformSupabaseImage(headerLogo, { width: 300, resize: 'contain' })} alt={organization.name} />
   ) : (
-    <Crown size={40} />
+    <EliteRankCrown size={80} />
   );
 
   return (
