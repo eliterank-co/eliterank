@@ -122,10 +122,12 @@ export default function SponsorWizardModal({
 
   const isInKind = form.sponsorshipType === 'in_kind';
   const step1Valid = form.name.trim().length > 0;
-  const step2Valid =
-    form.sponsorshipType &&
-    form.value !== '' &&
-    (form.sponsorshipType !== 'paid' || !!form.visibilityTier);
+  // In-kind has no cash figure — its value is derived from the prize values on
+  // step 3 (see handleSave), so step 2 only needs the type. Paid still requires
+  // the cash amount + a visibility tier.
+  const step2Valid = isInKind
+    ? !!form.sponsorshipType
+    : (!!form.sponsorshipType && form.value !== '' && !!form.visibilityTier);
   const mustProvideRewards = isInKind || form.providesContestantRewards;
   const step3Valid = mustProvideRewards
     ? form.recipient &&
@@ -137,14 +139,21 @@ export default function SponsorWizardModal({
   const canAdvance = step === 1 ? step1Valid : step === 2 ? step2Valid : step3Valid;
 
   const handleSave = () => {
+    const prizes = form.prizes.map((p) => ({
+      ...p,
+      value: parseFloat(p.value) || 0,
+    }));
+    // In-kind sponsors have no cash figure: their sponsorship value IS the sum of
+    // the prizes they contribute, so derive it here instead of asking twice. Paid
+    // sponsors keep the cash amount entered on step 2.
+    const value = isInKind
+      ? prizes.reduce((sum, p) => sum + (p.value || 0), 0)
+      : (parseFloat(form.value) || 0);
     onSave({
       ...form,
-      value: parseFloat(form.value) || 0,
+      value,
       topXCount: form.recipient === 'top_x' ? parseInt(form.topXCount, 10) || 0 : null,
-      prizes: form.prizes.map((p) => ({
-        ...p,
-        value: parseFloat(p.value) || 0,
-      })),
+      prizes,
     });
   };
 
@@ -401,17 +410,33 @@ function Step2Deal({ form, updateField, tierAvailability }) {
         </div>
       </Field>
 
-      {form.sponsorshipType && (
-        <Field label={isPaid ? 'Cash amount ($) *' : 'Estimated value ($) *'}>
+      {isPaid && (
+        <Field label="Cash amount ($) *">
           <input
             type="text"
             inputMode="numeric"
             value={form.value}
             onChange={(e) => updateField('value', e.target.value.replace(/[^0-9.]/g, ''))}
-            placeholder={isPaid ? 'e.g., 25000' : 'e.g., 5000'}
+            placeholder="e.g., 25000"
             style={inputStyle}
           />
         </Field>
+      )}
+
+      {isInKind && (
+        <div
+          style={{
+            padding: spacing.md,
+            background: colors.background.secondary,
+            border: `1px solid ${colors.border.primary}`,
+            borderRadius: borderRadius.lg,
+            fontSize: typography.fontSize.sm,
+            color: colors.text.secondary,
+            lineHeight: 1.5,
+          }}
+        >
+          No cash figure here — the sponsorship value is added up from the prizes you enter on the next step.
+        </div>
       )}
 
       {isPaid && (
