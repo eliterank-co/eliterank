@@ -526,38 +526,37 @@ async function sendEmail(
 }
 
 // =============================================================================
-// BRAND RESOLUTION
+// SENDER NAME RESOLUTION
 // =============================================================================
 
 /**
- * Resolve the org/brand display name for a competition. Most competitions run
- * under a different organization, so the email "from" name should be that org's
- * name, not the platform. Best-effort: any failure yields the platform default.
+ * Resolve the email "from" name for a competition: the competition the recipient
+ * signed up for (e.g. "Chicago Creator of the Year"), not the parent org or the
+ * platform. Prefers the competition_name already in the template payload;
+ * otherwise looks it up from competition_id. Best-effort: any failure yields the
+ * platform default.
  */
-async function resolveBrandName(
+async function resolveSenderName(
   supabase: ReturnType<typeof createClient>,
+  competitionName?: string | null,
   competitionId?: string | null
 ): Promise<string> {
-  const platformDefault = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
-  if (!competitionId) return platformDefault
+  const fallback = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
+  if (passed) return passed
+  if (!competitionId) return fallback
   try {
-    const { data: comp, error: compErr } = await supabase
+    const { data: comp, error } = await supabase
       .from('competitions')
-      .select('organization_id')
+      .select('name')
       .eq('id', competitionId)
       .maybeSingle()
-    if (compErr || !comp?.organization_id) return platformDefault
-    const { data: org, error: orgErr } = await supabase
-      .from('organizations')
-      .select('name')
-      .eq('id', comp.organization_id)
-      .maybeSingle()
-    if (orgErr) return platformDefault
-    const name = typeof org?.name === 'string' ? org.name.trim() : ''
-    return name || platformDefault
+    if (error) return fallback
+    const name = typeof comp?.name === 'string' ? (comp.name as string).trim() : ''
+    return name || fallback
   } catch (err) {
-    console.warn('resolveBrandName error (non-blocking):', err)
-    return platformDefault
+    console.warn('resolveSenderName error (non-blocking):', err)
+    return fallback
   }
 }
 
@@ -615,13 +614,18 @@ serve(async (req) => {
       errors: [] as string[],
     }
 
-    // Cache brand lookups within this batch — many rows share a competition.
-    const brandCache = new Map<string, string>()
-    const brandFor = async (competitionId?: string | null): Promise<string> => {
+    // Cache sender-name lookups within this batch — many rows share a competition.
+    const senderCache = new Map<string, string>()
+    const senderFor = async (
+      competitionName?: string | null,
+      competitionId?: string | null,
+    ): Promise<string> => {
+      const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
+      if (passed) return passed
       const key = competitionId || ''
-      if (brandCache.has(key)) return brandCache.get(key)!
-      const name = await resolveBrandName(supabase, competitionId)
-      brandCache.set(key, name)
+      if (senderCache.has(key)) return senderCache.get(key)!
+      const name = await resolveSenderName(supabase, competitionName, competitionId)
+      senderCache.set(key, name)
       return name
     }
 
@@ -639,7 +643,7 @@ serve(async (req) => {
       // Send email if channel is 'email' or 'both' and we have an email address
       if ((channel === 'email' || channel === 'both') && engagement.email_to) {
         const { subject, html, text } = renderEmailTemplate(engagement.engagement_type, templateData)
-        const fromName = await brandFor(engagement.competition_id)
+        const fromName = await senderFor(templateData?.competition_name, engagement.competition_id)
         const emailResult = await sendEmail(engagement.email_to, subject, html, text, fromName)
         
         if (emailResult.success) {

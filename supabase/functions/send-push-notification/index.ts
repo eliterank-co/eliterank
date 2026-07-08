@@ -25,8 +25,8 @@ const corsHeaders = {
  *   - new_reward:         "You have a new reward!" push to contestant
  *   - generic:            Custom title/body push
  *
- * The default/generic notification title falls back to the competition's
- * organization/brand name (resolved from competition_id, passed top-level or in
+ * The default/generic notification title falls back to the competition name
+ * (competition_name, or looked up from competition_id passed top-level or in
  * `data`), or DEFAULT_BRAND_NAME / "EliteRank" when there's no competition.
  *
  * Required Supabase secrets:
@@ -72,41 +72,41 @@ interface PushRequest {
 }
 
 /**
- * Resolve the org/brand name for a competition. Most competitions run under a
- * different organization, so a brand-less push should read as that org, not the
- * platform. Best-effort: any failure yields the platform default.
+ * Resolve the sender name for a brand-less push: the competition the recipient
+ * signed up for (competition_name, or looked up from competition_id), falling
+ * back to DEFAULT_BRAND_NAME / the platform name. Best-effort: any failure
+ * yields the fallback.
  */
-async function resolveBrandName(competitionId?: string | null): Promise<string> {
-  const platformDefault = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
-  if (!competitionId) return platformDefault
+async function resolveSenderName(
+  competitionName?: string | null,
+  competitionId?: string | null,
+): Promise<string> {
+  const fallback = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
+  if (passed) return passed
+  if (!competitionId) return fallback
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (!supabaseUrl || !serviceKey) return platformDefault
+    if (!supabaseUrl || !serviceKey) return fallback
     const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const { data: comp, error: compErr } = await supabase
+    const { data: comp, error } = await supabase
       .from('competitions')
-      .select('organization_id')
+      .select('name')
       .eq('id', competitionId)
       .maybeSingle()
-    if (compErr || !comp?.organization_id) return platformDefault
-    const { data: org, error: orgErr } = await supabase
-      .from('organizations')
-      .select('name')
-      .eq('id', comp.organization_id)
-      .maybeSingle()
-    if (orgErr) return platformDefault
-    const name = typeof org?.name === 'string' ? org.name.trim() : ''
-    return name || platformDefault
+    if (error) return fallback
+    const name = typeof comp?.name === 'string' ? comp.name.trim() : ''
+    return name || fallback
   } catch (err) {
-    console.warn('resolveBrandName error (non-blocking):', err)
-    return platformDefault
+    console.warn('resolveSenderName error (non-blocking):', err)
+    return fallback
   }
 }
 
-function getNotificationContent(req: PushRequest, brandName: string): { title: string; body: string } {
+function getNotificationContent(req: PushRequest, senderName: string): { title: string; body: string } {
   // If caller provides explicit title/body, use those
   if (req.title && req.body) {
     return { title: req.title, body: req.body }
@@ -194,7 +194,7 @@ function getNotificationContent(req: PushRequest, brandName: string): { title: s
 
     default:
       return {
-        title: req.title || brandName,
+        title: req.title || senderName,
         body: req.body || 'You have a new notification.',
       }
   }
@@ -228,13 +228,13 @@ serve(async (req) => {
       )
     }
 
-    // Brand the notification with the competition's organization name. The
-    // competition id may arrive top-level or nested in `data` (callers vary).
+    // Brand the notification with the competition the recipient signed up for.
+    // The competition id may arrive top-level or nested in `data` (callers vary).
     const competitionId =
       body.competition_id || (body.data?.competition_id as string | undefined)
-    const brandName = await resolveBrandName(competitionId)
+    const senderName = await resolveSenderName(body.competition_name, competitionId)
 
-    const { title, body: messageBody } = getNotificationContent(body, brandName)
+    const { title, body: messageBody } = getNotificationContent(body, senderName)
 
     // Build the deep link URL
     const actionUrl = body.url ? `${appUrl}${body.url.startsWith('/') ? '' : '/'}${body.url}` : appUrl
