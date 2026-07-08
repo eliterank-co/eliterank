@@ -20,6 +20,7 @@ import {
   getNextAutoTransition,
 } from '../../../utils/competitionStatusEngine';
 import { renumberVotingTitles } from '../../../utils/renumberVotingTitles';
+import { getVotingBeforeNominationsWarning } from '../../../utils/votingScheduleWarnings';
 import { SkeletonPulse, SkeletonText } from '../../../components/common/Skeleton';
 
 /**
@@ -651,6 +652,15 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   const recommendedVotingStartIso = nominationCloseIso
     ? new Date(new Date(nominationCloseIso).getTime() + 5 * 86400000).toISOString()
     : null;
+
+  // Voting rounds are pre-filled from a planned-launch estimate and don't
+  // recompute when the host later sets their real nomination window — so they
+  // can end up scheduled before nominations even close. Detect that so we can
+  // nudge the host to re-run Auto-fill (which rebuilds from nominations close).
+  const votingWindowWarning = getVotingBeforeNominationsWarning(
+    votingRounds,
+    nominationCloseIso
+  );
 
   // Validate dates
   const validateDates = () => {
@@ -1349,6 +1359,26 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
           {usesJudges ? <> — judges decide the final round at <strong>60%</strong>. Prefer a judges-only finale? Change it on the final round below.</> : '. '}
           {' '}Adjust anything after.
         </p>
+
+        {votingWindowWarning && (
+          <div style={{
+            display: 'flex', alignItems: 'flex-start', gap: spacing.sm,
+            padding: spacing.md, marginBottom: spacing.md,
+            background: `${colors.status.warning}12`,
+            border: `1px solid ${colors.status.warning}55`,
+            borderRadius: borderRadius.md,
+          }}>
+            <AlertTriangle size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>
+              Your voting rounds start{' '}
+              <strong>{formatDateForDisplay(votingWindowWarning.earliestStartIso)}</strong>, before nominations
+              close (<strong>{formatDateForDisplay(votingWindowWarning.nominationCloseIso)}</strong>). They were
+              pre-filled from your planned launch and didn’t update when your nomination window changed. Click{' '}
+              <strong>Auto-fill recommended</strong> to rebuild the schedule from your nomination window, or set
+              each round’s dates by hand.
+            </span>
+          </div>
+        )}
 
         {confirmingAutofill && (
           <div style={{
