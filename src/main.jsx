@@ -20,6 +20,18 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
+    ignoreErrors: [
+      // Safari extension noise (Grammarly et al.) — stacktrace is `undefined:line:col`
+      'EmptyRanges',
+      // Android in-app WebView (Facebook/Instagram browser) logging hooks losing their Java bridge
+      'Java object is gone',
+      // iOS in-app WebView injecting message handlers that may not exist
+      /webkit\.messageHandlers/,
+      // Microsoft Outlook SafeLinks crawler scans email links and triggers this in our SPA
+      'Object Not Found Matching Id',
+      // ResizeObserver loop benign warning surfaced by some browsers
+      'ResizeObserver loop',
+    ],
   });
 }
 
