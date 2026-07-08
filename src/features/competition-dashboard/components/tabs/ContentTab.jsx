@@ -13,6 +13,7 @@ import { colors, spacing, borderRadius, typography } from '../../../../styles/th
  * whole page is look-but-don't-touch.
  */
 export default function ContentTab({
+  organizationName,
   competition,
   onRefresh,
   organizationId,
@@ -61,6 +62,7 @@ export default function ContentTab({
       {/* Organization Branding */}
       <OrganizationBrandingEditor
         organizationId={organizationId}
+        currentName={organizationName}
         currentHeaderLogoUrl={organizationHeaderLogoUrl}
         fallbackLogoUrl={organizationLogoUrl}
         currentWebsiteUrl={organizationWebsiteUrl}

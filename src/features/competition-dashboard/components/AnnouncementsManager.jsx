@@ -28,7 +28,7 @@ export default function AnnouncementsManager({
   // Super-admin posts are authored as the competition's organization/brand
   // (competitions run under many different brands), not the platform.
   const authorName = isSuperAdmin
-    ? (competition?.organization?.name || 'EliteRank')
+    ? (competition?.organizationName || 'EliteRank')
     : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 

@@ -19,7 +19,7 @@ export default function CommunityTab({
   const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '' });
 
   const authorName = isSuperAdmin
-    ? (competition?.organization?.name || 'EliteRank')
+    ? (competition?.organizationName || 'EliteRank')
     : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 

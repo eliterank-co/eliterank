@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Image, Link, Upload, X, Check, Pencil, ExternalLink, FileText, Instagram, Facebook, Music2 } from 'lucide-react';
+import { Image, Link, Upload, X, Check, Pencil, ExternalLink, FileText, Instagram, Facebook, Music2, Tag } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import { colors, spacing, borderRadius, typography } from '../../../../styles/theme';
 import { Button, Panel } from '../../../../components/ui';
@@ -14,10 +14,11 @@ import { useToast } from '../../../../contexts/ToastContext';
  * @param {string} currentWebsiteUrl - Current website_url
  * @param {function} onSave - Callback when save completes
  */
-export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUrl, fallbackLogoUrl, currentWebsiteUrl, currentLegalEntityName, currentInstagram, currentTiktok, currentFacebook, onSave }) {
+export function OrganizationBrandingEditor({ organizationId, currentName, currentHeaderLogoUrl, fallbackLogoUrl, currentWebsiteUrl, currentLegalEntityName, currentInstagram, currentTiktok, currentFacebook, onSave }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
 
+  const [brandName, setBrandName] = useState('');
   const [headerLogoUrl, setHeaderLogoUrl] = useState('');
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [legalEntityName, setLegalEntityName] = useState('');
@@ -36,16 +37,18 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
   const usingFallbackLogo = !currentHeaderLogoUrl && !!fallbackLogoUrl;
 
   useEffect(() => {
+    setBrandName(currentName || '');
     setHeaderLogoUrl(seededHeaderLogoUrl);
     setWebsiteUrl(currentWebsiteUrl || '');
     setLegalEntityName(currentLegalEntityName || '');
     setInstagram(currentInstagram || '');
     setTiktok(currentTiktok || '');
     setFacebook(currentFacebook || '');
-  }, [seededHeaderLogoUrl, currentWebsiteUrl, currentLegalEntityName, currentInstagram, currentTiktok, currentFacebook]);
+  }, [currentName, seededHeaderLogoUrl, currentWebsiteUrl, currentLegalEntityName, currentInstagram, currentTiktok, currentFacebook]);
 
   const hasChanges = () => {
-    return headerLogoUrl !== (currentHeaderLogoUrl || '') ||
+    return brandName !== (currentName || '') ||
+           headerLogoUrl !== (currentHeaderLogoUrl || '') ||
            websiteUrl !== (currentWebsiteUrl || '') ||
            legalEntityName !== (currentLegalEntityName || '') ||
            instagram !== (currentInstagram || '') ||
@@ -91,6 +94,7 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
 
   // Discard in-progress edits (revert to what's saved / seeded) and leave edit mode.
   const handleCancel = () => {
+    setBrandName(currentName || '');
     setHeaderLogoUrl(seededHeaderLogoUrl);
     setWebsiteUrl(currentWebsiteUrl || '');
     setLegalEntityName(currentLegalEntityName || '');
@@ -102,11 +106,19 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
 
   const handleSave = async () => {
     if (!organizationId) return;
+    // Brand name is the public display name — it can't be blank. Fall back to
+    // the legal entity name if the host clears it.
+    const nextBrandName = brandName.trim() || legalEntityName.trim();
+    if (!nextBrandName) {
+      toast.error('Enter a brand name (or a legal entity name to use as the brand).');
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await supabase
         .from('organizations')
         .update({
+          name: nextBrandName,
           header_logo_url: headerLogoUrl || null,
           website_url: websiteUrl.trim() || null,
           legal_entity_name: legalEntityName.trim() || null,
@@ -264,9 +276,35 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
     >
       <div style={styles.content}>
         <p style={styles.description}>
-          Your header logo (with organization name included) and website link.
-          This logo appears on the competition page with "Presented by" above it.
+          Your brand name, header logo, and website link. These appear on the
+          competition page with "Presented by" above your logo.
         </p>
+
+        {/* Brand Name — public display name / DBA (organizations.name) */}
+        <div style={styles.fieldGroup}>
+          <label style={styles.label}>
+            <Tag size={14} />
+            Brand Name
+          </label>
+          {editing ? (
+            <>
+              <p style={styles.hint}>
+                Your public-facing name (your DBA). Shown as the presenter on your
+                competition page and as the author of your announcements. Defaults
+                to your legal entity name — change it if you go by a different brand.
+              </p>
+              <input
+                type="text"
+                value={brandName}
+                onChange={(e) => setBrandName(e.target.value)}
+                placeholder="e.g. Creator Social"
+                style={styles.input}
+              />
+            </>
+          ) : (
+            <p style={styles.readValue}>{brandName || 'Not set'}</p>
+          )}
+        </div>
 
         {/* Header Logo */}
         <div style={styles.fieldGroup}>
@@ -367,8 +405,8 @@ export function OrganizationBrandingEditor({ organizationId, currentHeaderLogoUr
             <>
               <p style={styles.hint}>
                 Your registered legal entity (e.g. "Acme Events LLC"). Shown as the
-                organizer on your competition's Official Rules. Leave blank to use
-                your organization name.
+                organizer on your competition's Official Rules, and used as your
+                brand name unless you set a different one above.
               </p>
               <input
                 type="text"

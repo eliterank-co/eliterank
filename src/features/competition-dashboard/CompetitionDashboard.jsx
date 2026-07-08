@@ -887,6 +887,7 @@ export default function CompetitionDashboard({
             <ContentTab
               competition={competition}
               onRefresh={refresh}
+              organizationName={competition?.organizationName}
               organizationId={competition?.organizationId}
               organizationHeaderLogoUrl={competition?.organizationHeaderLogoUrl}
               organizationLogoUrl={competition?.organizationLogoUrl}

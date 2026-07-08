@@ -144,7 +144,7 @@ export default function OverviewTab({
   }, [announcements]);
 
   const authorName = isSuperAdmin
-    ? (competition?.organization?.name || 'EliteRank')
+    ? (competition?.organizationName || 'EliteRank')
     : (host?.name || 'Host');
   const authorAvatar = isSuperAdmin ? null : host?.avatar;
 

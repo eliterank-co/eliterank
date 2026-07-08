@@ -144,7 +144,7 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
     if (s === 'sponsor') {
       if (!form.hostType) return 'Choose individual or organization.';
       if (form.hostType === 'individual' && !form.soloName.trim()) return 'Enter your name — it’s shown as the host.';
-      if (form.hostType === 'organization' && orgCreatingNew && !form.newOrgName.trim()) return 'Enter a name for your organization.';
+      if (form.hostType === 'organization' && orgCreatingNew && !form.newOrgName.trim()) return 'Enter your legal entity name.';
       if (form.hostType === 'organization' && orgCreatingNew && !form.orgWebsite.trim() && !form.orgInstagram.trim()) return 'Add a website or Instagram for your organization.';
     }
     if (s === 'template') {
@@ -479,8 +479,9 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
               )}
               {orgCreatingNew && (
                 <>
-                  <label style={labelStyle}>Organization name</label>
-                  <input style={fieldStyle} value={form.newOrgName} onChange={(e) => set('newOrgName', e.target.value)} placeholder="e.g. Your Brand LLC" />
+                  <label style={labelStyle}>Legal entity name</label>
+                  <input style={{ ...fieldStyle, marginBottom: spacing.xs }} value={form.newOrgName} onChange={(e) => set('newOrgName', e.target.value)} placeholder="e.g. Creator Social LLC" />
+                  <p style={{ ...helpStyle, marginBottom: spacing.lg }}>Your registered entity. You can set a public brand name (DBA) later in your dashboard.</p>
                   <label style={labelStyle}>Entity type</label>
                   <select style={fieldStyle} value={form.orgType} onChange={(e) => set('orgType', e.target.value)}>
                     <option value="company">Company</option>
