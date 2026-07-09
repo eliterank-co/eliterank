@@ -519,19 +519,16 @@ function Step3Rewards({
       />
 
       {isInKind ? (
-        <div
+        <p
           style={{
-            padding: spacing.md,
-            background: colors.gold.muted,
-            border: `1px solid ${colors.border.focus}`,
-            borderRadius: borderRadius.lg,
+            margin: 0,
             fontSize: typography.fontSize.sm,
-            color: colors.text.primary,
+            color: colors.text.muted,
             lineHeight: 1.5,
           }}
         >
-          In-kind sponsors appear publicly through the prizes they contribute. Add at least one prize below.
-        </div>
+          In-kind sponsors appear publicly through the prizes they contribute — add at least one below.
+        </p>
       ) : (
         <Field label="Providing anything to contestants?">
           <div style={{ display: 'flex', gap: spacing.md }}>
