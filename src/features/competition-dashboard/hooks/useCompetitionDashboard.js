@@ -1042,6 +1042,46 @@ export function useCompetitionDashboard(competitionId) {
   }, []);
 
   /**
+   * Send a host message to one, several, or all contestants.
+   * Delivers an in-app notification (to contestants with an account) and an
+   * email preview (to contestants with an email), via the
+   * send-contestant-message edge function which authorizes the caller as host.
+   *
+   * @param {string[]} contestantIds - target contestant ids; empty/omitted = all
+   * @param {string} subject
+   * @param {string} message
+   */
+  const sendContestantMessage = useCallback(async (contestantIds, subject, message) => {
+    if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
+
+    try {
+      // Refresh session before calling edge function to avoid 401
+      await supabase.auth.getSession();
+
+      const { data, error } = await supabase.functions.invoke('send-contestant-message', {
+        body: {
+          competition_id: competitionId,
+          contestant_ids: Array.isArray(contestantIds) ? contestantIds : [],
+          subject,
+          message,
+        },
+      });
+
+      if (error) {
+        if (error.message?.includes('401') || error.message?.includes('unauthorized') || error.message?.includes('JWT')) {
+          return { success: false, error: 'Your session has expired. Please refresh the page and try again.' };
+        }
+        throw error;
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error sending contestant message:', err);
+      return { success: false, error: err.message || 'Failed to send message' };
+    }
+  }, [competitionId]);
+
+  /**
    * Manually add a nominee (by admin/host)
    * Can be linked to an existing profile or created with manual data
    */
@@ -2179,6 +2219,7 @@ export function useCompetitionDashboard(competitionId) {
     unconvertContestant,
     restoreNominee,
     resendInvite,
+    sendContestantMessage,
     repairNomineeAccount,
     repairAllNomineeAccounts,
     // Contestant operations

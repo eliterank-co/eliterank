@@ -18,6 +18,7 @@ const NOTIFICATION_ICONS = {
   bonus_rejected: { emoji: '\u26A0\uFE0F', label: 'Bonus' },
   event_posted: { emoji: '\u{1F4E2}', label: 'Event' },
   system_announcement: { emoji: '\u{1F4E3}', label: 'System' },
+  host_message: { emoji: '\u{1F48C}', label: 'Message' },
   video_prompt: { emoji: '\u{1F3AC}', label: 'Video' },
   video_response: { emoji: '\u{1F4F9}', label: 'Video' },
 };

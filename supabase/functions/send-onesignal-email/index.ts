@@ -37,9 +37,15 @@ const corsHeaders = {
  */
 
 interface EmailRequest {
-  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
+  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite' | 'host_message'
   to_email: string
   to_name?: string
+  // host_message fields — a direct note from a competition's host to a contestant.
+  // `subject` is the host's headline, `message` is the free-text body previewed
+  // to the recipient; `host_name` is the sender shown in the email.
+  subject?: string
+  message?: string
+  host_name?: string
   // When set, the send is recorded in email_logs so the host of this
   // competition can see deliverability in the dashboard's Email Activity tab.
   competition_id?: string
@@ -592,6 +598,44 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             ${deadlineLine}
           </div>
           ${subscriberLegalFooter(req.unsubscribe_url)}
+        `),
+      }
+    }
+
+    case 'host_message': {
+      // Escape the host's free-text so it can never break the email markup or
+      // inject HTML, then preserve line breaks for readability.
+      const esc = (s: string) =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+      const senderName = req.host_name?.trim() || `${req.competition_name || 'the host'}`
+      const messageHtml = req.message
+        ? esc(req.message).replace(/\r?\n/g, '<br>')
+        : ''
+      const headline = req.subject?.trim() || 'A message from your host'
+      const ctaUrl = req.competition_url || req.profile_url || appUrl
+
+      return {
+        subject: `${req.competition_name ? `${req.competition_name}: ` : ''}${headline}`,
+        body: wrapper(`
+          <div>
+            <p style="color:#999;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 4px;text-align:center;">
+              Message from your host
+            </p>
+            <h1 style="color:#d4a843;font-size:24px;margin:0 0 8px;text-align:center;">${esc(headline)}</h1>
+            ${req.competition_name ? `<p style="color:#fff;font-size:15px;font-weight:bold;margin:0 0 16px;text-align:center;">${esc(req.competition_name)}</p>` : ''}
+            ${req.to_name ? `<p style="color:#ccc;font-size:15px;margin:0 0 12px;">Hi ${esc(req.to_name)},</p>` : ''}
+            <div style="background:#1a1a1a;border-left:3px solid #d4a843;padding:16px 18px;margin:12px 0 8px;border-radius:4px;">
+              <p style="color:#eee;font-size:15px;line-height:1.6;margin:0;">${messageHtml}</p>
+            </div>
+            <p style="color:#999;font-size:13px;margin:16px 0 0;">
+              &mdash; ${esc(senderName)}
+            </p>
+            ${goldButton('Open EliteRank', ctaUrl)}
+            <p style="color:#666;font-size:12px;text-align:center;margin:0;">
+              You're receiving this because you're a contestant in ${esc(req.competition_name || 'this competition')}.
+            </p>
+          </div>
         `),
       }
     }

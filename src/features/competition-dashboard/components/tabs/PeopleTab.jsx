@@ -2,12 +2,14 @@ import React, { useState, useRef } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
   Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, MessageSquare,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge, Avatar, Panel, Modal } from '../../../../components/ui';
+import { MessageContestantModal } from '../../../../components/modals';
 import { colors, spacing, borderRadius, typography } from '../../../../styles/theme';
 import { useResponsive } from '../../../../hooks/useResponsive';
+import { useToast } from '../../../../contexts/ToastContext';
 import { generateAchievementCard, getAdvancementTitle } from '../../../achievement-cards/generateAchievementCard';
 import { uploadPhoto } from '../../../entry/utils/uploadPhoto';
 import { supabase } from '../../../../lib/supabase';
@@ -80,6 +82,7 @@ export default function PeopleTab({
   onShowAddCoHost,
   onRemoveCoHost,
   onResendInvite,
+  onSendContestantMessage,
   onRemoveContestant,
   onUnconvertContestant,
   onRepairNomineeAccount,
@@ -87,6 +90,7 @@ export default function PeopleTab({
 }) {
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
+  const toast = useToast();
   const [processingIds, setProcessingIds] = useState(new Set());
   const addProcessing = (id) => setProcessingIds(prev => new Set(prev).add(id));
   const removeProcessing = (id) => setProcessingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
@@ -98,6 +102,29 @@ export default function PeopleTab({
   const avatarFileRef = useRef(null);
   const avatarUploadTarget = useRef(null);
   const [reordering, setReordering] = useState(false);
+  // Host → contestant message composer. `recipients` is the list of contestants
+  // (single row or the whole field) the message will be sent to.
+  const [messageModal, setMessageModal] = useState({ isOpen: false, recipients: [] });
+
+  const openMessageModal = (recipients) => {
+    setMessageModal({ isOpen: true, recipients });
+  };
+  const closeMessageModal = () => setMessageModal({ isOpen: false, recipients: [] });
+
+  const handleSendContestantMessage = async (contestantIds, subject, message) => {
+    if (!onSendContestantMessage) return { success: false, error: 'Messaging is unavailable' };
+    const result = await onSendContestantMessage(contestantIds, subject, message);
+    if (result?.success) {
+      const sent = result.data?.sent;
+      const summary = sent
+        ? `Message sent — ${sent.in_app} in-app, ${sent.email} email`
+        : 'Message sent';
+      toast?.success?.(summary);
+    } else {
+      toast?.error?.(result?.error || 'Failed to send message');
+    }
+    return result;
+  };
   // Nominee pending confirmation before being converted to a contestant.
   // Conversion makes them public + votable, so it requires an explicit confirm.
   const [convertConfirm, setConvertConfirm] = useState(null);
@@ -1146,6 +1173,17 @@ export default function PeopleTab({
         defaultCollapsed
         action={
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {onSendContestantMessage && contestantsFiltered.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={MessageSquare}
+                onClick={() => openMessageModal(contestantsFiltered)}
+                title="Send a message to all contestants"
+              >
+                Message All
+              </Button>
+            )}
             {contestants.some(c => c.avatarUrl) && (
               <Button
                 size="sm"
@@ -1253,6 +1291,27 @@ export default function PeopleTab({
                           }}
                         >
                           <RotateCcw size={16} />
+                        </button>
+                      )}
+                      {onSendContestantMessage && (
+                        <button
+                          onClick={() => openMessageModal([c])}
+                          title={`Message ${c.name}`}
+                          style={{
+                            padding: spacing.xs,
+                            background: 'rgba(212,175,55,0.1)',
+                            border: 'none',
+                            borderRadius: borderRadius.sm,
+                            cursor: 'pointer',
+                            color: colors.gold.primary,
+                            minWidth: '32px',
+                            minHeight: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <MessageSquare size={16} />
                         </button>
                       )}
                       <button
@@ -1653,6 +1712,20 @@ export default function PeopleTab({
           </div>
         )}
       </Modal>
+
+      {/* Host → contestant message composer */}
+      <MessageContestantModal
+        isOpen={messageModal.isOpen}
+        onClose={closeMessageModal}
+        recipients={messageModal.recipients.map((c) => ({
+          id: c.id,
+          name: c.name,
+          userId: c.userId,
+          email: c.email,
+        }))}
+        competitionName={competition?.name}
+        onSend={handleSendContestantMessage}
+      />
 
       {/* Keyframes for loader animation */}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
