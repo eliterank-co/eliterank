@@ -2,15 +2,16 @@ import { colors, spacing, typography, borderRadius } from '../../styles/theme';
 import { formatPrizeGender } from '../../utils/formatters';
 
 /**
- * Small "who's it for" tag for a gender-restricted prize (men-only / women-only).
+ * Small "who wins it" tag for a gender-designated prize ("Male Winner" /
+ * "Female Winner" / "Both Winners", or "Men" / "Women" for contestant rewards).
  *
- * Styled as an outlined, uppercase, letter-spaced gold tag so it reads as a
- * distinct label rather than a clone of the filled "recipient" pill, and echoes
- * the uppercase gender headings used on the gender-split leaderboard. Renders
- * nothing for prizes open to everyone (recipient_gender 'all').
+ * Styled as a neutral, outlined, uppercase, letter-spaced tag — deliberately NOT
+ * gold, so it reads as quiet metadata sitting below the (gold) sponsor name and
+ * the prize title rather than competing with them. Renders nothing when there's
+ * no gender designation to show.
  */
-export function PrizeGenderBadge({ prize, isMobile = false, style }) {
-  const label = formatPrizeGender(prize);
+export function PrizeGenderBadge({ prize, isMobile = false, splitByGender = false, style }) {
+  const label = formatPrizeGender(prize, { splitByGender });
   if (!label) return null;
   return (
     <span
@@ -21,9 +22,9 @@ export function PrizeGenderBadge({ prize, isMobile = false, style }) {
         fontWeight: typography.fontWeight.semibold,
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        color: colors.gold.primary,
+        color: colors.text.tertiary,
         background: 'transparent',
-        border: `1px solid ${colors.border.focus}`,
+        border: `1px solid ${colors.border.primary}`,
         padding: `2px ${spacing.sm}`,
         borderRadius: borderRadius.pill,
         lineHeight: 1.4,

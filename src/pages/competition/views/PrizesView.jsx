@@ -83,7 +83,8 @@ function getGridStyle(breakpoint) {
  * Mirrors the "Competition Prizes" section from the contestant rewards page.
  */
 export function PrizesView() {
-  const { prizes } = usePublicCompetition();
+  const { prizes, competition } = usePublicCompetition();
+  const splitByGender = !!competition?.winners_split_by_gender;
   const { isMobile, breakpoint } = useResponsive();
 
   const hasPrizes = prizes && prizes.length > 0;
@@ -110,7 +111,7 @@ export function PrizesView() {
           </h3>
           <div style={gridStyle}>
             {contestantRewards.map(prize => (
-              <PrizeCard key={prize.id} prize={prize} isMobile={isMobile} />
+              <PrizeCard key={prize.id} prize={prize} isMobile={isMobile} splitByGender={splitByGender} />
             ))}
           </div>
         </div>
@@ -125,7 +126,7 @@ export function PrizesView() {
           </h3>
           <div style={gridStyle}>
             {winnerPrizes.map(prize => (
-              <PrizeCard key={prize.id} prize={prize} isMobile={isMobile} />
+              <PrizeCard key={prize.id} prize={prize} isMobile={isMobile} splitByGender={splitByGender} />
             ))}
           </div>
         </div>
@@ -149,9 +150,9 @@ export function PrizesView() {
  * PrizeCard — displays a single competition prize.
  * Matches the CompetitionPrizeCard from RewardsPage.
  */
-function PrizeCard({ prize, isMobile }) {
+function PrizeCard({ prize, isMobile, splitByGender }) {
   const recipientLabel = formatPrizeRecipient(prize);
-  const genderLabel = formatPrizeGender(prize);
+  const genderLabel = formatPrizeGender(prize, { splitByGender });
   const Wrapper = prize.external_url ? 'a' : 'div';
   const wrapperProps = prize.external_url
     ? { href: prize.external_url, target: '_blank', rel: 'noopener noreferrer', style: { textDecoration: 'none', color: 'inherit', display: 'block', height: '100%' } }
@@ -249,7 +250,7 @@ function PrizeCard({ prize, isMobile }) {
 
           {(genderLabel || recipientLabel) && (
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs }}>
-              <PrizeGenderBadge prize={prize} isMobile={isMobile} />
+              <PrizeGenderBadge prize={prize} isMobile={isMobile} splitByGender={splitByGender} />
               {recipientLabel && (
                 <span style={{
                   display: 'inline-block',

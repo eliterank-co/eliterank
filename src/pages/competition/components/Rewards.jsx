@@ -28,7 +28,7 @@ const AUTO_ROTATE_INTERVAL = 4000;
 /**
  * Carousel sub-component for a list of prizes
  */
-function PrizeCarousel({ prizes, title }) {
+function PrizeCarousel({ prizes, title, splitByGender }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -112,7 +112,7 @@ function PrizeCarousel({ prizes, title }) {
               {currentPrize.sponsor_name && (
                 <span className="rewards-sponsor">by {currentPrize.sponsor_name}</span>
               )}
-              <PrizeGenderBadge prize={currentPrize} style={{ marginBottom: 'var(--spacing-sm)' }} />
+              <PrizeGenderBadge prize={currentPrize} splitByGender={splitByGender} style={{ marginBottom: 'var(--spacing-sm)' }} />
               {recipientLabel && (
                 <span className="rewards-recipient">{recipientLabel}</span>
               )}
@@ -156,7 +156,8 @@ function PrizeCarousel({ prizes, title }) {
  * Falls back to static default reward cards when no prizes exist.
  */
 export function Rewards() {
-  const { prizes } = usePublicCompetition();
+  const { prizes, competition } = usePublicCompetition();
+  const splitByGender = !!competition?.winners_split_by_gender;
 
   const hasPrizes = prizes && prizes.length > 0;
 
@@ -194,6 +195,7 @@ export function Rewards() {
         <PrizeCarousel
           prizes={winnerPrizes}
           title="Winner's Prize Package"
+          splitByGender={splitByGender}
         />
       )}
 
@@ -201,6 +203,7 @@ export function Rewards() {
         <PrizeCarousel
           prizes={contestantRewards}
           title="Contestant Rewards"
+          splitByGender={splitByGender}
         />
       )}
     </div>
