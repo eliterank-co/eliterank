@@ -861,6 +861,7 @@ export default function CompetitionDashboard({
           <>
             <AnnouncementsManager
               announcements={data.announcements}
+              competition={competition}
               host={data.host}
               isSuperAdmin={isSuperAdmin}
               onAddAnnouncement={addAnnouncement}
@@ -886,6 +887,7 @@ export default function CompetitionDashboard({
             <ContentTab
               competition={competition}
               onRefresh={refresh}
+              organizationName={competition?.organizationName}
               organizationId={competition?.organizationId}
               organizationHeaderLogoUrl={competition?.organizationHeaderLogoUrl}
               organizationLogoUrl={competition?.organizationLogoUrl}

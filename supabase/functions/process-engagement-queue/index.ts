@@ -479,10 +479,11 @@ async function sendSms(to: string, body: string): Promise<{ success: boolean; si
 // =============================================================================
 
 async function sendEmail(
-  to: string, 
-  subject: string, 
-  html: string, 
-  text: string
+  to: string,
+  subject: string,
+  html: string,
+  text: string,
+  fromName: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const apiKey = Deno.env.get('SENDGRID_API_KEY')
   const fromEmail = Deno.env.get('EMAIL_FROM') || 'EliteRank <noreply@eliterank.co>'
@@ -501,7 +502,7 @@ async function sendEmail(
       },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: to }] }],
-        from: { email: fromEmail.includes('<') ? fromEmail.match(/<(.+)>/)?.[1] : fromEmail, name: 'EliteRank' },
+        from: { email: fromEmail.includes('<') ? fromEmail.match(/<(.+)>/)?.[1] : fromEmail, name: fromName },
         subject,
         content: [
           { type: 'text/plain', value: text },
@@ -521,6 +522,41 @@ async function sendEmail(
   } catch (err) {
     console.error('Email send failed:', err)
     return { success: false, error: String(err) }
+  }
+}
+
+// =============================================================================
+// SENDER NAME RESOLUTION
+// =============================================================================
+
+/**
+ * Resolve the email "from" name for a competition: the competition the recipient
+ * signed up for (e.g. "Chicago Creator of the Year"), not the parent org or the
+ * platform. Prefers the competition_name already in the template payload;
+ * otherwise looks it up from competition_id. Best-effort: any failure yields the
+ * platform default.
+ */
+async function resolveSenderName(
+  supabase: ReturnType<typeof createClient>,
+  competitionName?: string | null,
+  competitionId?: string | null
+): Promise<string> {
+  const fallback = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
+  if (passed) return passed
+  if (!competitionId) return fallback
+  try {
+    const { data: comp, error } = await supabase
+      .from('competitions')
+      .select('name')
+      .eq('id', competitionId)
+      .maybeSingle()
+    if (error) return fallback
+    const name = typeof comp?.name === 'string' ? (comp.name as string).trim() : ''
+    return name || fallback
+  } catch (err) {
+    console.warn('resolveSenderName error (non-blocking):', err)
+    return fallback
   }
 }
 
@@ -578,6 +614,21 @@ serve(async (req) => {
       errors: [] as string[],
     }
 
+    // Cache sender-name lookups within this batch — many rows share a competition.
+    const senderCache = new Map<string, string>()
+    const senderFor = async (
+      competitionName?: string | null,
+      competitionId?: string | null,
+    ): Promise<string> => {
+      const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
+      if (passed) return passed
+      const key = competitionId || ''
+      if (senderCache.has(key)) return senderCache.get(key)!
+      const name = await resolveSenderName(supabase, competitionName, competitionId)
+      senderCache.set(key, name)
+      return name
+    }
+
     for (const engagement of pending) {
       results.processed++
       const templateData = engagement.template_data as TemplateData
@@ -592,7 +643,8 @@ serve(async (req) => {
       // Send email if channel is 'email' or 'both' and we have an email address
       if ((channel === 'email' || channel === 'both') && engagement.email_to) {
         const { subject, html, text } = renderEmailTemplate(engagement.engagement_type, templateData)
-        const emailResult = await sendEmail(engagement.email_to, subject, html, text)
+        const fromName = await senderFor(templateData?.competition_name, engagement.competition_id)
+        const emailResult = await sendEmail(engagement.email_to, subject, html, text, fromName)
         
         if (emailResult.success) {
           emailSent = true

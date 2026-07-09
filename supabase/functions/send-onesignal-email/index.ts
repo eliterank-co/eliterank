@@ -23,10 +23,17 @@ const corsHeaders = {
  *   - subscriber_confirmation: "You're on the list" instant confirmation when
  *                          a user opts in on the coming-soon page
  *
+ * The sender display name ("from" name) is the competition the recipient signed
+ * up for (competition_name, or looked up from competition_id). Platform-level
+ * emails with no competition context fall back to DEFAULT_BRAND_NAME (or
+ * "EliteRank").
+ *
  * Required Supabase secrets:
  *   ONESIGNAL_APP_ID     — OneSignal App ID
  *   ONESIGNAL_API_KEY    — OneSignal REST API Key
  *   APP_URL              — e.g. https://eliterank.co
+ * Optional:
+ *   DEFAULT_BRAND_NAME   — sender name for platform-level emails (default "EliteRank")
  */
 
 interface EmailRequest {
@@ -700,6 +707,44 @@ async function ensureEmailSubscription(
 }
 
 /**
+ * Resolve the sender display name for an email. Recipients recognize the
+ * competition they signed up for (e.g. "Chicago Creator of the Year"), so that
+ * is the "from" name — not the parent organization or the platform. Prefers the
+ * competition_name passed by the caller; otherwise looks it up from
+ * competition_id. Falls back to DEFAULT_BRAND_NAME (env) / the platform name.
+ * Best-effort: never throws — a lookup failure just yields the fallback rather
+ * than blocking the send.
+ */
+async function resolveSenderName(
+  competitionName?: string | null,
+  competitionId?: string | null,
+): Promise<string> {
+  const fallback = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
+  if (passed) return passed
+  if (!competitionId) return fallback
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!supabaseUrl || !serviceKey) return fallback
+    const supabase = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: comp, error } = await supabase
+      .from('competitions')
+      .select('name')
+      .eq('id', competitionId)
+      .maybeSingle()
+    if (error) return fallback
+    const name = typeof comp?.name === 'string' ? comp.name.trim() : ''
+    return name || fallback
+  } catch (err) {
+    console.warn('resolveSenderName error (non-blocking):', err)
+    return fallback
+  }
+}
+
+/**
  * Best-effort write of a send attempt to the email_logs table. Never throws —
  * deliverability logging must not block or fail the actual email send.
  */
@@ -804,6 +849,10 @@ serve(async (req) => {
 
     const { subject, body: htmlBody } = getEmailContent(body)
 
+    // Sender display name = the competition the recipient signed up for (falls
+    // back to the platform name for platform-level emails with no competition).
+    const fromName = await resolveSenderName(body.competition_name, body.competition_id)
+
     // Step 1: Ensure the recipient has a OneSignal email subscription.
     // This is critical — include_email_tokens silently fails for unknown
     // emails. By ensuring the subscription exists first and targeting by
@@ -821,7 +870,7 @@ serve(async (req) => {
       app_id: appId,
       email_subject: subject,
       email_body: htmlBody,
-      email_from_name: 'EliteRank',
+      email_from_name: fromName,
       email_from_address: 'info@eliterank.co',
       disable_email_click_tracking: true,
       data: {
