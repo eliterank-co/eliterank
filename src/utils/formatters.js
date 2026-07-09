@@ -219,22 +219,29 @@ export function formatPrizeRecipient(prize) {
 }
 
 /**
- * Human label for the gender a prize is restricted to, from its sponsor's
- * recipient_gender setting. Returns null for 'all' (or unset) so callers can
- * skip rendering a chip when a prize is open to everyone. Only meaningful in
- * competitions that crown winners split by gender.
- * @param {object} prize - Prize with `recipient_gender`
+ * Human label for who a prize goes to in a gender-split competition, phrased in
+ * winner terms for the winner package ("Male Winner" / "Female Winner" / "Both
+ * Winners") and shorter for contestant rewards ("Men" / "Women").
+ *
+ * A male/female label is driven purely by recipient_gender (which is only ever
+ * set in gender-split competitions), so it stands alone. "Both Winners" only
+ * applies to an open winner prize in a gender-split package — every prize
+ * defaults to recipient_gender 'all', so that case needs the splitByGender flag
+ * to avoid labelling prizes in normal competitions.
+ * @param {object} prize - Prize with `recipient_gender` and `prize_type`
+ * @param {{splitByGender?: boolean}} [opts]
  * @returns {string|null}
  */
-export function formatPrizeGender(prize) {
+export function formatPrizeGender(prize, { splitByGender = false } = {}) {
   if (!prize) return null;
+  const isWinner = (prize.prize_type || 'winner') === 'winner';
   switch (prize.recipient_gender) {
     case 'male':
-      return 'Men only';
+      return isWinner ? 'Male Winner' : 'Men';
     case 'female':
-      return 'Women only';
+      return isWinner ? 'Female Winner' : 'Women';
     default:
-      return null;
+      return splitByGender && isWinner ? 'Both Winners' : null;
   }
 }
 

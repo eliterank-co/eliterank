@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Crown, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
-import { formatPrizeRecipient, formatPrizeGender, interleaveByGender } from '../../../utils/formatters';
+import { formatPrizeRecipient, interleaveByGender } from '../../../utils/formatters';
+import { PrizeGenderBadge } from '../../../components/ui/PrizeGenderBadge';
 
 // Default rewards when no prizes are uploaded by the host
 const DEFAULT_REWARDS = [
@@ -27,7 +28,7 @@ const AUTO_ROTATE_INTERVAL = 4000;
 /**
  * Carousel sub-component for a list of prizes
  */
-function PrizeCarousel({ prizes, title }) {
+function PrizeCarousel({ prizes, title, splitByGender }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -60,7 +61,6 @@ function PrizeCarousel({ prizes, title }) {
 
   const currentPrize = prizes[currentIndex];
   const recipientLabel = formatPrizeRecipient(currentPrize);
-  const genderLabel = formatPrizeGender(currentPrize);
 
   return (
     <div
@@ -112,9 +112,7 @@ function PrizeCarousel({ prizes, title }) {
               {currentPrize.sponsor_name && (
                 <span className="rewards-sponsor">by {currentPrize.sponsor_name}</span>
               )}
-              {genderLabel && (
-                <span className="rewards-recipient">{genderLabel}</span>
-              )}
+              <PrizeGenderBadge prize={currentPrize} splitByGender={splitByGender} style={{ marginBottom: 'var(--spacing-sm)' }} />
               {recipientLabel && (
                 <span className="rewards-recipient">{recipientLabel}</span>
               )}
@@ -158,7 +156,8 @@ function PrizeCarousel({ prizes, title }) {
  * Falls back to static default reward cards when no prizes exist.
  */
 export function Rewards() {
-  const { prizes } = usePublicCompetition();
+  const { prizes, competition } = usePublicCompetition();
+  const splitByGender = !!competition?.winners_split_by_gender;
 
   const hasPrizes = prizes && prizes.length > 0;
 
@@ -196,6 +195,7 @@ export function Rewards() {
         <PrizeCarousel
           prizes={winnerPrizes}
           title="Winner's Prize Package"
+          splitByGender={splitByGender}
         />
       )}
 
@@ -203,6 +203,7 @@ export function Rewards() {
         <PrizeCarousel
           prizes={contestantRewards}
           title="Contestant Rewards"
+          splitByGender={splitByGender}
         />
       )}
     </div>
