@@ -121,22 +121,28 @@ export default function SponsorWizardModal({
   };
 
   const isInKind = form.sponsorshipType === 'in_kind';
-  const step1Valid = form.name.trim().length > 0;
-  // In-kind has no cash figure — its value is derived from the prize values on
-  // step 3 (see handleSave), so step 2 only needs the type. Paid still requires
-  // the cash amount + a visibility tier.
-  const step2Valid = isInKind
-    ? !!form.sponsorshipType
-    : (!!form.sponsorshipType && form.value !== '' && !!form.visibilityTier);
-  const mustProvideRewards = isInKind || form.providesContestantRewards;
-  const step3Valid = mustProvideRewards
-    ? form.recipient &&
-      (form.recipient !== 'top_x' || parseInt(form.topXCount, 10) > 0) &&
-      form.prizes.length > 0 &&
-      form.prizes.every((p) => p.title.trim().length > 0)
-    : true;
+  // In-kind sponsors skip the "Deal" step entirely — they have no cash figure
+  // (their value is summed from the prizes on save) and no paid visibility tier,
+  // so the flow is Identity → Rewards. Paid keeps Identity → Deal → Rewards.
+  const stepKeys = isInKind ? ['identity', 'rewards'] : ['identity', 'deal', 'rewards'];
+  const stepLabels = isInKind ? ['Identity', 'Rewards'] : ['Identity', 'Deal', 'Rewards'];
+  const stepKey = stepKeys[step - 1] || stepKeys[stepKeys.length - 1];
+  const isLastStep = step >= stepKeys.length;
 
-  const canAdvance = step === 1 ? step1Valid : step === 2 ? step2Valid : step3Valid;
+  const mustProvideRewards = isInKind || form.providesContestantRewards;
+  const stepValid = {
+    // Type is chosen here now, so it's required to leave Identity.
+    identity: form.name.trim().length > 0 && !!form.sponsorshipType,
+    deal: form.value !== '' && !!form.visibilityTier,
+    rewards: mustProvideRewards
+      ? form.recipient &&
+        (form.recipient !== 'top_x' || parseInt(form.topXCount, 10) > 0) &&
+        form.prizes.length > 0 &&
+        form.prizes.every((p) => p.title.trim().length > 0)
+      : true,
+  };
+
+  const canAdvance = stepValid[stepKey];
 
   const handleSave = () => {
     const prizes = form.prizes.map((p) => ({
@@ -172,7 +178,7 @@ export default function SponsorWizardModal({
           >
             {step > 1 ? 'Back' : 'Cancel'}
           </Button>
-          {step < 3 ? (
+          {!isLastStep ? (
             <Button onClick={() => setStep((s) => s + 1)} disabled={!canAdvance} style={{ flex: 1 }}>
               Continue
             </Button>
@@ -184,9 +190,9 @@ export default function SponsorWizardModal({
         </div>
       }
     >
-      <Stepper step={step} />
+      <Stepper step={step} labels={stepLabels} />
 
-      {step === 1 && (
+      {stepKey === 'identity' && (
         <Step1Identity
           form={form}
           updateField={updateField}
@@ -195,10 +201,10 @@ export default function SponsorWizardModal({
           handleLogoUpload={handleLogoUpload}
         />
       )}
-      {step === 2 && (
+      {stepKey === 'deal' && (
         <Step2Deal form={form} updateField={updateField} tierAvailability={tierAvailability} />
       )}
-      {step === 3 && (
+      {stepKey === 'rewards' && (
         <Step3Rewards
           form={form}
           updateField={updateField}
@@ -220,8 +226,7 @@ export default function SponsorWizardModal({
 }
 
 // ---------- Step indicator (numbered circles + connector) ----------
-function Stepper({ step }) {
-  const labels = ['Identity', 'Deal', 'Rewards'];
+function Stepper({ step, labels }) {
   return (
     <div
       style={{
@@ -377,21 +382,11 @@ function Step1Identity({ form, updateField, uploadingLogo, logoInputRef, handleL
           style={inputStyle}
         />
       </Field>
-    </div>
-  );
-}
 
-// ---------- Step 2: Deal ----------
-function Step2Deal({ form, updateField, tierAvailability }) {
-  const isPaid = form.sponsorshipType === 'paid';
-  const isInKind = form.sponsorshipType === 'in_kind';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
       <Field label="Sponsorship Type *">
         <div style={{ display: 'flex', gap: spacing.md }}>
           <ChoiceCard
-            active={isInKind}
+            active={form.sponsorshipType === 'in_kind'}
             onClick={() => {
               updateField('sponsorshipType', 'in_kind');
               updateField('visibilityTier', '');
@@ -401,7 +396,7 @@ function Step2Deal({ form, updateField, tierAvailability }) {
             subtitle="Provides prizes"
           />
           <ChoiceCard
-            active={isPaid}
+            active={form.sponsorshipType === 'paid'}
             onClick={() => updateField('sponsorshipType', 'paid')}
             icon={Briefcase}
             title="Paid"
@@ -409,27 +404,30 @@ function Step2Deal({ form, updateField, tierAvailability }) {
           />
         </div>
       </Field>
+    </div>
+  );
+}
 
-      {isPaid && (
-        <Field label="Cash amount ($) *">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={form.value}
-            onChange={(e) => updateField('value', e.target.value.replace(/[^0-9.]/g, ''))}
-            placeholder="e.g., 25000"
-            style={inputStyle}
-          />
-        </Field>
-      )}
+// ---------- Step 2: Deal (paid sponsors only) ----------
+function Step2Deal({ form, updateField, tierAvailability }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+      <Field label="Cash amount ($) *">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={form.value}
+          onChange={(e) => updateField('value', e.target.value.replace(/[^0-9.]/g, ''))}
+          placeholder="e.g., 25000"
+          style={inputStyle}
+        />
+      </Field>
 
-
-      {isPaid && (
-        <SectionPanel>
-          <div style={{ marginBottom: spacing.md }}>
-            <div style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary, fontWeight: typography.fontWeight.medium, marginBottom: spacing.xs }}>
-              Visibility tier *
-            </div>
+      <SectionPanel>
+        <div style={{ marginBottom: spacing.md }}>
+          <div style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary, fontWeight: typography.fontWeight.medium, marginBottom: spacing.xs }}>
+            Visibility tier *
+          </div>
             <div style={{ fontSize: typography.fontSize.xs, color: colors.text.muted }}>
               Paid sponsors appear in a "Sponsored by" strip on the competition page, ordered by tier.
             </div>
@@ -476,8 +474,7 @@ function Step2Deal({ form, updateField, tierAvailability }) {
               );
             })}
           </div>
-        </SectionPanel>
-      )}
+      </SectionPanel>
     </div>
   );
 }
