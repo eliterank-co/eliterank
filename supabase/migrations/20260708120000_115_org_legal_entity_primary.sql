@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration 113: legal entity name is the entered/primary org field
+-- Migration 115: legal entity name is the entered/primary org field
 -- =============================================================================
 -- An organization now carries two names with distinct roles:
 --   • legal_entity_name — the registered legal entity the host enters at
