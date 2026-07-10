@@ -7,12 +7,15 @@ const TIMELINE_PHASE_ORDER = ['nomination', 'voting', 'judging', 'completed'];
 
 // Human-readable phase/status labels
 const PHASE_LABELS = {
-  // Super admin statuses
+  // Lifecycle statuses
   draft: 'Draft',
+  pending_approval: 'Under Review',
+  approved: 'Approved',
   publish: 'Coming Soon',
   live: 'Live',
   completed: 'Completed',
   archive: 'Archived',
+  cancelled: 'Cancelled',
   // Timeline phases (when status is live)
   nomination: 'Nomination Phase',
   voting: 'Voting Phase',

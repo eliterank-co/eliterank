@@ -39,13 +39,21 @@ export function computeCompetitionStatus(competition) {
     ? new Date(competition.finals_date)
     : null;
 
-  // Archived and Draft are manual states — don't auto-transition
-  if (status === COMPETITION_STATUS.ARCHIVED || status === COMPETITION_STATUS.DRAFT) {
+  // Manual states — don't auto-transition. Draft, archive, cancelled, and the
+  // approval-lifecycle states (pending_approval, approved) only move via an
+  // explicit host/admin action, never on a date.
+  if (
+    status === COMPETITION_STATUS.ARCHIVE ||
+    status === COMPETITION_STATUS.DRAFT ||
+    status === COMPETITION_STATUS.CANCELLED ||
+    status === COMPETITION_STATUS.PENDING_APPROVAL ||
+    status === COMPETITION_STATUS.APPROVED
+  ) {
     return status;
   }
 
   // Auto-transition: Published → Live (when nomination period starts)
-  if (status === COMPETITION_STATUS.PUBLISHED && nominationStart && nominationStart <= now) {
+  if (status === COMPETITION_STATUS.PUBLISH && nominationStart && nominationStart <= now) {
     return COMPETITION_STATUS.LIVE;
   }
 
@@ -145,7 +153,7 @@ export function validateAdminStatusChange(competition, newStatus) {
   const warnings = [];
 
   // Check requirements for publishing
-  if (newStatus === COMPETITION_STATUS.PUBLISHED) {
+  if (newStatus === COMPETITION_STATUS.PUBLISH) {
     const requirements = checkPublishRequirements(competition);
 
     if (!requirements.city) errors.push('City must be assigned');
@@ -163,18 +171,20 @@ export function validateAdminStatusChange(competition, newStatus) {
   }
 
   // Validate transition from completed/archived
-  if (currentStatus === COMPETITION_STATUS.COMPLETED && newStatus !== COMPETITION_STATUS.ARCHIVED) {
+  if (currentStatus === COMPETITION_STATUS.COMPLETED && newStatus !== COMPETITION_STATUS.ARCHIVE) {
     warnings.push('Reopening a completed competition may affect historical data');
   }
 
-  if (currentStatus === COMPETITION_STATUS.ARCHIVED && newStatus !== COMPETITION_STATUS.DRAFT) {
+  if (currentStatus === COMPETITION_STATUS.ARCHIVE && newStatus !== COMPETITION_STATUS.DRAFT) {
     errors.push('Archived competitions can only be moved back to Draft');
   }
 
-  // Validate going backwards in status
+  // Validate going backwards in status (follows the host launch lifecycle)
   const statusOrder = [
     COMPETITION_STATUS.DRAFT,
-    COMPETITION_STATUS.PUBLISHED,
+    COMPETITION_STATUS.PENDING_APPROVAL,
+    COMPETITION_STATUS.APPROVED,
+    COMPETITION_STATUS.PUBLISH,
     COMPETITION_STATUS.LIVE,
     COMPETITION_STATUS.COMPLETED,
   ];
@@ -182,7 +192,7 @@ export function validateAdminStatusChange(competition, newStatus) {
   const currentIndex = statusOrder.indexOf(currentStatus);
   const newIndex = statusOrder.indexOf(newStatus);
 
-  if (newIndex < currentIndex && newStatus !== COMPETITION_STATUS.ARCHIVED) {
+  if (newIndex < currentIndex && newStatus !== COMPETITION_STATUS.ARCHIVE) {
     warnings.push(`Moving from ${currentStatus} back to ${newStatus} - this is unusual`);
   }
 
@@ -203,13 +213,19 @@ export function getStatusChangeRestriction(status) {
   switch (status) {
     case COMPETITION_STATUS.DRAFT:
       return 'Competition is in draft. Admin can publish when requirements are met.';
-    case COMPETITION_STATUS.PUBLISHED:
+    case COMPETITION_STATUS.PENDING_APPROVAL:
+      return 'Submitted for approval. EliteRank must approve it before the host can publish.';
+    case COMPETITION_STATUS.APPROVED:
+      return 'Approved. The host can now publish it to the public.';
+    case COMPETITION_STATUS.CANCELLED:
+      return 'Competition was cancelled.';
+    case COMPETITION_STATUS.PUBLISH:
       return 'Competition will go live automatically when nomination period starts.';
     case COMPETITION_STATUS.LIVE:
       return 'Competition will complete automatically after the finale date.';
     case COMPETITION_STATUS.COMPLETED:
       return 'Competition has ended. Admin can archive if needed.';
-    case COMPETITION_STATUS.ARCHIVED:
+    case COMPETITION_STATUS.ARCHIVE:
       return 'Competition is archived. Admin can restore if needed.';
     default:
       return 'Status is managed automatically based on timeline dates.';
@@ -227,7 +243,7 @@ export function getNextAutoTransition(competition) {
 
   const { status, nomination_start, finals_date } = competition;
 
-  if (status === COMPETITION_STATUS.PUBLISHED && nomination_start) {
+  if (status === COMPETITION_STATUS.PUBLISH && nomination_start) {
     return {
       nextStatus: COMPETITION_STATUS.LIVE,
       triggerDate: new Date(nomination_start),

@@ -20,15 +20,15 @@
  */
 
 import {
-  computeCompetitionPhase,
-  COMPETITION_STATUSES,
-  TIMELINE_PHASES,
   normalizeStatus,
   isDraft,
   isPublished,
   isLive,
   isCompleted,
   isArchived,
+  isPendingApproval,
+  isApproved,
+  isCancelled,
 } from './competitionPhase';
 
 /**
@@ -58,8 +58,11 @@ export function getCompetitionPhase(
     console.log(`[getCompetitionPhase] Competition: ${competition.name || competition.id}, Raw status: "${rawStatus}", Normalized: "${status}"`);
   }
 
-  // Handle terminal states using helper functions
-  if (status === 'cancelled') {
+  // Handle terminal / pre-public states using helper functions.
+  // These must come before the timeline logic so a competition that hasn't
+  // gone public yet (draft, under review, approved) never resolves to a
+  // public voting/nomination phase from its timeline dates.
+  if (isCancelled(status)) {
     return {
       phase: 'cancelled',
       label: 'Cancelled',
@@ -84,6 +87,28 @@ export function getCompetitionPhase(
     return {
       phase: 'draft',
       label: 'Draft',
+      isPublic: false,
+      isVoting: false,
+      canNominate: false,
+    };
+  }
+
+  // Submitted-for-approval ("under review"): host-only, not yet public.
+  if (isPendingApproval(status)) {
+    return {
+      phase: 'pending-approval',
+      label: 'Under Review',
+      isPublic: false,
+      isVoting: false,
+      canNominate: false,
+    };
+  }
+
+  // Approved but not yet published to the public.
+  if (isApproved(status)) {
+    return {
+      phase: 'approved',
+      label: 'Approved',
       isPublic: false,
       isVoting: false,
       canNominate: false,
@@ -153,12 +178,13 @@ export function getCompetitionPhase(
       };
     }
 
-    // Fall back to flat nomination dates
+    // Fall back to flat nomination dates (end-exclusive, matching the period
+    // and voting-round windows).
     if (
       nominationStart &&
       nominationEnd &&
       now >= nominationStart &&
-      now <= nominationEnd
+      now < nominationEnd
     ) {
       return {
         phase: 'nominations',
@@ -230,7 +256,9 @@ function findActiveVotingRound(votingRounds, now) {
     const end = round.end_date ? new Date(round.end_date) : null;
 
     if (!start || !end) return false;
-    return now >= start && now <= end;
+    // End-exclusive to match computeTimelinePhase / getCurrentPhase: a round is
+    // no longer "active" once its end instant is reached.
+    return now >= start && now < end;
   });
 }
 
@@ -261,7 +289,8 @@ function findActiveNominationPeriod(nominationPeriods, now) {
     const end = period.end_date ? new Date(period.end_date) : null;
 
     if (!start || !end) return false;
-    return now >= start && now <= end;
+    // End-exclusive, consistent with the voting-round window above.
+    return now >= start && now < end;
   });
 }
 

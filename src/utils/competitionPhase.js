@@ -1,23 +1,33 @@
 /**
  * Competition Phase Utilities
  *
- * Status System (controlled by super admin):
+ * Host launch lifecycle (see HostLaunchStatus):
+ *   draft → pending_approval → approved → publish → live → completed
+ *
+ * Status System:
  * - draft: Not viewable on public page
+ * - pending_approval: Submitted by host — awaiting EliteRank approval ("under review")
+ * - approved: Approved by EliteRank — host can publish to public
  * - publish: Viewable with "Coming Soon" teaser, shows interest forms
  * - live: Full visibility, follows timeline dates (nomination → voting → finale)
  * - completed: Competition over, winners displayed
  * - archive: Hidden from public but data preserved
+ * - cancelled: Terminal — competition was cancelled
  *
- * Timeline dates control the phase ONLY when status is "live"
+ * Timeline dates control the phase ONLY when status is "live" (or a live
+ * sub-phase like nomination/voting/finals is stored directly in status).
  */
 
-// Valid super admin statuses
+// Valid competition statuses (host lifecycle + super-admin controls)
 export const COMPETITION_STATUSES = {
   DRAFT: 'draft',
+  PENDING_APPROVAL: 'pending_approval',
+  APPROVED: 'approved',
   PUBLISH: 'publish',
   LIVE: 'live',
   COMPLETED: 'completed',
   ARCHIVE: 'archive',
+  CANCELLED: 'cancelled',
 };
 
 // Timeline-based phases (used when status is "live")
@@ -52,6 +62,16 @@ export function normalizeStatus(status) {
   // Map variants to canonical values
   // Include common variations and typos
   const statusMap = {
+    // Draft variants
+    'draft': COMPETITION_STATUSES.DRAFT,
+    // Pending-approval ("under review") variants
+    'pending_approval': COMPETITION_STATUSES.PENDING_APPROVAL,
+    'pending-approval': COMPETITION_STATUSES.PENDING_APPROVAL,
+    'pending': COMPETITION_STATUSES.PENDING_APPROVAL,
+    'under_review': COMPETITION_STATUSES.PENDING_APPROVAL,
+    'review': COMPETITION_STATUSES.PENDING_APPROVAL,
+    // Approved variants
+    'approved': COMPETITION_STATUSES.APPROVED,
     // Publish variants
     'published': COMPETITION_STATUSES.PUBLISH,
     'publish': COMPETITION_STATUSES.PUBLISH,
@@ -59,19 +79,29 @@ export function normalizeStatus(status) {
     'coming-soon': COMPETITION_STATUSES.PUBLISH,
     'coming soon': COMPETITION_STATUSES.PUBLISH,
     'comingsoon': COMPETITION_STATUSES.PUBLISH,
-    // Archive variants
-    'archived': COMPETITION_STATUSES.ARCHIVE,
-    'archive': COMPETITION_STATUSES.ARCHIVE,
-    // Draft variants
-    'draft': COMPETITION_STATUSES.DRAFT,
-    // Live variants
+    'upcoming': COMPETITION_STATUSES.PUBLISH,
+    // Live variants — including live sub-phases sometimes stored in `status`.
+    // These are timeline-driven once live, so treat them as LIVE and let the
+    // timeline computation resolve the exact sub-phase.
     'live': COMPETITION_STATUSES.LIVE,
     'active': COMPETITION_STATUSES.LIVE,
+    'nomination': COMPETITION_STATUSES.LIVE,
+    'nominations': COMPETITION_STATUSES.LIVE,
+    'voting': COMPETITION_STATUSES.LIVE,
+    'judging': COMPETITION_STATUSES.LIVE,
+    'finals': COMPETITION_STATUSES.LIVE,
+    'finale': COMPETITION_STATUSES.LIVE,
     // Completed variants
     'completed': COMPETITION_STATUSES.COMPLETED,
     'complete': COMPETITION_STATUSES.COMPLETED,
     'finished': COMPETITION_STATUSES.COMPLETED,
     'ended': COMPETITION_STATUSES.COMPLETED,
+    // Archive variants
+    'archived': COMPETITION_STATUSES.ARCHIVE,
+    'archive': COMPETITION_STATUSES.ARCHIVE,
+    // Cancelled variants
+    'cancelled': COMPETITION_STATUSES.CANCELLED,
+    'canceled': COMPETITION_STATUSES.CANCELLED,
   };
 
   return statusMap[s] || COMPETITION_STATUSES.DRAFT;
@@ -88,6 +118,33 @@ export function normalizeStatus(status) {
  */
 export function isDraft(status) {
   return normalizeStatus(status) === COMPETITION_STATUSES.DRAFT;
+}
+
+/**
+ * Check if competition status is pending approval ("under review")
+ * @param {string} status - Competition status
+ * @returns {boolean}
+ */
+export function isPendingApproval(status) {
+  return normalizeStatus(status) === COMPETITION_STATUSES.PENDING_APPROVAL;
+}
+
+/**
+ * Check if competition status is approved (ready for host to publish)
+ * @param {string} status - Competition status
+ * @returns {boolean}
+ */
+export function isApproved(status) {
+  return normalizeStatus(status) === COMPETITION_STATUSES.APPROVED;
+}
+
+/**
+ * Check if competition status is cancelled
+ * @param {string} status - Competition status
+ * @returns {boolean}
+ */
+export function isCancelled(status) {
+  return normalizeStatus(status) === COMPETITION_STATUSES.CANCELLED;
 }
 
 /**
@@ -138,10 +195,13 @@ export function isArchived(status) {
 export function computeCompetitionPhase(competition) {
   if (!competition) return COMPETITION_STATUSES.DRAFT;
 
-  const status = (competition.status || COMPETITION_STATUSES.DRAFT).toLowerCase();
+  // Normalize first so lifecycle statuses (pending_approval, approved,
+  // cancelled) and live sub-phases stored in `status` (voting, finals, …)
+  // resolve to a canonical value instead of leaking raw strings.
+  const status = normalizeStatus(competition.status);
 
-  // If not "live", the status IS the phase
-  if (status !== COMPETITION_STATUSES.LIVE) {
+  // If not "live", the canonical status IS the phase
+  if (!isLive(status)) {
     return status;
   }
 
@@ -524,6 +584,24 @@ export function getPhaseDisplayConfig(phase) {
       label: 'DRAFT',
       icon: 'FileEdit',
       description: 'Not visible to public',
+    },
+    [COMPETITION_STATUSES.PENDING_APPROVAL]: {
+      variant: 'warning',
+      label: 'UNDER REVIEW',
+      icon: 'Clock',
+      description: 'Submitted — awaiting EliteRank approval',
+    },
+    [COMPETITION_STATUSES.APPROVED]: {
+      variant: 'info',
+      label: 'APPROVED',
+      icon: 'CheckCircle',
+      description: 'Approved — host can publish to public',
+    },
+    [COMPETITION_STATUSES.CANCELLED]: {
+      variant: 'secondary',
+      label: 'CANCELLED',
+      icon: 'XCircle',
+      description: 'Competition was cancelled',
     },
     [COMPETITION_STATUSES.PUBLISH]: {
       variant: 'warning',
