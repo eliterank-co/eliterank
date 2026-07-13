@@ -21,9 +21,11 @@
     <meta name="twitter:title" content="EliteRank — Where the Best Get Recognized" />
     <meta name="twitter:description" content="Enter · Compete · Win. The most prestigious social competition platform." />
     <meta name="twitter:image" content="https://eliterank.co/og-image.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- No web fonts: the app UI uses system fonts (see CLAUDE.md + theme.js).
+         A render-blocking Google Fonts <link> here previously delayed first
+         paint (FCP/LCP) on every page load. The only web-font consumers are the
+         canvas share-card generators, which now load their fonts on demand
+         (src/features/achievement-cards/ensureCardFonts.js). -->
   </head>
   <body>
     <div id="root"></div>

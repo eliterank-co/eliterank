@@ -8,6 +8,8 @@
  * Optimized for Instagram Stories (1080x1920).
  */
 
+import { ensureCardFonts } from './ensureCardFonts';
+
 const CARD_WIDTH = 1080;
 const CARD_HEIGHT = 1920;
 const CX = CARD_WIDTH / 2;
@@ -105,6 +107,11 @@ export async function generateVoteCard({
   competitionName,
   organizationLogoUrl,
 }) {
+  // Load the card fonts (Montserrat/Inter) before drawing so canvas text
+  // isn't baked in with the system-ui fallback. Kept off the page's critical
+  // render path — see ensureCardFonts.js.
+  await ensureCardFonts();
+
   const canvas = document.createElement('canvas');
   canvas.width = CARD_WIDTH;
   canvas.height = CARD_HEIGHT;

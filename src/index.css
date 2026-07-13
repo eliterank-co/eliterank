@@ -18,8 +18,9 @@
   --color-border-secondary: rgba(255, 255, 255, 0.05);
   --color-border-gold: rgba(212, 175, 55, 0.3);
 
-  /* Font family */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  /* Font family — system fonts only (see CLAUDE.md). No web fonts are loaded,
+     so lead with the native stack to avoid a fallback swap on first paint. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, system-ui, sans-serif;
 }
 
 /* Base styles */

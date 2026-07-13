@@ -22,6 +22,14 @@ export default class ErrorBoundary extends React.Component {
     this.setState({ errorInfo });
     console.error('ErrorBoundary caught an error:', error, errorInfo);
 
+    // Report to Sentry. Imported lazily so Sentry stays off the critical render
+    // path (this only runs when a render error is actually caught).
+    import('@sentry/react')
+      .then((Sentry) => {
+        Sentry.captureException(error, { contexts: { react: { componentStack: errorInfo?.componentStack } } });
+      })
+      .catch(() => {});
+
     // Auto-reload once for chunk load failures (stale deployment cache)
     if (this.isChunkLoadError(error)) {
       const reloadKey = 'chunk-error-reload';
