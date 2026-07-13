@@ -5,6 +5,48 @@ import { colors, spacing, borderRadius, typography } from '../../styles/theme';
 import { supabase } from '../../lib/supabase';
 import { uploadPhoto } from '../../features/entry/utils/uploadPhoto';
 
+// Human label + relative priority for each source a contact can come from.
+// When the same person shows up in more than one source, the lowest-rank
+// label wins (a contestant reads as "Contestant" even if they also subscribed).
+const SOURCE_META = {
+  contestant: { label: 'Contestant', rank: 0 },
+  nominee: { label: 'Nominee', rank: 1 },
+  judge: { label: 'Judge', rank: 2 },
+  subscriber: { label: 'Subscriber', rank: 3 },
+};
+
+// Identity key for de-duping a person across sources. Email is the strongest
+// signal (profiles.email is unique; the entity tables store it directly), then
+// a linked profile id, then a name fallback for off-platform people.
+const contactKey = (c) => {
+  if (c.email) return `e:${c.email.trim().toLowerCase()}`;
+  if (c.userId) return `u:${c.userId}`;
+  return `n:${(c.name || '').trim().toLowerCase()}`;
+};
+
+// Collapse the four source lists into one contact per person, filling blank
+// fields from whichever source has them and keeping the highest-priority label.
+const mergeContacts = (list) => {
+  const byKey = new Map();
+  for (const c of list) {
+    const key = contactKey(c);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, { ...c, key });
+      continue;
+    }
+    existing.userId = existing.userId || c.userId || null;
+    existing.email = existing.email || c.email;
+    existing.avatarUrl = existing.avatarUrl || c.avatarUrl;
+    existing.instagram = existing.instagram || c.instagram;
+    existing.bio = existing.bio || c.bio;
+    if ((SOURCE_META[c.source]?.rank ?? 9) < (SOURCE_META[existing.source]?.rank ?? 9)) {
+      existing.source = c.source;
+    }
+  }
+  return [...byKey.values()];
+};
+
 export default function JudgeModal({
   isOpen,
   onClose,
@@ -21,10 +63,9 @@ export default function JudgeModal({
   // Form state
   const [form, setForm] = useState({ name: '', title: '', bio: '', userId: null, avatarUrl: '', instagram: '', email: '' });
 
-  // Search state
+  // Search state. `contacts` holds the normalized, deduped people list.
   const [searchQuery, setSearchQuery] = useState('');
-  const [profiles, setProfiles] = useState([]);
-  const [filteredProfiles, setFilteredProfiles] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [showSearch, setShowSearch] = useState(true);
@@ -57,13 +98,12 @@ export default function JudgeModal({
     }
   }, [isOpen, judge]);
 
-  // Debounced server-side search, scoped to the organization's audience — the
-  // people who subscribed to any of its competitions — rather than the entire
-  // platform userbase (which leaked every user's name + email to any host).
-  // RLS on competition_subscribers additionally restricts reads to a
-  // competition's host/co-host, so this only ever returns the host's own
-  // contacts. Anyone not on that list can still be added via the manual fields
-  // below. Empty query = browse the audience; typing filters on the server.
+  // Debounced search over the organization's *contacts* — the people already
+  // tied to any of its competitions: contestants, nominees, invited judges, and
+  // notify-list subscribers — rather than the entire platform userbase (which
+  // leaked every user's name + email to any host). RLS keeps each source scoped
+  // to what the host may read. Anyone not already a contact can still be added
+  // via the manual fields below. Empty query = browse; typing filters server-side.
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -74,43 +114,92 @@ export default function JudgeModal({
       // No org/competition context to scope by — don't fall back to the whole
       // userbase; rely on manual entry instead.
       if (!organizationId && !competitionId) {
-        setFilteredProfiles([]);
+        setContacts([]);
         setLoading(false);
         return;
       }
       setLoading(true);
       try {
-        let q = supabase
-          .from('competition_subscribers')
-          .select('profiles!inner(id, email, first_name, last_name, avatar_url, bio, instagram), competitions!inner(organization_id)')
-          .limit(100);
-        // Prefer org-wide scope so a judge who subscribed to a sibling
-        // competition is still findable; fall back to the single competition
-        // when the competition has no organization attached.
+        // Resolve the org's competitions (or just the current one when the
+        // competition isn't attached to an org yet).
+        let competitionIds = [competitionId].filter(Boolean);
         if (organizationId) {
-          q = q.eq('competitions.organization_id', organizationId);
-        } else {
-          q = q.eq('competition_id', competitionId);
+          const { data: comps, error: compErr } = await supabase
+            .from('competitions')
+            .select('id')
+            .eq('organization_id', organizationId);
+          if (compErr) throw compErr;
+          competitionIds = (comps || []).map((c) => c.id);
         }
-        if (safe) {
-          const pattern = `%${safe}%`;
-          q = q.or(`email.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`, { referencedTable: 'profiles' });
-        }
-        const { data, error } = await q;
         if (cancelled) return;
-        if (error) throw error;
-        // A person may subscribe to several of the org's competitions — dedupe
-        // to one row per profile, then sort by name for a stable browse list.
-        const seen = new Set();
-        const unique = [];
-        for (const row of data || []) {
-          const p = row?.profiles;
-          if (!p || seen.has(p.id)) continue;
-          seen.add(p.id);
-          unique.push(p);
+        if (!competitionIds.length) {
+          setContacts([]);
+          return;
         }
-        unique.sort((a, b) => (a.first_name || '').localeCompare(b.first_name || ''));
-        setFilteredProfiles(unique);
+
+        const pattern = safe ? `%${safe}%` : null;
+        const CAP = 200;
+        // Entity tables (contestants/nominees/judges) carry name + email
+        // directly; subscribers carry only a user_id, so they embed profiles.
+        const entitySelect = 'user_id, name, email, avatar_url, instagram, bio';
+        const buildEntity = (table) => {
+          let q = supabase.from(table).select(entitySelect).in('competition_id', competitionIds).limit(CAP);
+          if (pattern) q = q.or(`name.ilike.${pattern},email.ilike.${pattern}`);
+          return q;
+        };
+        let subQ = supabase
+          .from('competition_subscribers')
+          .select('profiles!inner(id, email, first_name, last_name, avatar_url, bio, instagram)')
+          .in('competition_id', competitionIds)
+          .limit(CAP);
+        if (pattern) {
+          subQ = subQ.or(`email.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`, { referencedTable: 'profiles' });
+        }
+
+        const [subs, cons, noms, jdgs] = await Promise.all([
+          subQ,
+          buildEntity('contestants'),
+          buildEntity('nominees'),
+          buildEntity('judges'),
+        ]);
+        if (cancelled) return;
+        const firstErr = subs.error || cons.error || noms.error || jdgs.error;
+        if (firstErr) throw firstErr;
+
+        const raw = [];
+        for (const row of subs.data || []) {
+          const p = row?.profiles;
+          if (!p) continue;
+          raw.push({
+            userId: p.id,
+            name: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || 'Unknown',
+            email: p.email || '',
+            avatarUrl: p.avatar_url || '',
+            instagram: p.instagram || '',
+            bio: p.bio || '',
+            source: 'subscriber',
+          });
+        }
+        const pushEntity = (rows, source) => {
+          for (const r of rows || []) {
+            raw.push({
+              userId: r.user_id || null,
+              name: r.name || r.email || 'Unknown',
+              email: r.email || '',
+              avatarUrl: r.avatar_url || '',
+              instagram: r.instagram || '',
+              bio: r.bio || '',
+              source,
+            });
+          }
+        };
+        pushEntity(cons.data, 'contestant');
+        pushEntity(noms.data, 'nominee');
+        pushEntity(jdgs.data, 'judge');
+
+        const merged = mergeContacts(raw);
+        merged.sort((a, b) => a.name.localeCompare(b.name));
+        setContacts(merged);
       } catch (err) {
         if (!cancelled) console.error('Error fetching organization contacts:', err);
       } finally {
@@ -126,17 +215,16 @@ export default function JudgeModal({
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSelectProfile = (profile) => {
-    const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email;
-    setSelectedProfile(profile);
+  const handleSelectProfile = (contact) => {
+    setSelectedProfile(contact);
     setForm({
-      name,
+      name: contact.name || '',
       title: '',
-      bio: profile.bio || '',
-      userId: profile.id,
-      avatarUrl: profile.avatar_url || '',
-      instagram: profile.instagram || '',
-      email: profile.email || '',
+      bio: contact.bio || '',
+      userId: contact.userId || null,
+      avatarUrl: contact.avatarUrl || '',
+      instagram: contact.instagram || '',
+      email: contact.email || '',
     });
     setShowSearch(false);
   };
@@ -175,10 +263,7 @@ export default function JudgeModal({
     });
   };
 
-  const getProfileName = (profile) => {
-    const name = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
-    return name || profile.email || 'Unknown';
-  };
+  const getProfileName = (contact) => contact?.name || contact?.email || 'Unknown';
 
   return (
     <Modal
@@ -213,7 +298,7 @@ export default function JudgeModal({
           alignItems: 'center',
           gap: spacing.md,
         }}>
-          <Avatar name={getProfileName(selectedProfile)} avatarUrl={selectedProfile.avatar_url} size={44} />
+          <Avatar name={getProfileName(selectedProfile)} avatarUrl={selectedProfile.avatarUrl} size={44} />
           <div style={{ flex: 1 }}>
             <p style={{ fontWeight: typography.fontWeight.medium, color: colors.gold.primary }}>
               {getProfileName(selectedProfile)}
@@ -291,7 +376,7 @@ export default function JudgeModal({
                 Loading...
                 <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
               </div>
-            ) : filteredProfiles.length === 0 ? (
+            ) : contacts.length === 0 ? (
               <div style={{
                 textAlign: 'center',
                 padding: spacing.xl,
@@ -304,10 +389,10 @@ export default function JudgeModal({
                 </p>
               </div>
             ) : (
-              filteredProfiles.slice(0, 10).map((profile) => (
+              contacts.slice(0, 10).map((contact) => (
                 <div
-                  key={profile.id}
-                  onClick={() => handleSelectProfile(profile)}
+                  key={contact.key}
+                  onClick={() => handleSelectProfile(contact)}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -320,15 +405,28 @@ export default function JudgeModal({
                   onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                   onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                 >
-                  <Avatar name={getProfileName(profile)} avatarUrl={profile.avatar_url} size={36} />
-                  <div style={{ flex: 1 }}>
+                  <Avatar name={getProfileName(contact)} avatarUrl={contact.avatarUrl} size={36} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontWeight: typography.fontWeight.medium, fontSize: typography.fontSize.sm }}>
-                      {getProfileName(profile)}
+                      {getProfileName(contact)}
                     </p>
-                    <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs }}>
-                      {profile.email}
+                    <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {contact.email}
                     </p>
                   </div>
+                  {SOURCE_META[contact.source] && (
+                    <span style={{
+                      flexShrink: 0,
+                      fontSize: typography.fontSize.xs,
+                      padding: `2px ${spacing.sm}`,
+                      borderRadius: borderRadius.sm,
+                      background: 'rgba(212,175,55,0.12)',
+                      color: colors.gold.primary,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {SOURCE_META[contact.source].label}
+                    </span>
+                  )}
                 </div>
               ))
             )}
