@@ -981,6 +981,8 @@ export default function CompetitionDashboard({
         isOpen={judgeModal.isOpen}
         onClose={() => setJudgeModal({ isOpen: false, judge: null })}
         judge={judgeModal.judge}
+        organizationId={competition?.organizationId}
+        competitionId={competitionId}
         onSave={async (judgeData) => {
           if (judgeModal.judge) {
             await updateJudge(judgeModal.judge.id, judgeData);

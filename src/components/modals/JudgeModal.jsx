@@ -10,6 +10,11 @@ export default function JudgeModal({
   onClose,
   judge,
   onSave,
+  // Scope the people-picker to this org's audience instead of the whole
+  // platform. `competitionId` is the fallback when a competition isn't yet
+  // attached to an organization.
+  organizationId,
+  competitionId,
 }) {
   const isEditing = !!judge;
 
@@ -52,9 +57,13 @@ export default function JudgeModal({
     }
   }, [isOpen, judge]);
 
-  // Debounced server-side search so results aren't capped to the first 100
-  // profiles (which hid anyone past the cap). Empty query = browse the first
-  // batch; typing filters on the server.
+  // Debounced server-side search, scoped to the organization's audience — the
+  // people who subscribed to any of its competitions — rather than the entire
+  // platform userbase (which leaked every user's name + email to any host).
+  // RLS on competition_subscribers additionally restricts reads to a
+  // competition's host/co-host, so this only ever returns the host's own
+  // contacts. Anyone not on that list can still be added via the manual fields
+  // below. Empty query = browse the audience; typing filters on the server.
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
@@ -62,23 +71,48 @@ export default function JudgeModal({
     const safe = trimmed.replace(/[(),%]/g, '');
 
     const run = async () => {
+      // No org/competition context to scope by — don't fall back to the whole
+      // userbase; rely on manual entry instead.
+      if (!organizationId && !competitionId) {
+        setFilteredProfiles([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         let q = supabase
-          .from('profiles')
-          .select('id, email, first_name, last_name, avatar_url, bio, instagram')
-          .order('first_name', { nullsFirst: false })
+          .from('competition_subscribers')
+          .select('profiles!inner(id, email, first_name, last_name, avatar_url, bio, instagram), competitions!inner(organization_id)')
           .limit(100);
+        // Prefer org-wide scope so a judge who subscribed to a sibling
+        // competition is still findable; fall back to the single competition
+        // when the competition has no organization attached.
+        if (organizationId) {
+          q = q.eq('competitions.organization_id', organizationId);
+        } else {
+          q = q.eq('competition_id', competitionId);
+        }
         if (safe) {
           const pattern = `%${safe}%`;
-          q = q.or(`email.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`);
+          q = q.or(`email.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern}`, { referencedTable: 'profiles' });
         }
         const { data, error } = await q;
         if (cancelled) return;
         if (error) throw error;
-        setFilteredProfiles(data || []);
+        // A person may subscribe to several of the org's competitions — dedupe
+        // to one row per profile, then sort by name for a stable browse list.
+        const seen = new Set();
+        const unique = [];
+        for (const row of data || []) {
+          const p = row?.profiles;
+          if (!p || seen.has(p.id)) continue;
+          seen.add(p.id);
+          unique.push(p);
+        }
+        unique.sort((a, b) => (a.first_name || '').localeCompare(b.first_name || ''));
+        setFilteredProfiles(unique);
       } catch (err) {
-        if (!cancelled) console.error('Error fetching profiles:', err);
+        if (!cancelled) console.error('Error fetching organization contacts:', err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -86,7 +120,7 @@ export default function JudgeModal({
 
     const handle = setTimeout(run, trimmed ? 200 : 0);
     return () => { cancelled = true; clearTimeout(handle); };
-  }, [isOpen, searchQuery]);
+  }, [isOpen, searchQuery, organizationId, competitionId]);
 
   const updateField = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -222,7 +256,7 @@ export default function JudgeModal({
             />
             <input
               type="text"
-              placeholder="Search users by name or email..."
+              placeholder="Search your contacts by name or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -264,7 +298,10 @@ export default function JudgeModal({
                 color: colors.text.secondary,
               }}>
                 <User size={24} style={{ marginBottom: spacing.sm, opacity: 0.5 }} />
-                <p style={{ fontSize: typography.fontSize.sm }}>No users found</p>
+                <p style={{ fontSize: typography.fontSize.sm }}>No contacts found</p>
+                <p style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, marginTop: spacing.xs }}>
+                  Enter their details manually below to add them.
+                </p>
               </div>
             ) : (
               filteredProfiles.slice(0, 10).map((profile) => (
