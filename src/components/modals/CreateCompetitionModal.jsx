@@ -370,7 +370,7 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
     : `Step ${stepNumber + 1} of ${CONFIG_ORDER.length} · ${STEP_LABELS[step]}`;
 
   return (
-    <Modal isOpen={isOpen} onClose={() => !busy && onClose?.()} title={title} maxWidth="600px" footer={footer}>
+    <Modal isOpen={isOpen} onClose={() => !busy && onClose?.()} title={title} maxWidth="600px" footer={footer} centered>
       <div className="cc-wizard">
       <style>{wizardCss}</style>
       {/* READY */}
