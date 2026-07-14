@@ -356,9 +356,9 @@ export default function JudgeModal({
             />
           </div>
 
-          {/* Profiles List */}
+          {/* Contacts List */}
           <div style={{
-            maxHeight: '200px',
+            maxHeight: '280px',
             overflowY: 'auto',
             border: `1px solid ${colors.border.light}`,
             borderRadius: borderRadius.lg,
@@ -389,7 +389,7 @@ export default function JudgeModal({
                 </p>
               </div>
             ) : (
-              contacts.slice(0, 10).map((contact) => (
+              contacts.map((contact) => (
                 <div
                   key={contact.key}
                   onClick={() => handleSelectProfile(contact)}
