@@ -19,6 +19,20 @@ import CompetitionCreateWizard from './CompetitionCreateWizard';
 import LegacyCompetitionWizard from './LegacyCompetitionWizard';
 import CompetitionEditModal from './CompetitionEditModal';
 
+// The `eligibility_gender / eligibility_age_min / eligibility_age_max` columns
+// (migration 089) are the source of truth for the public "Who can enter" copy,
+// the auto-generated rules, and entry eligibility — NOT `demographic_id`. The
+// admin create/edit flow used to persist only the bucket, so competitions set
+// up here kept NULL eligibility columns and rendered as "All genders" no matter
+// which demographic was chosen. Derive the eligibility columns from the
+// selected bucket so the two never drift. A NULL bucket gender ("Open (All)")
+// means all genders.
+const eligibilityFromDemographic = (demographic) => ({
+  eligibility_gender: demographic?.gender || 'all',
+  eligibility_age_min: demographic?.age_min ?? null,
+  eligibility_age_max: demographic?.age_max ?? null,
+});
+
 export default function CompetitionsManager({ onViewDashboard }) {
   const toast = useToast();
 
@@ -322,6 +336,7 @@ export default function CompetitionsManager({ onViewDashboard }) {
         city_id: formData.city_id,
         category_id: formData.category_id,
         demographic_id: formData.demographic_id,
+        ...eligibilityFromDemographic(selectedDemographic),
         name: formData.name || null,
         slug: competitionSlug,
         season: formData.season,
@@ -388,6 +403,7 @@ export default function CompetitionsManager({ onViewDashboard }) {
           city_id: formData.city_id,
           category_id: formData.category_id,
           demographic_id: formData.demographic_id,
+          ...eligibilityFromDemographic(selectedDemographic),
           name: formData.name || null,
           slug: competitionSlug,
           season: formData.season,
@@ -496,6 +512,14 @@ export default function CompetitionsManager({ onViewDashboard }) {
 
     setIsSubmitting(true);
     try {
+      // Only re-derive eligibility when the demographic bucket actually changes.
+      // A host can set an arbitrary eligibility range (e.g. 21-50) via their own
+      // dashboard, which writes eligibility_* but not demographic_id — leaving it
+      // untouched on unrelated admin saves avoids clobbering that with the
+      // bucket's preset range.
+      const demographicChanged =
+        (formData.demographic_id || null) !== (selectedCompetition.demographic_id || null);
+      const selectedDemographic = demographics.find(d => d.id === formData.demographic_id);
       const updatePayload = {
         name: formData.name || null,
         season: formData.season,
@@ -503,6 +527,7 @@ export default function CompetitionsManager({ onViewDashboard }) {
         host_id: formData.host_id || null,
         category_id: formData.category_id,
         demographic_id: formData.demographic_id || null,
+        ...(demographicChanged ? eligibilityFromDemographic(selectedDemographic) : {}),
         description: formData.description || '',
         cover_image: formData.cover_image || null,
         price_per_vote: formData.price_per_vote,
