@@ -34,22 +34,23 @@ export default function NomineeInfoStep({
   };
 
   // Loose email shape check — mirrors AddPersonModal's isEmailish. Real
-  // validation happens server-side; this just stops obvious junk like "idk"
-  // from being saved as the nominee's email (which then bounces on invite).
+  // validation happens server-side; this just stops obvious junk like "idk".
   const isEmailish = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
-  // Email is OPTIONAL: nominators often don't know the person's email, and the
-  // invite pipeline already handles a null email (it skips the send so the
-  // host can share the claim link manually). But if something IS entered, it
-  // must look like an email — otherwise people type filler to clear a required
-  // field. Empty → allowed; non-empty junk → blocked.
+  // Email is required and must be a real address. The nominees table enforces
+  // a contact method (CHECK email IS NOT NULL OR phone IS NOT NULL) and this
+  // flow doesn't collect a phone, so a nominee with no email can't be saved.
+  // Previously the field only checked non-empty, so nominators who didn't know
+  // the address typed filler ("idk", "n/a") to advance — that junk got stored
+  // and then bounced on invite. Validating the format blocks that; people who
+  // genuinely don't have the email use the "send them the link" button below.
   const emailEntered = data.email?.trim();
-  const emailValid = !emailEntered || isEmailish(emailEntered);
+  const emailValid = isEmailish(emailEntered);
 
   const isValid =
     data.name.trim() &&
-    data.instagram?.trim() &&
     emailValid &&
+    data.instagram?.trim() &&
     (!splitByGender || data.gender === 'male' || data.gender === 'female');
 
   return (
@@ -104,7 +105,7 @@ export default function NomineeInfoStep({
       </div>
 
       <div className="entry-form-field">
-        <label className="entry-label">Their Email</label>
+        <label className="entry-label">Their Email *</label>
         <div className="entry-input-icon">
           <Mail size={18} />
           <input
@@ -115,10 +116,8 @@ export default function NomineeInfoStep({
             placeholder="email@example.com"
           />
         </div>
-        {emailEntered && !emailValid ? (
-          <p className="entry-error">Enter a valid email, or leave it blank if you don't know it.</p>
-        ) : (
-          <p className="entry-hint">Optional — we'll email them an invite if you add it.</p>
+        {emailEntered && !emailValid && (
+          <p className="entry-error">Enter a valid email address (e.g. name@example.com).</p>
         )}
       </div>
 
@@ -190,7 +189,7 @@ export default function NomineeInfoStep({
           }
         }}
       >
-        Don't know their email? Leave it blank, or send them the link instead
+        Don't know their email? Send them the link instead
       </button>
     </div>
   );
