@@ -3,6 +3,7 @@ import { Search, User, Check, Loader, UserPlus } from 'lucide-react';
 import { Modal, Button, Avatar, Badge } from '../ui';
 import { colors, spacing, borderRadius, typography } from '../../styles/theme';
 import { supabase } from '../../lib/supabase';
+import { isValidEmail, normalizeEmail } from '../../utils/validators/email';
 
 /**
  * Modal for adding nominees or contestants.
@@ -121,11 +122,8 @@ export default function AddPersonModal({
       .split(/[/?#]/)[0];
   };
 
-  // Very loose email shape check — real validation happens on the server.
-  const isEmailish = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
-
   const manualValid =
-    manualName.trim().length > 0 && isEmailish(manualEmail);
+    manualName.trim().length > 0 && isValidEmail(manualEmail);
 
   const genderValid = !splitByGender || gender === 'male' || gender === 'female';
 
@@ -170,7 +168,7 @@ export default function AddPersonModal({
     try {
       await onAdd({
         name: manualName.trim(),
-        email: manualEmail.trim(),
+        email: normalizeEmail(manualEmail),
         instagram: normalizeInstagram(manualInstagram) || null,
         city: null,
         userId: null,

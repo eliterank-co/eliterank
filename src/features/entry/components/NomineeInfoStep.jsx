@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Instagram, Camera, X, Mail } from 'lucide-react';
+import { isValidEmail } from '../../../utils/validators/email';
 
 /**
  * Nomination: nominee info (name, email, instagram, optional photo).
@@ -33,10 +34,6 @@ export default function NomineeInfoStep({
     onChange({ photoFile: file, photoPreview: previewUrl });
   };
 
-  // Loose email shape check — mirrors AddPersonModal's isEmailish. Real
-  // validation happens server-side; this just stops obvious junk like "idk".
-  const isEmailish = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
-
   // Email is required and must be a real address. The nominees table enforces
   // a contact method (CHECK email IS NOT NULL OR phone IS NOT NULL) and this
   // flow doesn't collect a phone, so a nominee with no email can't be saved.
@@ -45,7 +42,7 @@ export default function NomineeInfoStep({
   // and then bounced on invite. Validating the format blocks that; people who
   // genuinely don't have the email use the "send them the link" button below.
   const emailEntered = data.email?.trim();
-  const emailValid = isEmailish(emailEntered);
+  const emailValid = isValidEmail(data.email);
 
   const isValid =
     data.name.trim() &&

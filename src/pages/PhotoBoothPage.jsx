@@ -11,6 +11,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { isValidEmail, normalizeEmail } from '../utils/validators/email';
 
 // ─── Competition IDs (hardcoded for this event) ──────────────────────────────
 const COMPETITIONS = [
@@ -849,7 +850,7 @@ export default function PhotoBoothPage() {
   const goSend = useCallback(() => {
     const errs = {};
     if (!nomName.trim()) errs.name = true;
-    if (!nomEmail.trim() || !nomEmail.includes('@')) errs.email = true;
+    if (!isValidEmail(nomEmail)) errs.email = true;
     if (!nomIg.trim()) errs.ig = true;
     if (Object.keys(errs).length) {
       setFieldErrors(errs);
@@ -874,8 +875,8 @@ export default function PhotoBoothPage() {
 
   // ─── Submit ──────────────────────────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
-    const email = sendEmail.trim();
-    if (!email || !email.includes('@')) {
+    const email = normalizeEmail(sendEmail);
+    if (!isValidEmail(email)) {
       setFieldErrors({ sendEmail: true });
       return;
     }
@@ -910,8 +911,8 @@ export default function PhotoBoothPage() {
       let nomineeName = null;
       if (!skipNom && nomName.trim()) {
         nomineeName = nomName.trim();
-        const nomineeEmail = nomEmail.trim() || null;
-        const isThirdParty = email.toLowerCase() !== (nomineeEmail || '').toLowerCase();
+        const nomineeEmail = normalizeEmail(nomEmail) || null;
+        const isThirdParty = email !== (nomineeEmail || '');
 
         const insertData = {
           competition_id: nomComp,

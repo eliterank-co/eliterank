@@ -1,5 +1,6 @@
 import React from 'react';
 import { Mail, EyeOff, Bell } from 'lucide-react';
+import { isValidEmail } from '../../../utils/validators/email';
 
 /**
  * Nomination: Nominator's info (name, email, anonymous toggle)
@@ -11,7 +12,7 @@ export default function NominatorInfoStep({
   isSubmitting,
   error,
 }) {
-  const isValid = data.name.trim() && data.email.trim() && data.email.includes('@');
+  const isValid = data.name.trim() && isValidEmail(data.email);
 
   const handleSubmit = (e) => {
     e.preventDefault();
