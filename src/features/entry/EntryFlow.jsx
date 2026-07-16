@@ -382,6 +382,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           onSubmit={flow.submitNomination}
           isSubmitting={flow.isSubmitting}
           error={flow.submitError}
+          isLoggedIn={flow.isLoggedIn}
         />
       );
 

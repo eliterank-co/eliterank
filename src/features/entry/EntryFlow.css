@@ -413,6 +413,50 @@
   gap: 12px;
 }
 
+/* Read-only identity confirmation shown to logged-in nominators in place of
+   the name + email inputs — matches the neutral card style. */
+.entry-identity-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-sizing: border-box;
+}
+
+.entry-identity-check {
+  color: rgba(212, 175, 55, 0.9);
+  flex-shrink: 0;
+}
+
+.entry-identity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.entry-identity-name {
+  color: #ffffff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-identity-email {
+  color: #a1a1aa;
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .entry-form-row .entry-form-field {
   flex: 1;
 }

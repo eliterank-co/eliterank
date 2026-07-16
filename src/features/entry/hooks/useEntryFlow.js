@@ -264,6 +264,20 @@ export function useEntryFlow(competition, profile, options = {}) {
     checkExistingProgress();
   }, [competition?.id, profile?.email, isLoggedIn, isPreview]);
 
+  // Pre-fill the nominator's identity from the logged-in profile. A signed-in
+  // user nominating someone shouldn't have to re-type their own name + email —
+  // the system already knows who they are. Only fills blank fields so an edit
+  // is never clobbered, and re-runs if the profile arrives async after mount.
+  useEffect(() => {
+    if (!profile?.id) return;
+    const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    setNominatorData((prev) => ({
+      ...prev,
+      name: prev.name || fullName,
+      email: prev.email || profile.email || '',
+    }));
+  }, [profile?.id, profile?.first_name, profile?.last_name, profile?.email]);
+
   // Select mode
   const selectMode = useCallback((selectedMode) => {
     setMode(selectedMode);
