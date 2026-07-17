@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getCached, setCache, dedupeRequest } from '../../../lib/queryCache';
 import { checkAndAwardProfileBonuses, awardNomineeActionBonuses, setupDefaultBonusTasks } from '../../../lib/bonusVotes';
+import { normalizeEmail } from '../../../utils/validators/email';
 
 const REVENUE_CACHE_TABLE = 'competition_revenue';
 const REVENUE_CACHE_TTL = 60000; // 60s — refreshes on dashboard remount past TTL
@@ -1053,7 +1054,7 @@ export function useCompetitionDashboard(competitionId) {
         competition_id: competitionId,
         user_id: nomineeData.userId || null,
         name: nomineeData.name,
-        email: nomineeData.email ? nomineeData.email.replace(/^.*<([^>]+)>$/, '$1').trim() : null,
+        email: normalizeEmail(nomineeData.email) || null,
         phone: nomineeData.phone || null,
         instagram: nomineeData.instagram || null,
         city: nomineeData.city || null,

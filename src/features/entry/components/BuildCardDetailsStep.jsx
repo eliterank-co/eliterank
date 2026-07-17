@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Mail, Instagram, MapPin, Calendar } from 'lucide-react';
+import { isValidEmail } from '../../../utils/validators/email';
 
 // Derive whole-year age from a YYYY-MM-DD birthdate string.
 function ageFromBirthdate(birthdate) {
@@ -49,7 +50,7 @@ export default function BuildCardDetailsStep({
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const hasEmail = data.email?.trim() && data.email.includes('@');
+  const hasEmail = isValidEmail(data.email);
 
   const isValid =
     data.firstName?.trim() &&

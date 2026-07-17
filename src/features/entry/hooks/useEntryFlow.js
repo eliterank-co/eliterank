@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { uploadPhoto } from '../utils/uploadPhoto';
 import { resolveNominationFormConfig } from '../../../utils/nominationFormDefaults';
+import { isValidEmail, normalizeEmail } from '../../../utils/validators/email';
 
 // Columns added by later migrations — strip if migration hasn't run yet
 const NEW_COLUMNS = ['city', 'flow_stage', 'gender', 'birthdate'];
@@ -359,7 +360,7 @@ export function useEntryFlow(competition, profile, options = {}) {
       const record = {
         competition_id: competition.id,
         name: fullName,
-        email: selfData.email?.trim() || null,
+        email: normalizeEmail(selfData.email) || null,
         phone: selfData.phone?.trim() || null,
         instagram: selfData.instagram?.trim() || null,
         age: selfData.age ? parseInt(selfData.age, 10) : null,
@@ -463,6 +464,15 @@ export function useEntryFlow(competition, profile, options = {}) {
       return;
     }
 
+    // Guard the write regardless of how we got here — the self email is a
+    // required contact and also becomes the account login, so junk must never
+    // reach the DB even if a UI check was bypassed.
+    if (!isValidEmail(selfData.email)) {
+      setSubmitError('Please enter a valid email address.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       // Upload photo if new file selected
       let avatarUrl = selfData.photoPreview;
@@ -475,7 +485,7 @@ export function useEntryFlow(competition, profile, options = {}) {
 
       const record = {
         name: fullName,
-        email: selfData.email.trim(),
+        email: normalizeEmail(selfData.email),
         phone: selfData.phone.trim() || null,
         instagram: selfData.instagram.trim() || null,
         bio: selfData.bio.trim() || null,
@@ -609,8 +619,8 @@ export function useEntryFlow(competition, profile, options = {}) {
     }
 
     try {
-      const email = selfData.email?.trim();
-      if (!email) throw new Error('Email is required to create an account');
+      const email = normalizeEmail(selfData.email);
+      if (!isValidEmail(email)) throw new Error('A valid email is required to create an account');
 
       let resolvedUserId = null;
 
@@ -775,6 +785,21 @@ export function useEntryFlow(competition, profile, options = {}) {
       return;
     }
 
+    // Guard the write regardless of UI state — both the nominee email (their
+    // contact + invite target) and the nominator email are required, valid
+    // addresses. This is what stops junk like "idk" from being stored even if
+    // a step's button check is bypassed.
+    if (!isValidEmail(nomineeData.email)) {
+      setSubmitError("Please enter a valid email for the person you're nominating.");
+      setIsSubmitting(false);
+      return;
+    }
+    if (!isValidEmail(nominatorData.email)) {
+      setSubmitError('Please enter a valid email address for yourself.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       // Upload photo if provided
       let avatarUrl = null;
@@ -785,7 +810,7 @@ export function useEntryFlow(competition, profile, options = {}) {
       const record = {
         competition_id: competition.id,
         name: nomineeData.name.trim(),
-        email: nomineeData.email.trim() || null,
+        email: normalizeEmail(nomineeData.email) || null,
         instagram: nomineeData.instagram.trim() || null,
         gender: nomineeData.gender || null,
         relationship: nomineeData.relationship || null,
@@ -793,7 +818,7 @@ export function useEntryFlow(competition, profile, options = {}) {
         nomination_reason: nomineeData.reason.trim() || null,
         nominated_by: 'third_party',
         nominator_name: nominatorData.anonymous ? null : nominatorData.name.trim(),
-        nominator_email: nominatorData.email.trim(),
+        nominator_email: normalizeEmail(nominatorData.email),
         nominator_anonymous: nominatorData.anonymous,
         nominator_notify: nominatorData.emailOptIn,
         status: 'pending',
