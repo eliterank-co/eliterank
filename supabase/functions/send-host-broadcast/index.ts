@@ -80,9 +80,9 @@ function buildHostEmail(params: {
           <div style="background:#1a1a1a;border-left:3px solid #d4a843;padding:16px 18px;margin:12px 0 8px;border-radius:4px;">
             <p style="color:#eee;font-size:15px;line-height:1.6;margin:0;">${messageHtml}</p>
           </div>
-          <p style="color:#999;font-size:13px;margin:16px 0 0;">— ${escapeHtml(hostName)}</p>
+          <p style="color:#999;font-size:13px;margin:16px 0 0;">— Competition Host</p>
           <div style="text-align:center;margin:24px 0;">
-            <a href="${competitionUrl || appUrl}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">Open EliteRank</a>
+            <a href="${appUrl}/notifications" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">See all notifications</a>
           </div>
           <p style="color:#666;font-size:12px;text-align:center;margin:0;">You're receiving this because you're part of ${escapeHtml(competitionName || 'this competition')}.</p>
         </div>
@@ -418,7 +418,7 @@ serve(async (req) => {
         title: subject,
         body: message,
         competition_id: competition.id,
-        action_url: `/c/${competition.id}`,
+        action_url: `/notifications`,
         metadata: { host_name: hostName },
       }))
 
@@ -491,7 +491,7 @@ serve(async (req) => {
           type: 'generic',
           title: subject,
           body: message,
-          url: `/c/${competition.id}`,
+          url: `/notifications`,
           competition_id: competition.id,
           competition_name: competitionName,
           data: { competition_id: competition.id, type: 'host_message' },
