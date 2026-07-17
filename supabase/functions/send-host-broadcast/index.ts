@@ -13,7 +13,8 @@ const corsHeaders = {
  * whole audience — all contestants, all nominees, or everyone. Each reachable
  * recipient gets:
  *   - an in-app notification (bell) — recipients with a linked account
- *   - an email previewing the message (send-onesignal-email `host_message`)
+ *   - a branded email previewing the message (sent directly via OneSignal here,
+ *     so this feature never depends on the shared send-onesignal-email function)
  *   - a push notification (fire-and-forget) — recipients with an account
  *
  * Anti-spam: at most one broadcast per competition per 7 days. Every send is
@@ -41,6 +42,155 @@ interface Recipient {
   userId: string | null
 }
 
+/** Escape free text so it can never break the email markup or inject HTML. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+/** Branded host-message email — mirrors the dark/gold EliteRank email style. */
+function buildHostEmail(params: {
+  appUrl: string
+  toName: string
+  subject: string
+  message: string
+  hostName: string
+  competitionName: string
+  competitionUrl: string
+}): string {
+  const { appUrl, toName, subject, message, hostName, competitionName, competitionUrl } = params
+  const messageHtml = escapeHtml(message).replace(/\r?\n/g, '<br>')
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+    <body style="margin:0;padding:0;background:#0a0a0a;color:#fff;">
+      <div style="max-width:480px;margin:0 auto;padding:16px;font-family:Arial,Helvetica,sans-serif;">
+        <div style="text-align:center;padding:32px 0 16px;">
+          <span style="font-size:12px;letter-spacing:0.3em;color:#999;font-family:Arial,sans-serif;">ELITERANK</span>
+        </div>
+        <div>
+          <p style="color:#999;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 4px;text-align:center;">Message from your host</p>
+          <h1 style="color:#d4a843;font-size:24px;margin:0 0 8px;text-align:center;">${escapeHtml(subject)}</h1>
+          ${competitionName ? `<p style="color:#fff;font-size:15px;font-weight:bold;margin:0 0 16px;text-align:center;">${escapeHtml(competitionName)}</p>` : ''}
+          ${toName ? `<p style="color:#ccc;font-size:15px;margin:0 0 12px;">Hi ${escapeHtml(toName)},</p>` : ''}
+          <div style="background:#1a1a1a;border-left:3px solid #d4a843;padding:16px 18px;margin:12px 0 8px;border-radius:4px;">
+            <p style="color:#eee;font-size:15px;line-height:1.6;margin:0;">${messageHtml}</p>
+          </div>
+          <p style="color:#999;font-size:13px;margin:16px 0 0;">— ${escapeHtml(hostName)}</p>
+          <div style="text-align:center;margin:24px 0;">
+            <a href="${competitionUrl || appUrl}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">Open EliteRank</a>
+          </div>
+          <p style="color:#666;font-size:12px;text-align:center;margin:0;">You're receiving this because you're part of ${escapeHtml(competitionName || 'this competition')}.</p>
+        </div>
+        <div style="text-align:center;padding:24px 0;border-top:1px solid #333;margin-top:32px;">
+          <a href="${appUrl}" style="color:#d4a843;font-size:12px;text-decoration:none;font-family:Arial,sans-serif;">eliterank.co</a>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Ensure the email address has a OneSignal subscription and return its
+ * subscription ID (creating the user+subscription if needed). Targeting by
+ * subscription ID is reliable; include_email_tokens silently fails for unknown
+ * emails. Copied from send-onesignal-email so host emails deliver the same way.
+ */
+async function ensureEmailSubscription(appId: string, apiKey: string, email: string): Promise<string | null> {
+  const headers = { 'Content-Type': 'application/json', Authorization: `Key ${apiKey}` }
+  try {
+    const lookupRes = await fetch(
+      `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(email)}`,
+      { headers },
+    )
+    if (lookupRes.ok) {
+      const userData = await lookupRes.json()
+      const sub = userData?.subscriptions?.find(
+        (s: { type?: string; token?: string }) => s.type === 'Email' && s.token?.toLowerCase() === email.toLowerCase(),
+      )
+      if (sub?.id) return sub.id
+    }
+  } catch (err) {
+    console.warn('OneSignal lookup failed:', err)
+  }
+
+  const createPayload = {
+    properties: { tags: { source: 'eliterank' } },
+    identity: { external_id: email },
+    subscriptions: [{ type: 'Email', token: email, enabled: true }],
+  }
+  try {
+    const createRes = await fetch(`https://api.onesignal.com/apps/${appId}/users`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(createPayload),
+    })
+    const createResult = await createRes.json()
+    const sub = createResult?.subscriptions?.find(
+      (s: { type?: string; token?: string }) => s.type === 'Email' && s.token?.toLowerCase() === email.toLowerCase(),
+    )
+    if (sub?.id) return sub.id
+    if (createRes.status === 409) {
+      const retry = await fetch(
+        `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(email)}`,
+        { headers },
+      )
+      if (retry.ok) {
+        const retryData = await retry.json()
+        const retrySub = retryData?.subscriptions?.find(
+          (s: { type?: string; token?: string }) => s.type === 'Email' && s.token?.toLowerCase() === email.toLowerCase(),
+        )
+        if (retrySub?.id) return retrySub.id
+      }
+    }
+  } catch (err) {
+    console.warn('OneSignal user create failed:', err)
+  }
+  return null
+}
+
+/** Send one host-message email via OneSignal. Returns true on a delivered send. */
+async function sendHostEmail(params: {
+  appId: string
+  apiKey: string
+  fromName: string
+  subject: string
+  html: string
+  toEmail: string
+}): Promise<boolean> {
+  const { appId, apiKey, fromName, subject, html, toEmail } = params
+  const subscriptionId = await ensureEmailSubscription(appId, apiKey, toEmail)
+  const payload: Record<string, unknown> = {
+    app_id: appId,
+    email_subject: subject,
+    email_body: html,
+    email_from_name: fromName,
+    email_from_address: 'info@eliterank.co',
+    disable_email_click_tracking: true,
+  }
+  if (subscriptionId) {
+    payload.include_subscription_ids = [subscriptionId]
+  } else {
+    payload.include_email_tokens = [toEmail]
+  }
+  const res = await fetch('https://api.onesignal.com/notifications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Key ${apiKey}` },
+    body: JSON.stringify(payload),
+  })
+  const result = await res.json().catch(() => ({}))
+  if (!res.ok || result?.recipients === 0) {
+    console.warn('host_message email send failed:', JSON.stringify(result))
+    return false
+  }
+  return true
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -63,7 +213,7 @@ serve(async (req) => {
     // Cap lengths so a runaway payload can't be blasted out.
     if (subject.length > 150 || message.length > 2000) {
       return new Response(
-        JSON.stringify({ error: 'Subject must be ≤150 and message ≤2000 characters' }),
+        JSON.stringify({ error: 'Subject must be at most 150 and message at most 2000 characters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -72,6 +222,9 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const appUrl = Deno.env.get('APP_URL') || 'https://eliterank.co'
+    const oneSignalAppId = Deno.env.get('ONESIGNAL_APP_ID')
+    const oneSignalApiKey = Deno.env.get('ONESIGNAL_API_KEY')
+    const defaultBrand = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
 
     // Identify the caller from the JWT. Refuse anonymous callers.
     const authHeader = req.headers.get('Authorization') || ''
@@ -171,6 +324,7 @@ serve(async (req) => {
       'Your host'
     const competitionName = competition.name || 'the competition'
     const competitionUrl = `${appUrl}/c/${competition.id}`
+    const fromName = (competition.name || '').trim() || defaultBrand
 
     // -- Resolve the audience into a de-duplicated recipient list -------------
     const recipients: Recipient[] = []
@@ -278,40 +432,48 @@ serve(async (req) => {
       }
     }
 
-    // 2. Email previews — one per recipient with an email address.
+    // 2. Email previews — one per recipient with an email address, sent directly
+    //    through OneSignal (no dependency on the shared email function).
     const emailTargets = uniqueRecipients.filter((r) => r.email) as (Recipient & { email: string })[]
-    const emailResults = await Promise.allSettled(
-      emailTargets.map((r) =>
-        fetch(`${supabaseUrl}/functions/v1/send-onesignal-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            type: 'host_message',
-            to_email: r.email,
-            to_name: r.name,
-            competition_id: competition.id,
-            competition_name: competitionName,
-            competition_url: competitionUrl,
-            host_name: hostName,
+    let emailSent = 0
+    if (oneSignalAppId && oneSignalApiKey && emailTargets.length > 0) {
+      const results = await Promise.allSettled(
+        emailTargets.map((r) =>
+          sendHostEmail({
+            appId: oneSignalAppId,
+            apiKey: oneSignalApiKey,
+            fromName,
             subject,
-            message,
-          }),
-        }).then(async (res) => {
-          if (!res.ok) {
-            const detail = await res.text().catch(() => '')
-            throw new Error(`email ${res.status}: ${detail}`)
-          }
-          return true
-        })
+            html: buildHostEmail({
+              appUrl,
+              toName: r.name,
+              subject,
+              message,
+              hostName,
+              competitionName,
+              competitionUrl,
+            }),
+            toEmail: r.email,
+          })
+        )
       )
-    )
-    const emailSent = emailResults.filter((r) => r.status === 'fulfilled').length
-    emailResults.forEach((r) => {
-      if (r.status === 'rejected') console.warn('host_message email failed:', r.reason)
-    })
+      emailSent = results.filter((res) => res.status === 'fulfilled' && res.value === true).length
+
+      // Best-effort deliverability log so host emails show in the Email Activity tab.
+      const logRows = emailTargets.map((r) => ({
+        competition_id: competition.id,
+        email_type: 'host_message',
+        to_email: r.email,
+        to_name: r.name,
+        status: 'sent',
+        delivery_method: 'onesignal',
+      }))
+      supabase.from('email_logs').insert(logRows).then(({ error }) => {
+        if (error) console.warn('email_logs insert failed (non-blocking):', error.message)
+      })
+    } else if (!oneSignalAppId || !oneSignalApiKey) {
+      console.warn('OneSignal credentials missing — host_message emails not sent')
+    }
 
     // 3. Push notifications — fire-and-forget for recipients with an account.
     let pushAttempted = 0
