@@ -129,7 +129,8 @@ export default function CompetitionDashboard({
     unconvertContestant,
     restoreNominee,
     resendInvite,
-    sendContestantMessage,
+    sendHostBroadcast,
+    getHostBroadcastStatus,
     addContestant,
     addJudge,
     updateJudge,
@@ -853,7 +854,8 @@ export default function CompetitionDashboard({
             onShowAddCoHost={() => setShowAddCoHost(true)}
             onRemoveCoHost={removeCoHost}
             onResendInvite={resendInvite}
-            onSendContestantMessage={sendContestantMessage}
+            onSendHostBroadcast={sendHostBroadcast}
+            onGetHostBroadcastStatus={getHostBroadcastStatus}
             onRepairNomineeAccount={repairNomineeAccount}
             onRepairAllNomineeAccounts={repairAllNomineeAccounts}
           />

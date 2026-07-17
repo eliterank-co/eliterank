@@ -633,7 +633,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             </p>
             ${goldButton('Open EliteRank', ctaUrl)}
             <p style="color:#666;font-size:12px;text-align:center;margin:0;">
-              You're receiving this because you're a contestant in ${esc(req.competition_name || 'this competition')}.
+              You're receiving this because you're part of ${esc(req.competition_name || 'this competition')}.
             </p>
           </div>
         `),

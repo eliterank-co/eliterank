@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge, Avatar, Panel, Modal } from '../../../../components/ui';
-import { MessageContestantModal } from '../../../../components/modals';
+import { HostBroadcastModal } from '../../../../components/modals';
 import { colors, spacing, borderRadius, typography } from '../../../../styles/theme';
 import { useResponsive } from '../../../../hooks/useResponsive';
 import { useToast } from '../../../../contexts/ToastContext';
@@ -82,7 +82,8 @@ export default function PeopleTab({
   onShowAddCoHost,
   onRemoveCoHost,
   onResendInvite,
-  onSendContestantMessage,
+  onSendHostBroadcast,
+  onGetHostBroadcastStatus,
   onRemoveContestant,
   onUnconvertContestant,
   onRepairNomineeAccount,
@@ -102,25 +103,26 @@ export default function PeopleTab({
   const avatarFileRef = useRef(null);
   const avatarUploadTarget = useRef(null);
   const [reordering, setReordering] = useState(false);
-  // Host → contestant message composer. `recipients` is the list of contestants
-  // (single row or the whole field) the message will be sent to.
-  const [messageModal, setMessageModal] = useState({ isOpen: false, recipients: [] });
+  // Host → audience broadcast composer. `defaultAudience` presets which group
+  // the modal opens on (the host can still switch inside the modal).
+  const [broadcastModal, setBroadcastModal] = useState({ isOpen: false, defaultAudience: 'contestants' });
 
-  const openMessageModal = (recipients) => {
-    setMessageModal({ isOpen: true, recipients });
+  const openBroadcastModal = (defaultAudience = 'contestants') => {
+    setBroadcastModal({ isOpen: true, defaultAudience });
   };
-  const closeMessageModal = () => setMessageModal({ isOpen: false, recipients: [] });
+  const closeBroadcastModal = () => setBroadcastModal((prev) => ({ ...prev, isOpen: false }));
 
-  const handleSendContestantMessage = async (contestantIds, subject, message) => {
-    if (!onSendContestantMessage) return { success: false, error: 'Messaging is unavailable' };
-    const result = await onSendContestantMessage(contestantIds, subject, message);
+  const handleSendHostBroadcast = async (audience, subject, message) => {
+    if (!onSendHostBroadcast) return { success: false, error: 'Messaging is unavailable' };
+    const result = await onSendHostBroadcast(audience, subject, message);
     if (result?.success) {
       const sent = result.data?.sent;
       const summary = sent
         ? `Message sent — ${sent.in_app} in-app, ${sent.email} email`
         : 'Message sent';
       toast?.success?.(summary);
-    } else {
+    } else if (!result?.data?.rate_limited) {
+      // The modal renders the weekly-limit case itself; only toast other errors.
       toast?.error?.(result?.error || 'Failed to send message');
     }
     return result;
@@ -1173,15 +1175,15 @@ export default function PeopleTab({
         defaultCollapsed
         action={
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-            {onSendContestantMessage && contestantsFiltered.length > 0 && (
+            {onSendHostBroadcast && contestantsFiltered.length > 0 && (
               <Button
                 size="sm"
                 variant="secondary"
                 icon={MessageSquare}
-                onClick={() => openMessageModal(contestantsFiltered)}
+                onClick={() => openBroadcastModal('contestants')}
                 title="Send a message to all contestants"
               >
-                Message All
+                Message
               </Button>
             )}
             {contestants.some(c => c.avatarUrl) && (
@@ -1293,27 +1295,6 @@ export default function PeopleTab({
                           <RotateCcw size={16} />
                         </button>
                       )}
-                      {onSendContestantMessage && (
-                        <button
-                          onClick={() => openMessageModal([c])}
-                          title={`Message ${c.name}`}
-                          style={{
-                            padding: spacing.xs,
-                            background: 'rgba(212,175,55,0.1)',
-                            border: 'none',
-                            borderRadius: borderRadius.sm,
-                            cursor: 'pointer',
-                            color: colors.gold.primary,
-                            minWidth: '32px',
-                            minHeight: '32px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <MessageSquare size={16} />
-                        </button>
-                      )}
                       <button
                         onClick={async () => {
                           if (!window.confirm(`Remove ${c.name} from contestants? They will be moved to Declined.`)) return;
@@ -1391,16 +1372,29 @@ export default function PeopleTab({
         collapsible
         defaultCollapsed
         action={
-          <span title={addNomineeBlockedReason || undefined}>
-            <Button
-              size="sm"
-              icon={Plus}
-              disabled={!canAddNominee}
-              onClick={() => onOpenAddPersonModal('nominee')}
-            >
-              Add
-            </Button>
-          </span>
+          <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {onSendHostBroadcast && activeNominees.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={MessageSquare}
+                onClick={() => openBroadcastModal('nominees')}
+                title="Send a message to all nominees"
+              >
+                Message
+              </Button>
+            )}
+            <span title={addNomineeBlockedReason || undefined}>
+              <Button
+                size="sm"
+                icon={Plus}
+                disabled={!canAddNominee}
+                onClick={() => onOpenAddPersonModal('nominee')}
+              >
+                Add
+              </Button>
+            </span>
+          </div>
         }
       >
         <div style={{ padding: isMobile ? spacing.md : spacing.xl }}>
@@ -1713,18 +1707,15 @@ export default function PeopleTab({
         )}
       </Modal>
 
-      {/* Host → contestant message composer */}
-      <MessageContestantModal
-        isOpen={messageModal.isOpen}
-        onClose={closeMessageModal}
-        recipients={messageModal.recipients.map((c) => ({
-          id: c.id,
-          name: c.name,
-          userId: c.userId,
-          email: c.email,
-        }))}
+      {/* Host → audience broadcast composer */}
+      <HostBroadcastModal
+        isOpen={broadcastModal.isOpen}
+        onClose={closeBroadcastModal}
+        defaultAudience={broadcastModal.defaultAudience}
+        reach={{ contestants: (contestants || []).length, nominees: activeNominees.length }}
         competitionName={competition?.name}
-        onSend={handleSendContestantMessage}
+        onCheckStatus={onGetHostBroadcastStatus}
+        onSend={handleSendHostBroadcast}
       />
 
       {/* Keyframes for loader animation */}
