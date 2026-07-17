@@ -156,32 +156,50 @@ export default function NotificationsPage() {
         margin: '0 auto',
         padding: isMobile ? 0 : `0 ${spacing.lg}`,
       }}>
-        {/* Actions bar */}
-        {notifications.length > 0 && unreadCount > 0 && (
+        {/* Actions bar — always present when there are notifications so the list
+            doesn't jump when the last unread one is marked read. The button
+            swaps for a muted "all caught up" label rather than disappearing. */}
+        {notifications.length > 0 && (
           <div style={{
             display: 'flex',
             justifyContent: 'flex-end',
             padding: `${spacing.md} ${spacing.lg}`,
             borderBottom: `1px solid ${colors.border.lighter}`,
           }}>
-            <button
-              onClick={markAllAsRead}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: spacing.xs,
-                fontSize: typography.fontSize.sm,
-                color: colors.gold.primary,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: `${spacing.xs} ${spacing.sm}`,
-                borderRadius: borderRadius.sm,
-              }}
-            >
-              <Check size={14} />
-              Mark all as read ({unreadCount})
-            </button>
+            {unreadCount > 0 ? (
+              <button
+                onClick={markAllAsRead}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                  fontSize: typography.fontSize.sm,
+                  color: colors.gold.primary,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: `${spacing.xs} ${spacing.sm}`,
+                  borderRadius: borderRadius.sm,
+                }}
+              >
+                <Check size={14} />
+                Mark all as read ({unreadCount})
+              </button>
+            ) : (
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing.xs,
+                  fontSize: typography.fontSize.sm,
+                  color: colors.text.tertiary,
+                  padding: `${spacing.xs} ${spacing.sm}`,
+                }}
+              >
+                <Check size={14} />
+                You're all caught up
+              </span>
+            )}
           </div>
         )}
 
