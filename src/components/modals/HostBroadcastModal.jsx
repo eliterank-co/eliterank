@@ -40,12 +40,21 @@ export default function HostBroadcastModal({
   isOpen,
   onClose,
   defaultAudience = 'contestants',
+  allowNominees = true,
   reach = { contestants: 0, nominees: 0 },
   competitionName,
   onCheckStatus,
   onSend,
 }) {
-  const [audience, setAudience] = useState(defaultAudience);
+  // Once nominations close, only Contestants can be messaged — drop the
+  // Nominees and Everyone options.
+  const availableAudiences = allowNominees
+    ? AUDIENCES
+    : AUDIENCES.filter((a) => a.value === 'contestants');
+  const resolvedDefault =
+    !allowNominees && defaultAudience !== 'contestants' ? 'contestants' : defaultAudience;
+
+  const [audience, setAudience] = useState(resolvedDefault);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -55,7 +64,7 @@ export default function HostBroadcastModal({
   // Reset + re-check the weekly limit each time the modal opens.
   useEffect(() => {
     if (!isOpen) return;
-    setAudience(defaultAudience);
+    setAudience(resolvedDefault);
     setSubject('');
     setMessage('');
     setSending(false);
@@ -82,7 +91,7 @@ export default function HostBroadcastModal({
       }
     })();
     return () => { cancelled = true; };
-  }, [isOpen, defaultAudience, onCheckStatus]);
+  }, [isOpen, resolvedDefault, onCheckStatus]);
 
   const reachCount =
     audience === 'contestants' ? reach.contestants
@@ -179,12 +188,12 @@ export default function HostBroadcastModal({
         </p>
       )}
 
-      {/* Audience selector */}
+      {/* Audience selector — hidden entirely when only one audience is available */}
       <label style={{ display: 'block', fontSize: typography.fontSize.sm, color: colors.text.secondary, marginBottom: spacing.sm }}>
         Send to
       </label>
       <div style={{ display: 'flex', gap: spacing.sm, marginBottom: spacing.md }}>
-        {AUDIENCES.map((a) => {
+        {availableAudiences.map((a) => {
           const Icon = a.icon;
           return (
             <button key={a.value} type="button" onClick={() => setAudience(a.value)} style={audienceButtonStyle(audience === a.value)}>

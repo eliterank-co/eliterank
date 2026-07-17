@@ -141,6 +141,9 @@ export default function PeopleTab({
   // their field before the public can nominate, or after nominations close.
   const nomWindow = getNominationWindow(competition);
   const canAddNominee = isLive(competition?.status) && nomWindow.state === 'open';
+  // Once nominations close there's no one left to reach as a "nominee", so the
+  // broadcast composer drops the Nominees (and Everyone) audience options.
+  const nominationsEnded = nomWindow.state === 'ended';
   const nomOpenDateLabel = nomWindow.start
     ? nomWindow.start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : null;
@@ -1373,7 +1376,7 @@ export default function PeopleTab({
         defaultCollapsed
         action={
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-            {onSendHostBroadcast && activeNominees.length > 0 && (
+            {onSendHostBroadcast && activeNominees.length > 0 && !nominationsEnded && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -1712,6 +1715,7 @@ export default function PeopleTab({
         isOpen={broadcastModal.isOpen}
         onClose={closeBroadcastModal}
         defaultAudience={broadcastModal.defaultAudience}
+        allowNominees={!nominationsEnded}
         reach={{ contestants: (contestants || []).length, nominees: activeNominees.length }}
         competitionName={competition?.name}
         onCheckStatus={onGetHostBroadcastStatus}
