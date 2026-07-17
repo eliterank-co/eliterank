@@ -13,6 +13,7 @@ import { PageHeader } from '../components/ui';
 import { colors, spacing, borderRadius, typography, transitions } from '../styles/theme';
 import { useResponsive } from '../hooks/useResponsive';
 import { formatRelativeTime } from '../utils/formatters';
+import { renderTextWithLinks } from '../utils/linkify';
 
 function NotificationRow({ notification, onRead, onNavigate, onDelete }) {
   const meta = getNotificationMeta(notification.type);
@@ -23,9 +24,21 @@ function NotificationRow({ notification, onRead, onNavigate, onDelete }) {
     if (notification.action_url) onNavigate(notification.action_url);
   };
 
+  // Row is a div (not a <button>) so the body can contain real <a> links —
+  // interactive elements can't be nested inside a <button>.
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       style={{
         display: 'flex',
         alignItems: 'flex-start',
@@ -73,8 +86,9 @@ function NotificationRow({ notification, onRead, onNavigate, onDelete }) {
             color: colors.text.secondary,
             lineHeight: 1.5,
             marginTop: '4px',
+            whiteSpace: 'pre-wrap',
           }}>
-            {notification.body}
+            {renderTextWithLinks(notification.body)}
           </div>
         )}
         <div style={{
@@ -116,7 +130,7 @@ function NotificationRow({ notification, onRead, onNavigate, onDelete }) {
           </button>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
