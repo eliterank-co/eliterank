@@ -359,6 +359,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           onNext={flow.next}
           error={flow.submitError}
           splitByGender={!!competition?.winners_split_by_gender}
+          competitionTitle={competitionTitle}
         />
       );
 

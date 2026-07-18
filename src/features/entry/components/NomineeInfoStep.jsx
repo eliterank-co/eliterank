@@ -13,6 +13,7 @@ export default function NomineeInfoStep({
   onNext,
   error,
   splitByGender = false,
+  competitionTitle = '',
 }) {
   const inputRef = useRef(null);
 
@@ -164,7 +165,8 @@ export default function NomineeInfoStep({
         className="entry-link-btn"
         onClick={() => {
           const url = `${window.location.origin}${window.location.pathname}`;
-          const msg = `Nominations are open for Most Eligible Bachelorettes! Enter at this link: ${url}`;
+          const eventName = competitionTitle?.trim() || 'this competition';
+          const msg = `Nominations are open for ${eventName}! Enter at this link: ${url}`;
           if (navigator.share) {
             navigator.share({ text: msg }).catch(() => {});
           } else {
