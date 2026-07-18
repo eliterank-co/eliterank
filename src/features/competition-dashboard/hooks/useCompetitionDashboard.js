@@ -1042,6 +1042,73 @@ export function useCompetitionDashboard(competitionId) {
   }, []);
 
   /**
+   * Check whether the host may broadcast this week. Reads the host_messages
+   * ledger (RLS-scoped to hosts) for a send within the last 7 days.
+   * @returns {{ canSend: boolean, nextAllowedAt: string|null }}
+   */
+  const getHostBroadcastStatus = useCallback(async () => {
+    if (!supabase || !competitionId) return { canSend: true, nextAllowedAt: null };
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(Date.now() - WEEK_MS).toISOString();
+    try {
+      const { data, error } = await supabase
+        .from('host_messages')
+        .select('created_at')
+        .eq('competition_id', competitionId)
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return { canSend: true, nextAllowedAt: null };
+      const nextAllowedAt = new Date(new Date(data.created_at).getTime() + WEEK_MS).toISOString();
+      return { canSend: false, nextAllowedAt };
+    } catch {
+      return { canSend: true, nextAllowedAt: null };
+    }
+  }, [competitionId]);
+
+  /**
+   * Broadcast one message to a whole audience (contestants, nominees, or
+   * everyone). Delivers in-app notifications (recipients with an account) and
+   * email previews (recipients with an email) via the send-host-broadcast edge
+   * function, which authorizes the caller as host and enforces the weekly limit.
+   *
+   * @param {'contestants'|'nominees'|'everyone'} audience
+   * @param {string} subject
+   * @param {string} message
+   */
+  const sendHostBroadcast = useCallback(async (audience, subject, message) => {
+    if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
+
+    try {
+      // Refresh session before calling edge function to avoid 401
+      await supabase.auth.getSession();
+
+      const { data, error } = await supabase.functions.invoke('send-host-broadcast', {
+        body: { competition_id: competitionId, audience, subject, message },
+      });
+
+      if (error) {
+        if (error.message?.includes('401') || error.message?.includes('unauthorized') || error.message?.includes('JWT')) {
+          return { success: false, error: 'Your session has expired. Please refresh the page and try again.' };
+        }
+        throw error;
+      }
+
+      // The edge function reports the weekly-limit case as a 200 with
+      // success:false so the client can show a clean message.
+      if (data && data.success === false) {
+        return { success: false, error: data.error || 'Failed to send message', data };
+      }
+
+      return { success: true, data };
+    } catch (err) {
+      console.error('Error sending host broadcast:', err);
+      return { success: false, error: err.message || 'Failed to send message' };
+    }
+  }, [competitionId]);
+
+  /**
    * Manually add a nominee (by admin/host)
    * Can be linked to an existing profile or created with manual data
    */
@@ -2179,6 +2246,8 @@ export function useCompetitionDashboard(competitionId) {
     unconvertContestant,
     restoreNominee,
     resendInvite,
+    sendHostBroadcast,
+    getHostBroadcastStatus,
     repairNomineeAccount,
     repairAllNomineeAccounts,
     // Contestant operations

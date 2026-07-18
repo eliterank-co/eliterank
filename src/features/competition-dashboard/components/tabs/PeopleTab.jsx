@@ -2,12 +2,14 @@ import React, { useState, useRef } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
   Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
-  ChevronUp, ChevronDown,
+  ChevronUp, ChevronDown, MessageSquare,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge, Avatar, Panel, Modal } from '../../../../components/ui';
+import { HostBroadcastModal } from '../../../../components/modals';
 import { colors, spacing, borderRadius, typography } from '../../../../styles/theme';
 import { useResponsive } from '../../../../hooks/useResponsive';
+import { useToast } from '../../../../contexts/ToastContext';
 import { generateAchievementCard, getAdvancementTitle } from '../../../achievement-cards/generateAchievementCard';
 import { uploadPhoto } from '../../../entry/utils/uploadPhoto';
 import { supabase } from '../../../../lib/supabase';
@@ -80,6 +82,8 @@ export default function PeopleTab({
   onShowAddCoHost,
   onRemoveCoHost,
   onResendInvite,
+  onSendHostBroadcast,
+  onGetHostBroadcastStatus,
   onRemoveContestant,
   onUnconvertContestant,
   onRepairNomineeAccount,
@@ -87,6 +91,7 @@ export default function PeopleTab({
 }) {
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
+  const toast = useToast();
   const [processingIds, setProcessingIds] = useState(new Set());
   const addProcessing = (id) => setProcessingIds(prev => new Set(prev).add(id));
   const removeProcessing = (id) => setProcessingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
@@ -98,6 +103,30 @@ export default function PeopleTab({
   const avatarFileRef = useRef(null);
   const avatarUploadTarget = useRef(null);
   const [reordering, setReordering] = useState(false);
+  // Host → audience broadcast composer. `defaultAudience` presets which group
+  // the modal opens on (the host can still switch inside the modal).
+  const [broadcastModal, setBroadcastModal] = useState({ isOpen: false, defaultAudience: 'contestants' });
+
+  const openBroadcastModal = (defaultAudience = 'contestants') => {
+    setBroadcastModal({ isOpen: true, defaultAudience });
+  };
+  const closeBroadcastModal = () => setBroadcastModal((prev) => ({ ...prev, isOpen: false }));
+
+  const handleSendHostBroadcast = async (audience, subject, message) => {
+    if (!onSendHostBroadcast) return { success: false, error: 'Messaging is unavailable' };
+    const result = await onSendHostBroadcast(audience, subject, message);
+    if (result?.success) {
+      const sent = result.data?.sent;
+      const summary = sent
+        ? `Message sent — ${sent.in_app} in-app, ${sent.email} email`
+        : 'Message sent';
+      toast?.success?.(summary);
+    } else if (!result?.data?.rate_limited) {
+      // The modal renders the weekly-limit case itself; only toast other errors.
+      toast?.error?.(result?.error || 'Failed to send message');
+    }
+    return result;
+  };
   // Nominee pending confirmation before being converted to a contestant.
   // Conversion makes them public + votable, so it requires an explicit confirm.
   const [convertConfirm, setConvertConfirm] = useState(null);
@@ -112,6 +141,9 @@ export default function PeopleTab({
   // their field before the public can nominate, or after nominations close.
   const nomWindow = getNominationWindow(competition);
   const canAddNominee = isLive(competition?.status) && nomWindow.state === 'open';
+  // Once nominations close there's no one left to reach as a "nominee", so the
+  // broadcast composer drops the Nominees (and Everyone) audience options.
+  const nominationsEnded = nomWindow.state === 'ended';
   const nomOpenDateLabel = nomWindow.start
     ? nomWindow.start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : null;
@@ -1146,6 +1178,17 @@ export default function PeopleTab({
         defaultCollapsed
         action={
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {onSendHostBroadcast && contestantsFiltered.length > 0 && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={MessageSquare}
+                onClick={() => openBroadcastModal('contestants')}
+                title="Send a message to all contestants"
+              >
+                Message
+              </Button>
+            )}
             {contestants.some(c => c.avatarUrl) && (
               <Button
                 size="sm"
@@ -1332,16 +1375,29 @@ export default function PeopleTab({
         collapsible
         defaultCollapsed
         action={
-          <span title={addNomineeBlockedReason || undefined}>
-            <Button
-              size="sm"
-              icon={Plus}
-              disabled={!canAddNominee}
-              onClick={() => onOpenAddPersonModal('nominee')}
-            >
-              Add
-            </Button>
-          </span>
+          <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {onSendHostBroadcast && activeNominees.length > 0 && !nominationsEnded && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={MessageSquare}
+                onClick={() => openBroadcastModal('nominees')}
+                title="Send a message to all nominees"
+              >
+                Message
+              </Button>
+            )}
+            <span title={addNomineeBlockedReason || undefined}>
+              <Button
+                size="sm"
+                icon={Plus}
+                disabled={!canAddNominee}
+                onClick={() => onOpenAddPersonModal('nominee')}
+              >
+                Add
+              </Button>
+            </span>
+          </div>
         }
       >
         <div style={{ padding: isMobile ? spacing.md : spacing.xl }}>
@@ -1653,6 +1709,18 @@ export default function PeopleTab({
           </div>
         )}
       </Modal>
+
+      {/* Host → audience broadcast composer */}
+      <HostBroadcastModal
+        isOpen={broadcastModal.isOpen}
+        onClose={closeBroadcastModal}
+        defaultAudience={broadcastModal.defaultAudience}
+        allowNominees={!nominationsEnded}
+        reach={{ contestants: (contestants || []).length, nominees: activeNominees.length }}
+        competitionName={competition?.name}
+        onCheckStatus={onGetHostBroadcastStatus}
+        onSend={handleSendHostBroadcast}
+      />
 
       {/* Keyframes for loader animation */}
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
