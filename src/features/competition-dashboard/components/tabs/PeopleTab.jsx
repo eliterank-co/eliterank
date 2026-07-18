@@ -451,8 +451,16 @@ export default function PeopleTab({
     (n.status === 'pending' || n.status === 'awaiting_profile' || n.status === 'profile_complete') &&
     n.nominatedBy === 'self' && !n.claimedAt
   );
-  const nomineesWithProfileAll = activeNominees.filter(n => n.hasProfile);
-  const externalNomineesAll = activeNominees.filter(n => !n.hasProfile);
+  // Section split is driven by *acceptance*, not by whether an account exists.
+  // A nominee belongs in "Ready to Approve" once they've consented — they either
+  // self-nominated or accepted (claimed) their invite. Whether they happen to
+  // match an existing platform account (hasProfile) does NOT decide the section;
+  // it only gates the green approve check, via canApprove() below. This keeps
+  // host-added nominees who match an existing account by email — but haven't
+  // clicked accept — out of "Ready to Approve" until they actually respond.
+  const isAccepted = (n) => n.nominatedBy === 'self' || !!n.claimedAt;
+  const acceptedNomineesAll = activeNominees.filter(isAccepted);
+  const awaitingNomineesAll = activeNominees.filter(n => !isAccepted(n));
   const declinedNomineesAll = nominees.filter(n => n.status === 'declined' || n.status === 'rejected' || n.status === 'archived');
 
   // Per-gender breakdown helper. Used for both the stat-row sub-counts and
@@ -468,8 +476,8 @@ export default function PeopleTab({
   };
 
   // Filtered views used in the section panels + their counts.
-  const nomineesWithProfile = applyGenderFilter(nomineesWithProfileAll);
-  const externalNominees = applyGenderFilter(externalNomineesAll);
+  const acceptedNominees = applyGenderFilter(acceptedNomineesAll);
+  const awaitingNominees = applyGenderFilter(awaitingNomineesAll);
   const incompleteNominees = applyGenderFilter(incompleteNomineesAll);
   const declinedNominees = applyGenderFilter(declinedNomineesAll);
   const contestantsFiltered = applyGenderFilter(contestants || []);
@@ -635,7 +643,11 @@ export default function PeopleTab({
         <button
           onClick={() => setConvertConfirm(nominee)}
           disabled={approveDisabled}
-          title={!canApprove(nominee) ? 'Nominee must accept first' : 'Approve & convert to contestant'}
+          title={canApprove(nominee)
+            ? 'Approve & convert to contestant'
+            : (nominee.claimedAt || nominee.nominatedBy === 'self')
+              ? 'Waiting for them to complete their profile'
+              : 'Nominee must accept first'}
           style={{
             padding: spacing.xs,
             background: approveDisabled ? 'rgba(107,114,128,0.1)' : 'rgba(34,197,94,0.1)',
@@ -1123,8 +1135,8 @@ export default function PeopleTab({
       }}>
         {[
           { label: 'Nominees', list: nominees, color: colors.gold.primary },
-          { label: 'Ready to Approve', list: nomineesWithProfileAll, color: '#3b82f6' },
-          { label: 'Awaiting Response', list: externalNomineesAll, color: '#f59e0b' },
+          { label: 'Ready to Approve', list: acceptedNomineesAll, color: '#3b82f6' },
+          { label: 'Awaiting Response', list: awaitingNomineesAll, color: '#f59e0b' },
           { label: 'Contestants', list: contestants || [], color: '#22c55e' },
           { label: 'Declined', list: declinedNomineesAll, color: '#ef4444' },
         ].map((stat, i, arr) => {
@@ -1334,24 +1346,24 @@ export default function PeopleTab({
 
       {/* Ready to Approve */}
       <Panel
-        title={`Ready to Approve (${nomineesWithProfile.length})`}
+        title={`Ready to Approve (${acceptedNominees.length})`}
         icon={UserCheck}
         style={{ marginBottom: 0, order: sectionOrder('readyToApprove') }}
         collapsible
         defaultCollapsed
       >
         <div style={{ padding: isMobile ? spacing.md : spacing.xl }}>
-          {nomineesWithProfile.length === 0 ? (
+          {acceptedNominees.length === 0 ? (
             <div style={{ textAlign: 'center', padding: spacing.xl, color: colors.text.secondary }}>
               <UserCheck size={40} style={{ marginBottom: spacing.md, opacity: 0.4 }} />
               <p style={{ fontSize: typography.fontSize.sm }}>No nominees ready to approve yet</p>
               <p style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, marginTop: spacing.xs }}>
-                Nominees who accept and complete their profile will appear here for your review.
+                Self-nominees and anyone who accepts their nomination will appear here for your review.
               </p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {nomineesWithProfile.map(n => (
+              {acceptedNominees.map(n => (
                 <PersonRow
                   key={n.id}
                   person={n}
@@ -1369,7 +1381,7 @@ export default function PeopleTab({
 
       {/* External Nominees */}
       <Panel
-        title={`Awaiting Response (${externalNominees.length})`}
+        title={`Awaiting Response (${awaitingNominees.length})`}
         icon={Users}
         style={{ marginBottom: 0, order: sectionOrder('awaitingResponse') }}
         collapsible
@@ -1401,14 +1413,14 @@ export default function PeopleTab({
         }
       >
         <div style={{ padding: isMobile ? spacing.md : spacing.xl }}>
-          {externalNominees.length > 0 && (
+          {awaitingNominees.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing.sm, marginBottom: spacing.md }}>
               {onResendInvite && (
                 <Button
                   variant="secondary"
                   size="sm"
                   disabled={processingIds.has('bulk-send')}
-                  onClick={() => handleBulkResendInvites(externalNominees, 'awaiting')}
+                  onClick={() => handleBulkResendInvites(awaitingNominees, 'awaiting')}
                 >
                   <Send size={14} style={{ marginRight: spacing.xs }} />
                   {processingIds.has('bulk-send') ? 'Sending...' : 'Send All Invites'}
@@ -1419,7 +1431,7 @@ export default function PeopleTab({
                 size="sm"
                 disabled={processingIds.has('repair-all')}
                 onClick={async () => {
-                  if (!confirm(`Repair all ${externalNominees.length} external nominee accounts? This will create auth users and sync profiles for any that are missing.`)) return;
+                  if (!confirm(`Repair all ${awaitingNominees.length} awaiting-response nominee accounts? This will create auth users and sync profiles for any that are missing.`)) return;
                   addProcessing('repair-all');
                   try {
                     const result = await onRepairAllNomineeAccounts();
@@ -1438,7 +1450,7 @@ export default function PeopleTab({
               </Button>}
             </div>
           )}
-          {externalNominees.length === 0 ? (
+          {awaitingNominees.length === 0 ? (
             <div style={{ textAlign: 'center', padding: spacing.xl, color: colors.text.secondary }}>
               <Users size={40} style={{ marginBottom: spacing.md, opacity: 0.4 }} />
               <p style={{ fontSize: typography.fontSize.sm }}>No one awaiting response</p>
@@ -1448,7 +1460,7 @@ export default function PeopleTab({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {externalNominees.map(n => (
+              {awaitingNominees.map(n => (
                 <PersonRow
                   key={n.id}
                   person={n}
