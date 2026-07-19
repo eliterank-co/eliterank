@@ -30,6 +30,33 @@ const corsHeaders = {
  *
  * Returns: { success, total, sent, failed, skipped }
  */
+
+// ── TEMPORARY test gate ─────────────────────────────────────────────────────
+// While validating the promotion email, restrict sends to specific
+// competition(s). Any contestant outside the allow-list is skipped (never
+// emailed). To open this up to ALL competitions, either:
+//   • set the CONTESTANT_PROMOTED_ALLOWED_COMPETITIONS env var to "*" (or "all"), or
+//   • change TEST_ALLOWED_COMPETITION_IDS below to [] and redeploy.
+// The env var (comma-separated competition ids) overrides the constant.
+const TEST_ALLOWED_COMPETITION_IDS = ['8efc92dc-caaf-4014-be41-6f4470c97675'] // Host Message Test
+
+function allowedCompetitionIds(): string[] {
+  const env = Deno.env.get('CONTESTANT_PROMOTED_ALLOWED_COMPETITIONS')
+  if (typeof env === 'string' && env.trim() !== '') {
+    const v = env.trim()
+    if (v === '*' || v.toLowerCase() === 'all') return [] // explicit: allow all
+    return v.split(',').map(s => s.trim()).filter(Boolean)
+  }
+  return TEST_ALLOWED_COMPETITION_IDS
+}
+
+// Empty allow-list means "no restriction" (all competitions permitted).
+function isCompetitionAllowed(compId: string | null | undefined): boolean {
+  const allow = allowedCompetitionIds()
+  if (allow.length === 0) return true
+  return !!compId && allow.includes(compId)
+}
+
 interface PromotedRequest {
   contestant_id?: string
   competition_id?: string
@@ -68,6 +95,17 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'contestant_id or competition_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Test gate: when called for a whole competition, bail early if it's not
+    // on the allow-list. (contestant_id mode is gated per-row below, once we've
+    // resolved which competition the contestant belongs to.)
+    if (competition_id && !contestant_id && !isCompetitionAllowed(competition_id)) {
+      console.log(`Competition ${competition_id} not on the allow-list — skipping`)
+      return new Response(
+        JSON.stringify({ success: true, total: 0, sent: 0, failed: 0, skipped: 0, gated: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -124,6 +162,14 @@ serve(async (req) => {
       }
 
       const competition = contestant.competition
+
+      // Test gate: only email contestants whose competition is on the allow-list.
+      if (!isCompetitionAllowed(competition?.id)) {
+        console.log(`Skipping contestant ${contestant.id} — competition ${competition?.id} not on the allow-list`)
+        skipped++
+        continue
+      }
+
       const competitionName = competition?.name || 'Most Eligible'
       const cityName = competition?.city?.name || ''
       const compId = competition?.id || competition_id || ''
