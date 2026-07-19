@@ -7,6 +7,11 @@
 - **Hosting:** Vercel
 - **Twilio phone:** +18666203168
 
+## Supabase Project (IMPORTANT)
+- **ALWAYS use the `EliteRank` Supabase project** — ref/ID **`jioblcflgpqcfdmzjnto`** (region us-west-2).
+- **NEVER use the `eliterank-v2` project** (ref `dhiipdxsspmvaifvfffb`) or any other project on the account (`job-tracker`, `referralnetwork`).
+- Every Supabase operation — migrations, SQL, edge functions, logs, advisors — must target project ref `jioblcflgpqcfdmzjnto`.
+
 ## Styling
 - **Use inline styles with the JS theme object** from `src/styles/theme.js`
 - Import `colors`, `spacing`, `typography`, `borderRadius`, `transitions` etc. from the theme
