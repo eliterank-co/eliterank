@@ -15,6 +15,8 @@ const corsHeaders = {
  *   - nominator_confirm:    "Your nomination was submitted" confirmation to the nominator
  *   - nominee_accepted:     "Your nominee accepted!" notification to the nominator
  *   - nominee_declined:     "Your nominee declined" notification to the nominator
+ *   - contestant_promoted:  "You're officially a contestant!" sent to a nominee
+ *                          once the host approves them into the competition
  *   - fan_confirmation:     "You're now a fan of X" — sent when a user becomes a fan
  *   - fan_weekly_digest:    Weekly performance update sent to fans and to the contestant themselves
  *   - vote_receipt:         "Thanks for voting!" receipt for paid voters with current rank
@@ -37,7 +39,7 @@ const corsHeaders = {
  */
 
 interface EmailRequest {
-  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
+  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'contestant_promoted' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
   to_email: string
   to_name?: string
   // When set, the send is recorded in email_logs so the host of this
@@ -342,6 +344,36 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             ${goldButton('Set Your Password', resetUrl)}
             <p style="color:#999;font-size:13px;margin-top:16px;">
               This link expires in 24 hours. If it expires, you can always use "Forgot Password" on the login page.
+            </p>
+          </div>
+        `),
+      }
+    }
+
+    case 'contestant_promoted': {
+      const contestantName = req.contestant_name || req.to_name || ''
+      const firstName = contestantName ? contestantName.split(' ')[0] : ''
+      const competitionName = req.competition_name || 'the competition'
+      const cityLine = req.city_name
+        ? `<p style="color:#ccc;font-size:15px;margin-top:4px;">${req.city_name}</p>`
+        : ''
+      const ctaUrl = req.profile_url || req.competition_url || appUrl
+      return {
+        subject: `You're officially a contestant in ${competitionName}!`,
+        body: wrapper(`
+          <div style="text-align:center;">
+            <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You're In!</h1>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${competitionName}</p>
+            ${cityLine}
+            <p style="color:#ccc;font-size:15px;margin-top:16px;">
+              Congratulations${firstName ? `, ${firstName}` : ''}! Your nomination has been approved — you're now an official contestant in <strong>${competitionName}</strong>.
+            </p>
+            <p style="color:#999;font-size:14px;margin-top:16px;">
+              Votes are how you climb the ranks. Share your profile, rally your network, and complete bonus tasks to earn extra votes.
+            </p>
+            ${goldButton('View Your Profile', ctaUrl)}
+            <p style="color:#666;font-size:12px;">
+              Good luck — may the most eligible win.
             </p>
           </div>
         `),
