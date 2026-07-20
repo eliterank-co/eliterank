@@ -394,7 +394,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             </p>
             ${goldButton('View Your Profile', ctaUrl)}
             <p style="color:#666;font-size:12px;">
-              Good luck — may the most eligible win.
+              Good luck 🍀
             </p>
           </div>
         `),
