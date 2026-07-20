@@ -903,7 +903,11 @@ serve(async (req) => {
       email_subject: subject,
       email_body: htmlBody,
       email_from_name: fromName,
-      email_from_address: 'info@eliterank.co',
+      // Send from the authenticated sending subdomain so the From domain
+      // matches the DKIM signing domain (exact DMARC alignment, no "via"
+      // in Gmail). Replies still route to info@eliterank.co via the
+      // Reply-To configured on the OneSignal sender.
+      email_from_address: 'info@mail.eliterank.co',
       disable_email_click_tracking: true,
       data: {
         type: body.type,
