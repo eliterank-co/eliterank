@@ -31,30 +31,15 @@ const corsHeaders = {
  * Returns: { success, total, sent, failed, skipped }
  */
 
-// ── TEMPORARY test gate ─────────────────────────────────────────────────────
-// While validating the promotion email, restrict sends to specific
-// competition(s). Any contestant outside the allow-list is skipped (never
-// emailed). To open this up to ALL competitions, either:
-//   • set the CONTESTANT_PROMOTED_ALLOWED_COMPETITIONS env var to "*" (or "all"), or
-//   • change TEST_ALLOWED_COMPETITION_IDS below to [] and redeploy.
-// The env var (comma-separated competition ids) overrides the constant.
-const TEST_ALLOWED_COMPETITION_IDS = ['8efc92dc-caaf-4014-be41-6f4470c97675'] // Host Message Test
+// Terminal competition statuses — a contestant in a finished competition must
+// NOT get a "you're officially a contestant, go rally votes" email. 'completed'
+// = the competition has ended; 'archive' = it's been archived/retired. Any
+// other status (draft/publish/live/nomination/voting/finals/upcoming) is an
+// active competition where the announcement is appropriate.
+const TERMINAL_COMPETITION_STATUSES = ['completed', 'archive']
 
-function allowedCompetitionIds(): string[] {
-  const env = Deno.env.get('CONTESTANT_PROMOTED_ALLOWED_COMPETITIONS')
-  if (typeof env === 'string' && env.trim() !== '') {
-    const v = env.trim()
-    if (v === '*' || v.toLowerCase() === 'all') return [] // explicit: allow all
-    return v.split(',').map(s => s.trim()).filter(Boolean)
-  }
-  return TEST_ALLOWED_COMPETITION_IDS
-}
-
-// Empty allow-list means "no restriction" (all competitions permitted).
-function isCompetitionAllowed(compId: string | null | undefined): boolean {
-  const allow = allowedCompetitionIds()
-  if (allow.length === 0) return true
-  return !!compId && allow.includes(compId)
+function isCompetitionOver(status: string | null | undefined): boolean {
+  return !!status && TERMINAL_COMPETITION_STATUSES.includes(status)
 }
 
 interface PromotedRequest {
@@ -73,6 +58,7 @@ interface ContestantRow {
     id: string
     name: string | null
     slug: string | null
+    status: string | null
     season: number | null
     city: { name: string | null } | null
     organization: { slug: string | null } | null
@@ -100,17 +86,6 @@ serve(async (req) => {
       )
     }
 
-    // Test gate: when called for a whole competition, bail early if it's not
-    // on the allow-list. (contestant_id mode is gated per-row below, once we've
-    // resolved which competition the contestant belongs to.)
-    if (competition_id && !contestant_id && !isCompetitionAllowed(competition_id)) {
-      console.log(`Competition ${competition_id} not on the allow-list — skipping`)
-      return new Response(
-        JSON.stringify({ success: true, total: 0, sent: 0, failed: 0, skipped: 0, gated: true }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const appUrl = Deno.env.get('APP_URL') || 'https://eliterank.co'
@@ -123,7 +98,7 @@ serve(async (req) => {
     // competition so the email is branded with the competition they joined.
     let query = supabase
       .from('contestants')
-      .select('id, name, email, user_id, status, competition:competitions(id, name, slug, season, city:cities(name), organization:organizations(slug))')
+      .select('id, name, email, user_id, status, competition:competitions(id, name, slug, status, season, city:cities(name), organization:organizations(slug))')
 
     if (contestant_id) {
       query = query.eq('id', contestant_id)
@@ -165,9 +140,9 @@ serve(async (req) => {
 
       const competition = contestant.competition
 
-      // Test gate: only email contestants whose competition is on the allow-list.
-      if (!isCompetitionAllowed(competition?.id)) {
-        console.log(`Skipping contestant ${contestant.id} — competition ${competition?.id} not on the allow-list`)
+      // Don't announce someone into a competition that's already over.
+      if (isCompetitionOver(competition?.status)) {
+        console.log(`Skipping contestant ${contestant.id} — competition ${competition?.id} is ${competition?.status}`)
         skipped++
         continue
       }
