@@ -170,7 +170,10 @@ async function sendHostEmail(params: {
     email_subject: subject,
     email_body: html,
     email_from_name: fromName,
-    email_from_address: 'info@eliterank.co',
+    // From the authenticated sending subdomain (mail.eliterank.co) so the
+    // From domain matches DKIM — exact DMARC alignment, no "via" in Gmail.
+    // Replies route to info@eliterank.co via the OneSignal sender's Reply-To.
+    email_from_address: 'info@mail.eliterank.co',
     disable_email_click_tracking: true,
   }
   if (subscriptionId) {
@@ -256,7 +259,7 @@ serve(async (req) => {
     // Fetch the competition + verify it exists.
     const { data: competition, error: compError } = await supabase
       .from('competitions')
-      .select('id, name, host_id')
+      .select('id, name, host_id, slug, organization:organizations(slug)')
       .eq('id', competitionId)
       .single()
 
@@ -323,7 +326,12 @@ serve(async (req) => {
       competition.name ||
       'Your host'
     const competitionName = competition.name || 'the competition'
-    const competitionUrl = `${appUrl}/c/${competition.id}`
+    // Public competition pages live at /:orgSlug/:slug (or /:orgSlug/id/:id).
+    // A bare /c/:id is NOT a real route. Default the org slug to 'most-eligible'
+    // and fall back to the id-based route when the slug is missing.
+    const compForUrl = competition as unknown as { id: string; slug?: string | null; organization?: { slug?: string | null } | null }
+    const orgSlug = compForUrl.organization?.slug || 'most-eligible'
+    const competitionUrl = `${appUrl}/${orgSlug}/${compForUrl.slug || `id/${compForUrl.id}`}`
     const fromName = (competition.name || '').trim() || defaultBrand
 
     // -- Resolve the audience into a de-duplicated recipient list -------------

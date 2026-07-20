@@ -96,10 +96,9 @@ async function sendNominationsOpenBlast(
     .single()
 
   const appUrl = Deno.env.get('APP_URL') || 'https://eliterank.co'
-  const orgSlug = compDetails?.organization?.slug
-  const competitionUrl = orgSlug
-    ? `${appUrl}/${orgSlug}/${compDetails?.slug || `id/${competition.id}`}`
-    : `${appUrl}/c/${competition.id}`
+  // Default the org slug so we never emit a bare /c/:id (not a real route).
+  const orgSlug = compDetails?.organization?.slug || 'most-eligible'
+  const competitionUrl = `${appUrl}/${orgSlug}/${compDetails?.slug || `id/${competition.id}`}`
 
   const competitionName = compDetails?.name || competition.name || 'EliteRank'
   const cityName = compDetails?.city?.name || null

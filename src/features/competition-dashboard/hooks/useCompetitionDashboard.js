@@ -825,6 +825,20 @@ export function useCompetitionDashboard(competitionId) {
         }
       }
 
+      // Email the newly-converted contestant that they're officially in,
+      // branded with this specific competition (fire-and-forget). The edge
+      // function reads the contestant's email/name from the row we just
+      // inserted, so it also works for nominees with no linked account.
+      if (insertedContestant?.id) {
+        supabase.functions
+          .invoke('notify-contestant-promoted', {
+            body: { contestant_id: insertedContestant.id },
+          })
+          .catch((emailErr) =>
+            console.warn('Failed to send contestant promotion email:', emailErr)
+          );
+      }
+
       // Update profile's competition count if linked
       if (linkedUserId) {
         try {

@@ -85,10 +85,9 @@ serve(async (req) => {
       city?: { name?: string } | null
     }
     const compAny = comp as CompShape
-    const orgSlug = compAny.organization?.slug
-    const competitionUrl = orgSlug
-      ? `${appUrl}/${orgSlug}/${compAny.slug || `id/${competitionId}`}`
-      : `${appUrl}/c/${competitionId}`
+    // Default the org slug so we never emit a bare /c/:id (not a real route).
+    const orgSlug = compAny.organization?.slug || 'most-eligible'
+    const competitionUrl = `${appUrl}/${orgSlug}/${compAny.slug || `id/${competitionId}`}`
 
     const toName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim() || undefined
 

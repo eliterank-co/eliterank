@@ -57,7 +57,7 @@ serve(async (req) => {
         nominator_anonymous,
         nominator_notify,
         nominated_by,
-        competition:competitions(id, name, season, city:cities(name))
+        competition:competitions(id, name, slug, season, city:cities(name), organization:organizations(slug))
       `)
       .eq('id', nominee_id)
       .single()
@@ -91,7 +91,12 @@ serve(async (req) => {
     const competition = nominee.competition as any
     const cityName = competition?.city?.name || 'Unknown'
     const competitionName = competition?.name || 'the competition'
-    const competitionUrl = `${appUrl}/c/${competition?.id || ''}`
+    // Public competition pages live at /:orgSlug/:slug (or /:orgSlug/id/:id).
+    // A bare /c/:id is NOT a real route. competitionPath is reused for the
+    // email CTA, the in-app notification, and the push deep link.
+    const orgSlug = competition?.organization?.slug || 'most-eligible'
+    const competitionPath = `/${orgSlug}/${competition?.slug || `id/${competition?.id || ''}`}`
+    const competitionUrl = `${appUrl}${competitionPath}`
 
     // Determine email type
     const emailType = event === 'accepted' ? 'nominee_accepted' : 'nominee_declined'
@@ -151,7 +156,7 @@ serve(async (req) => {
             title: notifTitle,
             body: notifBody,
             competition_id: competition?.id,
-            action_url: event === 'accepted' ? `/c/${competition?.id}` : null,
+            action_url: event === 'accepted' ? competitionPath : null,
             metadata: { nominee_name: nominee.name },
           })
           .then(({ error }) => {
@@ -170,7 +175,7 @@ serve(async (req) => {
             type: event === 'accepted' ? 'nominee_accepted' : 'nominee_declined',
             nominee_name: nominee.name,
             competition_name: competitionName,
-            url: event === 'accepted' ? `/c/${competition?.id}` : null,
+            url: event === 'accepted' ? competitionPath : null,
             data: { nominee_id: nominee.id, competition_id: competition?.id, event },
           }),
         }).catch(err => console.warn('Push notification error (non-blocking):', err))

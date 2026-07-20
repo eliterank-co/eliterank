@@ -1670,44 +1670,50 @@ export default function PeopleTab({
           </>
         }
       >
-        {convertConfirm && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-            <p style={{ color: colors.text.light, fontSize: typography.fontSize.md, lineHeight: 1.6 }}>
-              This makes <strong style={{ color: '#fff' }}>{convertConfirm.name}</strong> an active contestant. It will:
-            </p>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {[
-                'Publish their profile on the public Contestants page',
-                'Open voting so fans can immediately cast votes',
-                'Add them to the leaderboard',
-                'Email them that they’ve been accepted',
-              ].map((line) => (
-                <li key={line} style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.sm }}>
-                  <Check size={16} style={{ color: colors.gold.primary, flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ color: colors.text.secondary, fontSize: typography.fontSize.md, lineHeight: 1.5 }}>
-                    {line}
+        {convertConfirm && (() => {
+          const votingOpen = !!competition?.votingStart && new Date(competition.votingStart) <= new Date();
+          const bullets = [
+            'Publish their profile on the public Contestants page',
+            votingOpen
+              ? 'Open voting so fans can cast votes for them right away'
+              : 'Make them eligible to receive votes once voting opens',
+            'Add them to the leaderboard',
+            'Email them to let them know they’ve been accepted',
+          ];
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+              <p style={{ color: colors.text.light, fontSize: typography.fontSize.md, lineHeight: 1.6 }}>
+                This makes <strong style={{ color: '#fff' }}>{convertConfirm.name}</strong> an active contestant. It will:
+              </p>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
+                {bullets.map((line) => (
+                  <li key={line} style={{ display: 'flex', alignItems: 'flex-start', gap: spacing.sm }}>
+                    <Check size={16} style={{ color: colors.gold.primary, flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ color: colors.text.secondary, fontSize: typography.fontSize.md, lineHeight: 1.5 }}>
+                      {line}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {!votingOpen && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: spacing.sm,
+                  padding: spacing.md,
+                  background: 'rgba(245,158,11,0.1)',
+                  border: '1px solid rgba(245,158,11,0.25)',
+                  borderRadius: borderRadius.md,
+                }}>
+                  <Clock size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, lineHeight: 1.5 }}>
+                    They’ll be published on the public Contestants page right away, but fans can’t vote until voting opens. There’s no rush to convert — you can wait until closer to when voting starts. You can undo this from the Contestants list as long as they have no votes.
                   </span>
-                </li>
-              ))}
-            </ul>
-            {(!competition?.votingStart || new Date(competition.votingStart) > new Date()) && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: spacing.sm,
-                padding: spacing.md,
-                background: 'rgba(245,158,11,0.1)',
-                border: '1px solid rgba(245,158,11,0.25)',
-                borderRadius: borderRadius.md,
-              }}>
-                <Clock size={16} style={{ color: colors.status.warning, flexShrink: 0, marginTop: 2 }} />
-                <span style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, lineHeight: 1.5 }}>
-                  Voting hasn’t started yet — they’ll appear publicly right away. If you only want to approve them for now, you can convert later. Converting can be undone from the Contestants list while they have no votes.
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* Host → audience broadcast composer */}
