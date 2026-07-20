@@ -72,8 +72,10 @@ interface ContestantRow {
   competition: {
     id: string
     name: string | null
+    slug: string | null
     season: number | null
     city: { name: string | null } | null
+    organization: { slug: string | null } | null
   } | null
 }
 
@@ -121,7 +123,7 @@ serve(async (req) => {
     // competition so the email is branded with the competition they joined.
     let query = supabase
       .from('contestants')
-      .select('id, name, email, user_id, status, competition:competitions(id, name, season, city:cities(name))')
+      .select('id, name, email, user_id, status, competition:competitions(id, name, slug, season, city:cities(name), organization:organizations(slug))')
 
     if (contestant_id) {
       query = query.eq('id', contestant_id)
@@ -172,8 +174,19 @@ serve(async (req) => {
 
       const competitionName = competition?.name || 'Most Eligible'
       const cityName = competition?.city?.name || ''
-      const compId = competition?.id || competition_id || ''
-      const competitionUrl = `${appUrl}/c/${compId}`
+
+      // Public competition pages live at /:orgSlug/:competitionSlug (a bare
+      // /c/:id is NOT a real route). A promoted contestant with a linked
+      // account gets their profile page as the CTA — that resolves regardless
+      // of the competition's publish status; others fall back to the
+      // competition page.
+      const orgSlug = competition?.organization?.slug || 'most-eligible'
+      const competitionUrl = competition?.slug
+        ? `${appUrl}/${orgSlug}/${competition.slug}`
+        : appUrl
+      const profileUrl = contestant.user_id
+        ? `${appUrl}/profile/${contestant.user_id}`
+        : competitionUrl
 
       // Branded email — the send-onesignal-email function records this in
       // email_logs (keyed by competition_id) for the host's Email Activity tab.
@@ -186,6 +199,7 @@ serve(async (req) => {
         competition_id: competition?.id,
         city_name: cityName,
         competition_url: competitionUrl,
+        profile_url: profileUrl,
       }
 
       try {
@@ -223,7 +237,7 @@ serve(async (req) => {
             type: 'nomination_approved',
             title: "You're officially in!",
             body: `You're now a contestant in ${competitionName}. Tap to view your profile.`,
-            url: `/c/${compId}`,
+            url: `/profile/${contestant.user_id}`,
             competition_name: competitionName,
             competition_id: competition?.id,
             data: { contestant_id: contestant.id, competition_id: competition?.id },
