@@ -407,10 +407,9 @@ serve(async (req) => {
     // 2) Confirmation email to the nominator (fire-and-forget, non-critical)
     // Only send on initial invite — not on reminders or force_resend
     if (nomineeData.nominator_email && !isReminder && !force_resend) {
-      const orgSlug = competition.organization?.slug
-      const competitionUrl = orgSlug
-        ? `${appUrl}/${orgSlug}/${competition.slug || `id/${competition.id}`}`
-        : `${appUrl}/c/${competition.id}`
+      // Default the org slug so we never emit a bare /c/:id (not a real route).
+      const orgSlug = competition.organization?.slug || 'most-eligible'
+      const competitionUrl = `${appUrl}/${orgSlug}/${competition.slug || `id/${competition.id}`}`
 
       sendOneSignalEmail({
         type: 'nominator_confirm',

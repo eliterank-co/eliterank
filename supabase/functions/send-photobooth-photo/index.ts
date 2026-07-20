@@ -200,7 +200,10 @@ serve(async (req) => {
       email_subject: subject,
       email_body: htmlBody,
       email_from_name: 'Most Eligible',
-      email_from_address: 'info@eliterank.co',
+      // From the authenticated sending subdomain (mail.eliterank.co) so the
+      // From domain matches DKIM — exact DMARC alignment, no "via" in Gmail.
+      // Replies route to info@eliterank.co via the OneSignal sender's Reply-To.
+      email_from_address: 'info@mail.eliterank.co',
     }
 
     if (subscriptionId) {
