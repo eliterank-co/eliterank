@@ -118,9 +118,11 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     </div>
   `
 
+  // background-color is a SOLID fallback for clients (Outlook) that ignore the
+  // gradient — without it the button renders with no background at all.
   const goldButton = (text: string, url: string) => `
     <div style="text-align:center;margin:24px 0;">
-      <a href="${url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">
+      <a href="${url}" style="display:inline-block;padding:14px 32px;background-color:#d4a843;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">
         ${text}
       </a>
     </div>
@@ -143,16 +145,35 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     </div>
   `
 
+  // The design is light text on a dark card. Clients (Outlook) and reply-quote
+  // views strip a <body> background, which would leave light-gray text on white
+  // and make it unreadable — so the dark background lives on a <table>/<td>
+  // (bgcolor + style), which those clients DO honor, not just the body.
   const wrapper = (content: string) => `
     <!DOCTYPE html>
     <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#0a0a0a;color:#fff;">
-      <div style="max-width:480px;margin:0 auto;padding:16px;font-family:Arial,Helvetica,sans-serif;">
-        ${header}
-        ${content}
-        ${footer}
-      </div>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta name="color-scheme" content="dark">
+      <meta name="supported-color-schemes" content="dark">
+    </head>
+    <body style="margin:0;padding:0;background-color:#0a0a0a;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="background-color:#0a0a0a;">
+        <tr>
+          <td align="center" style="padding:0;">
+            <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="width:100%;max-width:480px;background-color:#0a0a0a;">
+              <tr>
+                <td bgcolor="#0a0a0a" style="padding:16px;background-color:#0a0a0a;font-family:Arial,Helvetica,sans-serif;">
+                  ${header}
+                  ${content}
+                  ${footer}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     </body>
     </html>
   `
@@ -373,7 +394,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             </p>
             ${goldButton('View Your Profile', ctaUrl)}
             <p style="color:#666;font-size:12px;">
-              Good luck — may the most eligible win.
+              Good luck 🍀
             </p>
           </div>
         `),

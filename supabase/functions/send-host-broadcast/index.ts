@@ -66,9 +66,17 @@ function buildHostEmail(params: {
   return `
     <!DOCTYPE html>
     <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#0a0a0a;color:#fff;">
-      <div style="max-width:480px;margin:0 auto;padding:16px;font-family:Arial,Helvetica,sans-serif;">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta name="color-scheme" content="dark">
+      <meta name="supported-color-schemes" content="dark">
+    </head>
+    <body style="margin:0;padding:0;background-color:#0a0a0a;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="background-color:#0a0a0a;">
+        <tr><td align="center" style="padding:0;">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" bgcolor="#0a0a0a" style="width:100%;max-width:480px;background-color:#0a0a0a;">
+            <tr><td bgcolor="#0a0a0a" style="padding:16px;background-color:#0a0a0a;font-family:Arial,Helvetica,sans-serif;">
         <div style="text-align:center;padding:32px 0 16px;">
           <span style="font-size:12px;letter-spacing:0.3em;color:#999;font-family:Arial,sans-serif;">ELITERANK</span>
         </div>
@@ -82,14 +90,17 @@ function buildHostEmail(params: {
           </div>
           <p style="color:#999;font-size:13px;margin:16px 0 0;">— Competition Host</p>
           <div style="text-align:center;margin:24px 0;">
-            <a href="${appUrl}/notifications" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">See all notifications</a>
+            <a href="${appUrl}/notifications" style="display:inline-block;padding:14px 32px;background-color:#d4a843;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">See all notifications</a>
           </div>
           <p style="color:#666;font-size:12px;text-align:center;margin:0;">You're receiving this because you're part of ${escapeHtml(competitionName || 'this competition')}.</p>
         </div>
         <div style="text-align:center;padding:24px 0;border-top:1px solid #333;margin-top:32px;">
           <a href="${appUrl}" style="color:#d4a843;font-size:12px;text-decoration:none;font-family:Arial,sans-serif;">eliterank.co</a>
         </div>
-      </div>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
     </body>
     </html>
   `

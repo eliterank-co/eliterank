@@ -34,9 +34,17 @@ function buildPhotoEmail(photoUrls: string[], nomineeName?: string): { subject: 
   const body = `
     <!DOCTYPE html>
     <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#060a06;color:#fff;">
-      <div style="max-width:600px;margin:0 auto;padding:16px;font-family:Arial,Helvetica,sans-serif;">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta name="color-scheme" content="dark">
+      <meta name="supported-color-schemes" content="dark">
+    </head>
+    <body style="margin:0;padding:0;background-color:#060a06;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#060a06" style="background-color:#060a06;">
+        <tr><td align="center" style="padding:0;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#060a06" style="width:100%;max-width:600px;background-color:#060a06;">
+            <tr><td bgcolor="#060a06" style="padding:16px;background-color:#060a06;font-family:Arial,Helvetica,sans-serif;">
         <div style="text-align:center;padding:32px 0 16px;">
           <span style="font-size:14px;letter-spacing:0.3em;color:#00ff6a;font-weight:bold;">LUCKY DISCO × MOST ELIGIBLE</span>
         </div>
@@ -61,7 +69,10 @@ function buildPhotoEmail(photoUrls: string[], nomineeName?: string): { subject: 
             You're receiving this because you used the photo booth at Lucky Disco × Most Eligible — St. Patrick's Day 2026.
           </p>
         </div>
-      </div>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
     </body>
     </html>
   `
