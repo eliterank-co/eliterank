@@ -25,8 +25,8 @@ export const indexHtml = `<!doctype html>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Montserrat:wght@300;400;500;600;700;800&family=Playfair+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-CCpHnklI.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D3knUKcz.css">
+    <script type="module" crossorigin src="/assets/index-_8aagJ87.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CGLlnArR.css">
   </head>
   <body>
     <div id="root"></div>

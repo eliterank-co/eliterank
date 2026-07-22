@@ -578,10 +578,6 @@
   .phase-grid-2 {
     grid-template-columns: 1fr;
   }
-
-  .phase-grid-2 .sidebar-stack {
-    order: -1;
-  }
 }
 
 /* Cards */
