@@ -1,13 +1,14 @@
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
-import { Check, Trophy } from 'lucide-react';
-import { formatDate } from '../../../utils/formatters';
+import { Check, Trophy, Calendar } from 'lucide-react';
+import { formatDate, formatEventTime } from '../../../utils/formatters';
 
 /**
- * Competition timeline — simplified 3-phase view:
- * Entry Period | Voting Period | Finale
+ * Competition timeline — the high-level journey:
+ * Entry Period | Voting Period | Finale, with any events the competition is
+ * hosting interleaved chronologically as their own milestones.
  */
 export function Timeline() {
-  const { competition, votingRounds, nominationPeriods } = usePublicCompetition();
+  const { competition, votingRounds, nominationPeriods, events } = usePublicCompetition();
 
   // --- Build 3 high-level phases ---
 
@@ -67,7 +68,32 @@ export function Timeline() {
     } : null,
   ].filter(Boolean);
 
-  if (phases.length === 0) {
+  // Number the high-level phases (1, 2, …) in their natural order up front so
+  // the count stays stable no matter where events land once interleaved. The
+  // finale keeps its trophy instead of a number.
+  const phaseNodes = phases.map((p, i) => ({ ...p, kind: 'phase', stepNumber: i + 1 }));
+
+  // Events the competition is hosting become their own milestones on the
+  // timeline (a launch party, mixer, the crowning gala, …). `events` is already
+  // filtered to publicly-visible rows and sorted by date upstream.
+  const eventNodes = (events || []).map((e) => ({
+    id: `event-${e.id}`,
+    kind: 'event',
+    title: e.name,
+    date: e.date || null,
+    time: e.time || null,
+    location: e.location || e.venue || null,
+    ticketUrl: e.ticket_url || e.ticketUrl || null,
+    status: getEventStatus(e.date),
+  }));
+
+  // Merge phases + events into a single chronological list. Nodes without a
+  // date (e.g. an event with a TBD date) sort to the end.
+  const nodes = [...phaseNodes, ...eventNodes].sort(
+    (a, b) => timelineSortKey(a) - timelineSortKey(b),
+  );
+
+  if (nodes.length === 0) {
     return null;
   }
 
@@ -79,35 +105,53 @@ export function Timeline() {
 
       <div className="timeline-body">
         <div className="timeline-list">
-          {phases.map((item, index) => (
+          {nodes.map((item, index) => (
             <div
               key={item.id}
-              className={`timeline-item timeline-item-${item.status}`}
+              className={`timeline-item timeline-item-${item.status}${item.kind === 'event' ? ' timeline-item-event' : ''}`}
             >
               <div className="timeline-marker">
                 <div className={`timeline-step timeline-step-${item.status}`}>
-                  {item.status === 'complete' ? (
+                  {item.kind === 'event' ? (
+                    <Calendar size={13} />
+                  ) : item.status === 'complete' ? (
                     <Check size={14} />
                   ) : item.isFinale ? (
                     <Trophy size={14} />
                   ) : (
-                    <span className="timeline-step-number">{index + 1}</span>
+                    <span className="timeline-step-number">{item.stepNumber}</span>
                   )}
                 </div>
-                {index < phases.length - 1 && (
+                {index < nodes.length - 1 && (
                   <div className={`timeline-line timeline-line-${item.status}`} />
                 )}
               </div>
               <div className="timeline-content">
                 <span className="timeline-title">{item.title}</span>
                 <span className="timeline-date">
-                  {formatDate(item.date)}
+                  {item.date ? formatDate(item.date) : 'Date TBD'}
                   {item.endDate && item.endDate !== item.date && (
                     <> — {formatDate(item.endDate)}</>
+                  )}
+                  {item.kind === 'event' && item.time && (
+                    <> · {formatEventTime(item.time)}</>
                   )}
                 </span>
                 {item.subtitle && (
                   <span className="timeline-subtitle">{item.subtitle}</span>
+                )}
+                {item.kind === 'event' && item.location && (
+                  <span className="timeline-subtitle">{item.location}</span>
+                )}
+                {item.kind === 'event' && item.ticketUrl && (
+                  <a
+                    className="timeline-event-link"
+                    href={item.ticketUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Get tickets →
+                  </a>
                 )}
                 {item.rounds && item.rounds.length > 0 && (
                   <ul className="timeline-rounds">
@@ -133,6 +177,15 @@ export function Timeline() {
   );
 }
 
+// Comparable timestamp for ordering a timeline node. Phases sort by their start
+// (falling back to end); events by their date. Missing dates sort last.
+function timelineSortKey(node) {
+  const raw = node.kind === 'event' ? node.date : (node.date || node.endDate);
+  if (!raw) return Infinity;
+  const t = new Date(raw).getTime();
+  return Number.isNaN(t) ? Infinity : t;
+}
+
 function getPeriodStatus(startDate, endDate) {
   const now = new Date();
   const start = startDate ? new Date(startDate) : null;
@@ -142,6 +195,21 @@ function getPeriodStatus(startDate, endDate) {
   if (end && now > end) return 'complete';
   if (start && end && now >= start && now <= end) return 'active';
   if (start && !end && now >= start) return 'active';
+  return 'upcoming';
+}
+
+// Events resolve to a single day, so compare on the calendar day: past → done,
+// today → active, future → upcoming. An event without a date is treated as
+// upcoming (it renders "Date TBD").
+function getEventStatus(eventDate) {
+  if (!eventDate) return 'upcoming';
+  const now = new Date();
+  const [y, m, d] = eventDate.split('T')[0].split('-').map(Number);
+  const eventDay = new Date(y, (m || 1) - 1, d || 1);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (today > eventDay) return 'complete';
+  if (today.getTime() === eventDay.getTime()) return 'active';
   return 'upcoming';
 }
 

@@ -66,7 +66,8 @@ export function NominationsPhase() {
     || votingRounds?.some(r => r.start_date || r.end_date)
     || competition?.nomination_start
     || competition?.nomination_end
-    || competition?.finals_date,
+    || competition?.finals_date
+    || events?.length > 0,
   );
   const hasTimelineColumn = hasTimelineData || Boolean(competition?.charity_name);
 

@@ -3423,6 +3423,20 @@ a.rewards-carousel-link:hover .rewards-prize-image-wrap {
   color: var(--color-text-secondary);
 }
 
+/* Hosted events interleaved in the timeline */
+.timeline-event-link {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary);
+  text-decoration: none;
+  margin-top: 2px;
+  width: fit-content;
+}
+
+.timeline-event-link:hover {
+  text-decoration: underline;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   .timeline-step {
