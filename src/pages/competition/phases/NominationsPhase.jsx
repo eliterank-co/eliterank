@@ -165,23 +165,17 @@ export function NominationsPhase() {
         <HostCard variant="featured" />
       </section>
 
-      {/* Timeline + Rules — two columns once the host has added timeline/charity
-          content, otherwise a single stacked column. */}
-      {hasTimelineColumn ? (
-        <section className="phase-grid phase-grid-2">
-          <div>
+      {/* Timeline → Charity → Rules, stacked full-width so the Timeline (with
+          the events the competition is hosting) always sits above the Rules. */}
+      <section className="sidebar-stack">
+        {hasTimelineColumn && (
+          <>
             <Timeline />
             <CharityHighlight />
-          </div>
-          <div className="sidebar-stack">
-            <RulesAccordion competition={competition} votingRounds={votingRounds} about={about} events={events} rulesPath={rulesPath} />
-          </div>
-        </section>
-      ) : (
-        <section className="sidebar-stack">
-          <RulesAccordion competition={competition} votingRounds={votingRounds} about={about} events={events} rulesPath={rulesPath} />
-        </section>
-      )}
+          </>
+        )}
+        <RulesAccordion competition={competition} votingRounds={votingRounds} about={about} events={events} rulesPath={rulesPath} />
+      </section>
     </div>
   );
 }
