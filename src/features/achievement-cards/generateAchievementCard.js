@@ -196,12 +196,32 @@ export async function generateAchievementCard({
   }
 
   // === PHOTO — fixed frame, cover crop ===
-  const photoW = 560;
-  const photoH = 700;
+  const photoW = 640;
+  const photoH = 800;
   const photoR = 16;
-  const photoStartY = 270;
   const frameOffset = 4;
   const frameR = photoR + frameOffset;
+
+  // --- Vertically center the photo + text block below the logo header ---
+  // Sum the fixed vertical steps that follow the photo (mirrors the cascade below).
+  const _badgeH = 34 + 20 * 2; // badgeFontSize + badgePadV * 2
+  const _afterBadge = subtitle
+    ? 24 + 38 + 26 // gapAfterBadge + subtitleFontSize + gapBeforeComp
+    : 24; // gapAfterBadge
+  const _hasRank = !!(rank && achievementType !== 'nominated' && achievementType !== 'contestant');
+  const belowPhotoH =
+    60 + // gap: photo -> name
+    72 + 36 + // name + gap
+    _badgeH +
+    _afterBadge +
+    52 + 16 + // competition name + gap
+    (season ? 38 + 48 : 0) + // location line
+    (_hasRank ? 46 : 0) + // rank line
+    (34 + 32 * 2); // CTA height (ctaFontSize + ctaPadV * 2)
+
+  const blockH = photoH + belowPhotoH;
+  const headerBottom = 280; // reserved space for the top logo
+  const photoStartY = headerBottom + Math.max(0, (CARD_HEIGHT - headerBottom - blockH) / 2);
 
   let loadedImg = null;
 
