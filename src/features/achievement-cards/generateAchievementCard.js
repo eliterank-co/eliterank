@@ -179,7 +179,7 @@ export async function generateAchievementCard({
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
   // === LOGO (top, centered) ===
-  const logoSize = 160;
+  const logoSize = 200;
   const logoY = 60;
 
   if (organizationLogoUrl) {
@@ -188,7 +188,7 @@ export async function generateAchievementCard({
       const logoAspect = logo.width / logo.height;
       let drawW = logoSize * logoAspect;
       let drawH = logoSize;
-      if (drawW > 360) { drawW = 360; drawH = drawW / logoAspect; }
+      if (drawW > 560) { drawW = 560; drawH = drawW / logoAspect; }
       ctx.drawImage(logo, CX - drawW / 2, logoY, drawW, drawH);
     } catch {
       // No fallback text — logo only
