@@ -221,7 +221,10 @@ export async function generateAchievementCard({
 
   const blockH = photoH + belowPhotoH;
   const headerBottom = 280; // reserved space for the top logo
-  const photoStartY = headerBottom + Math.max(0, (CARD_HEIGHT - headerBottom - blockH) / 2);
+  // Center the block vertically, but keep the photo close to the logo by
+  // capping the gap above it (avoids a large void between logo and photo).
+  const centeredStartY = headerBottom + Math.max(0, (CARD_HEIGHT - headerBottom - blockH) / 2);
+  const photoStartY = Math.min(centeredStartY, headerBottom + 60);
 
   let loadedImg = null;
 
