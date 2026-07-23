@@ -179,7 +179,7 @@ export async function generateAchievementCard({
   ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
 
   // === LOGO (top, centered) ===
-  const logoSize = 160;
+  const logoSize = 200;
   const logoY = 60;
 
   if (organizationLogoUrl) {
@@ -188,7 +188,7 @@ export async function generateAchievementCard({
       const logoAspect = logo.width / logo.height;
       let drawW = logoSize * logoAspect;
       let drawH = logoSize;
-      if (drawW > 360) { drawW = 360; drawH = drawW / logoAspect; }
+      if (drawW > 560) { drawW = 560; drawH = drawW / logoAspect; }
       ctx.drawImage(logo, CX - drawW / 2, logoY, drawW, drawH);
     } catch {
       // No fallback text — logo only
@@ -196,12 +196,35 @@ export async function generateAchievementCard({
   }
 
   // === PHOTO — fixed frame, cover crop ===
-  const photoW = 560;
-  const photoH = 700;
+  const photoW = 640;
+  const photoH = 800;
   const photoR = 16;
-  const photoStartY = 270;
   const frameOffset = 4;
   const frameR = photoR + frameOffset;
+
+  // --- Vertically center the photo + text block below the logo header ---
+  // Sum the fixed vertical steps that follow the photo (mirrors the cascade below).
+  const _badgeH = 34 + 20 * 2; // badgeFontSize + badgePadV * 2
+  const _afterBadge = subtitle
+    ? 24 + 38 + 26 // gapAfterBadge + subtitleFontSize + gapBeforeComp
+    : 24; // gapAfterBadge
+  const _hasRank = !!(rank && achievementType !== 'nominated' && achievementType !== 'contestant');
+  const belowPhotoH =
+    60 + // gap: photo -> name
+    72 + 36 + // name + gap
+    _badgeH +
+    _afterBadge +
+    52 + 16 + // competition name + gap
+    (season ? 38 + 48 : 0) + // location line
+    (_hasRank ? 46 : 0) + // rank line
+    (34 + 32 * 2); // CTA height (ctaFontSize + ctaPadV * 2)
+
+  const blockH = photoH + belowPhotoH;
+  const headerBottom = 280; // reserved space for the top logo
+  // Center the block vertically, but keep the photo close to the logo by
+  // capping the gap above it (avoids a large void between logo and photo).
+  const centeredStartY = headerBottom + Math.max(0, (CARD_HEIGHT - headerBottom - blockH) / 2);
+  const photoStartY = Math.min(centeredStartY, headerBottom + 60);
 
   let loadedImg = null;
 
