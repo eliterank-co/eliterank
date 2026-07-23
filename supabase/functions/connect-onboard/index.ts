@@ -33,6 +33,17 @@ const corsHeaders = {
  *       returns the current connection status.
  */
 
+// ── Payout timing (§9.3) ───────────────────────────────────────────────────
+// Every host's connected account is created with a UNIFORM rolling payout
+// delay: each charge is held in the host's OWN Stripe balance for this many
+// days before Stripe automatically pays it out to their bank. This is not a
+// discretionary hold — it is the same fixed schedule for every host, the funds
+// never leave the host's balance, and EliteRank never triggers or reverses a
+// payout. Its purpose is to keep funds available to cover the refunds/disputes
+// the host is responsible for under §13 (our last real dispute landed 8 days
+// after a competition ended, so the window comfortably outlasts that).
+const PAYOUT_DELAY_DAYS = Number(Deno.env.get('HOST_PAYOUT_DELAY_DAYS') || '14')
+
 type KycStatus = 'not_started' | 'pending' | 'verified' | 'failed'
 
 function deriveKycStatus(account: Stripe.Account): KycStatus {
@@ -172,6 +183,11 @@ serve(async (req) => {
         },
         business_profile: {
           name: org.name || undefined,
+        },
+        settings: {
+          payouts: {
+            schedule: { interval: 'daily', delay_days: PAYOUT_DELAY_DAYS },
+          },
         },
         metadata: {
           organization_id: organization_id,
