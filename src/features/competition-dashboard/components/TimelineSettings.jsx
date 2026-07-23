@@ -560,8 +560,22 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // Super admins keep edit access for corrections.
   const isFinished =
     status === COMPETITION_STATUS.COMPLETED || status === COMPETITION_STATUS.ARCHIVE;
+  // Voting is "open" once the first voting/judging round has actually started —
+  // NOT when the competition goes `live`. A competition flips to `live` at
+  // NOMINATION start (see computeCompetitionStatus / shouldAutoTransitionToLive),
+  // and stays `live` through nominations, rounds, and the gaps between them, all
+  // the way to finals. So `status === 'live'` alone does not mean voting has
+  // begun — during the nomination phase, hosts must still be able to fine-tune
+  // voting dates. Lock the schedule only once a round's start date has passed
+  // (protecting scores/results), or when a legacy row stores the phase directly
+  // in `status` ('voting' / 'finals').
+  const firstVotingRoundStart = votingRounds
+    .map((r) => (r.start_date ? new Date(r.start_date) : null))
+    .filter((d) => d && !Number.isNaN(d.getTime()))
+    .sort((a, b) => a - b)[0] || null;
   const isVotingOpen =
-    ['live', 'voting', 'finals'].includes(status);
+    ['voting', 'finals'].includes(status) ||
+    (firstVotingRoundStart !== null && firstVotingRoundStart <= new Date());
   const isLocked = (isFinished || isVotingOpen) && !isSuperAdmin;
 
   // Validation errors
