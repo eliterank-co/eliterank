@@ -95,7 +95,7 @@ D. The parties therefore agree as follows.
 
 8. Taxes
 8.1 The party that furnishes each Prize — typically the Prize Sponsor, or the Organizer for a Prize it adds — is responsible for that Prize's tax reporting and withholding, including issuing IRS Form 1099 (or equivalents) where required and determining fair market value. EliteRank is never the payor and bears no prize tax-reporting obligation. (For U.S. prizes awarded after December 31, 2025, the 1099-MISC prize-reporting threshold is $2,000; it is $600 for 2025 prizes.)
-8.2 Transaction taxes on vote revenue — U.S. sales/use tax and, for non-U.S. voters, VAT/GST (for example, EU OSS, UK VAT, and Australia GST) — are the Organizer's responsibility as merchant of record. EliteRank may provide tax-calculation tooling (such as Stripe Tax) to assist, but the obligation remains the Organizer's.
+8.2 Transaction taxes on vote revenue — U.S. sales/use tax, Canadian GST/HST (and provincial equivalents), and, for other non-U.S. voters, VAT/GST (for example, EU OSS, UK VAT, and Australia GST) — are the Organizer's responsibility as merchant of record. EliteRank may provide tax-calculation tooling (such as Stripe Tax) to assist, but the obligation remains the Organizer's.
 8.3 Winners may owe tax on prizes regardless of any designation. The Organizer and/or Prize Sponsor, not EliteRank, addresses any winner tax reporting.
 
 9. Payments, Fees, Reserves & Chargebacks
@@ -105,13 +105,13 @@ D. The parties therefore agree as follows.
 9.4 EliteRank is not responsible for the Organizer's revenue or payouts, or for any reserve or hold applied by Stripe.
 
 10. Territory & Jurisdictional Compliance
-10.1 Competitions and Contestants are currently supported in the United States only. Contestant eligibility (including residency) is collected by attestation; the Organizer is responsible for confirming eligibility and must disqualify any Contestant later found ineligible.
+10.1 Competitions and Contestants are currently supported in the United States and in the province of Ontario, Canada. Contestant eligibility (including residency) is collected by attestation; the Organizer is responsible for confirming eligibility and must disqualify any Contestant later found ineligible. For any Competition open to residents of Canada, a mathematical skill-testing question must be correctly answered by a Canadian resident before any prize is awarded, as required by Canadian law; this is provided through the Platform's Official Rules, and the Organizer is responsible for honoring it.
 10.2 Voters may participate (free or paid) from outside the United States. The Organizer must not solicit or accept participation where prohibited by law, and all Competitions are void where prohibited. EliteRank does not warrant that participation is lawful in any particular jurisdiction.
 10.3 The Organizer must comply with the laws of each jurisdiction in which it offers a Competition or solicits participation. Operating a Competition for contestants outside the supported countries is not supported and is undertaken at the Organizer's own risk.
 
 11. Data, Privacy & Communications
 11.1 The Organizer may receive contestant and voter contact information generated through its Competitions. With respect to that information, the Organizer is an independent controller and is solely responsible for its lawful collection, use, storage, and any marketing.
-11.2 The Organizer must comply with all applicable privacy and anti-spam laws, including CAN-SPAM (U.S.), the GDPR / UK GDPR (EU/UK), and other applicable anti-spam and privacy laws for any non-U.S. individuals, and must obtain any consent those laws require before marketing.
+11.2 The Organizer must comply with all applicable privacy and anti-spam laws, including CAN-SPAM (U.S.), Canada's Anti-Spam Legislation (CASL) and PIPEDA (Canada), the GDPR / UK GDPR (EU/UK), and other applicable anti-spam and privacy laws for any non-U.S. individuals, and must obtain any consent those laws require before marketing.
 11.3 The Organizer must handle contestant photographs and any biometric data in compliance with applicable law (including the Illinois Biometric Information Privacy Act, where applicable) and obtain all required consents.
 11.4 The Organizer must honor data-subject and consumer requests as required by law and cooperate with EliteRank on any privacy request relating to its Competitions.
 11.5 Voters and contestants are also governed by the Platform's participant-facing terms (including the Voter Terms and each Competition's Official Rules). The Organizer must not, in any Competition or communication, contradict those terms, misstate how votes work or what a vote buys, or contravene applicable consumer-protection law.
