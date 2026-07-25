@@ -33,6 +33,17 @@ const corsHeaders = {
  *       returns the current connection status.
  */
 
+// ── Payout timing (§9.3) ───────────────────────────────────────────────────
+// Every host's connected account is created with a UNIFORM rolling payout
+// delay: each charge is held in the host's OWN Stripe balance for this many
+// days before Stripe automatically pays it out to their bank. This is not a
+// discretionary hold — it is the same fixed schedule for every host, the funds
+// never leave the host's balance, and EliteRank never triggers or reverses a
+// payout. Its purpose is to keep funds available to cover the refunds/disputes
+// the host is responsible for under §13 (our last real dispute landed 8 days
+// after a competition ended, so the window comfortably outlasts that).
+const PAYOUT_DELAY_DAYS = Number(Deno.env.get('HOST_PAYOUT_DELAY_DAYS') || '14')
+
 type KycStatus = 'not_started' | 'pending' | 'verified' | 'failed'
 
 function deriveKycStatus(account: Stripe.Account): KycStatus {
@@ -161,6 +172,13 @@ serve(async (req) => {
     })
 
     // ── Ensure an Express account exists ───────────────────────────────────
+    // The uniform payout schedule (§9.3) is applied to NEW accounts at creation
+    // and back-filled onto EXISTING accounts on every call. The back-fill
+    // matters because accounts onboarded before this policy shipped would
+    // otherwise keep Stripe's default near-instant payout — the delay must
+    // reach current hosts, not just future ones. accounts.update is idempotent:
+    // setting the same schedule again is a no-op.
+    const payoutSchedule = { interval: 'daily', delay_days: PAYOUT_DELAY_DAYS }
     let accountId = org.stripe_connect_account_id as string | null
     if (!accountId) {
       const account = await stripe.accounts.create({
@@ -173,6 +191,11 @@ serve(async (req) => {
         business_profile: {
           name: org.name || undefined,
         },
+        settings: {
+          payouts: {
+            schedule: payoutSchedule,
+          },
+        },
         metadata: {
           organization_id: organization_id,
           platform: 'eliterank',
@@ -183,6 +206,17 @@ serve(async (req) => {
         .from('organizations')
         .update({ stripe_connect_account_id: accountId, kyc_status: 'pending' })
         .eq('id', organization_id)
+    } else {
+      // Back-fill the uniform payout delay onto a pre-existing account. Guarded
+      // so a Stripe hiccup here never blocks onboarding/status (the schedule is
+      // re-asserted on the next call anyway).
+      try {
+        await stripe.accounts.update(accountId, {
+          settings: { payouts: { schedule: payoutSchedule } },
+        })
+      } catch (err) {
+        console.warn('Could not back-fill payout schedule on', accountId, err)
+      }
     }
 
     // ── Action: create_account_link ────────────────────────────────────────

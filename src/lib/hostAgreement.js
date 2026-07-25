@@ -16,17 +16,18 @@ import { supabase } from './supabase';
  * changes (a new version forces hosts to re-accept and re-gates publishing
  * until they do).
  *
- * ⚠️ DOC-AHEAD-OF-PRODUCT (tracked in #590): three clauses describe behavior the
- * platform does not perform yet, so accepting hosts are signing forward-looking
- * commitments. Keep them in sync as the product catches up:
- *   • §9.3 — payout pause + reserve  → needs the payout-hold + scheduler (#589/#581)
+ * ⚠️ DOC-AHEAD-OF-PRODUCT (tracked in #590): some clauses still describe behavior
+ * the platform does not fully perform yet. Keep them in sync as the product
+ * catches up:
  *   • §5.6 — human winner confirmation → product auto-crowns today (#581)
- *   • §13.1 — refund assistance       → refunds are manual today (#587)
- * §13.1 is self-hedged ("no automated refund mechanism"); §9.3 and §5.6 become
- * true only when #581/#589 land.
+ *   • §13.1 — refund assistance       → refunds are manual today (#587), self-hedged
+ * §9.3 now describes the UNIFORM ROLLING PAYOUT DELAY that connect-onboard actually
+ * applies (HOST_PAYOUT_DELAY_DAYS, default 14) to new and existing accounts, so it
+ * is no longer doc-ahead. The discretionary payout-pause + reserve model (former
+ * §9.3/§13.3) was removed in 2026-07-v1.
  */
 
-export const HOST_AGREEMENT_VERSION = '2026-06-v1';
+export const HOST_AGREEMENT_VERSION = '2026-07-v1';
 
 export const HOST_AGREEMENT_TITLE = 'EliteRank Host Agreement';
 
@@ -94,23 +95,23 @@ D. The parties therefore agree as follows.
 
 8. Taxes
 8.1 The party that furnishes each Prize — typically the Prize Sponsor, or the Organizer for a Prize it adds — is responsible for that Prize's tax reporting and withholding, including issuing IRS Form 1099 (or equivalents) where required and determining fair market value. EliteRank is never the payor and bears no prize tax-reporting obligation. (For U.S. prizes awarded after December 31, 2025, the 1099-MISC prize-reporting threshold is $2,000; it is $600 for 2025 prizes.)
-8.2 Transaction taxes on vote revenue — U.S. sales/use tax and, for non-U.S. voters, VAT/GST (for example, EU OSS, UK VAT, and Australia GST) — are the Organizer's responsibility as merchant of record. EliteRank may provide tax-calculation tooling (such as Stripe Tax) to assist, but the obligation remains the Organizer's.
+8.2 Transaction taxes on vote revenue — U.S. sales/use tax, Canadian GST/HST (and provincial equivalents), and, for other non-U.S. voters, VAT/GST (for example, EU OSS, UK VAT, and Australia GST) — are the Organizer's responsibility as merchant of record. EliteRank may provide tax-calculation tooling (such as Stripe Tax) to assist, but the obligation remains the Organizer's.
 8.3 Winners may owe tax on prizes regardless of any designation. The Organizer and/or Prize Sponsor, not EliteRank, addresses any winner tax reporting.
 
 9. Payments, Fees, Reserves & Chargebacks
 9.1 Payments are processed by Stripe under the Organizer's connected account. The Organizer is the merchant of record, and funds settle to the Organizer's account.
-9.2 EliteRank charges the Platform Fee set out in the then-current fee schedule. As of the Effective Date, the Platform Fee is fifteen percent (15%) of vote revenue for most categories (the Organizer keeps 85%); certain categories (for example, Dating) carry a higher Platform Fee. Stripe processing fees are separate. EliteRank may update the fee schedule on notice.
-9.3 The Organizer is responsible for all chargebacks, refunds, and disputes arising from its Competitions. Using Stripe Connect payout controls, EliteRank pauses payout of the Organizer's vote revenue until the Competition's voting concludes, and thereafter may retain a portion as a reserve and release it on a schedule EliteRank sets. Held amounts remain in the Organizer's connected-account balance at all times; EliteRank does not take custody of, escrow, or hold Organizer funds.
+9.2 EliteRank charges the Platform Fee set out in the then-current fee schedule. As of the Effective Date, the Platform Fee is fifteen percent (15%) of vote revenue (the Organizer keeps 85%). Stripe processing fees are separate. The Platform Fee that applies to a Competition is fixed when that Competition is published and will not change while it is live or in progress. EliteRank may update the fee schedule on notice, but any change applies only to Competitions the Organizer publishes after the change takes effect, and EliteRank will notify the Organizer of the change beforehand (see also clause 21.2).
+9.3 The Organizer is responsible for all chargebacks, refunds, and disputes arising from its Competitions. All connected accounts are subject to a standard, uniform payout delay disclosed on the Platform: each charge is held in the Organizer's own Stripe balance for a fixed period after it settles before Stripe releases it to the Organizer's bank on a rolling basis. This delay is applied identically to every Organizer, is not set case-by-case, and exists so that funds remain available to cover the refunds and disputes the Organizer is responsible for under clause 13. Funds remain in the Organizer's own connected-account balance at all times; EliteRank does not take custody of, escrow, or hold Organizer funds. The Organizer remains responsible for maintaining sufficient balance to cover chargebacks, refunds, and disputes.
 9.4 EliteRank is not responsible for the Organizer's revenue or payouts, or for any reserve or hold applied by Stripe.
 
 10. Territory & Jurisdictional Compliance
-10.1 Competitions and Contestants are currently supported in the United States only. Contestant eligibility (including residency) is collected by attestation; the Organizer is responsible for confirming eligibility and must disqualify any Contestant later found ineligible.
+10.1 Competitions and Contestants are currently supported in the United States and in the province of Ontario, Canada. Contestant eligibility (including residency) is collected by attestation; the Organizer is responsible for confirming eligibility and must disqualify any Contestant later found ineligible. For any Competition open to residents of Canada, a mathematical skill-testing question must be correctly answered by a Canadian resident before any prize is awarded, as required by Canadian law; this is provided through the Platform's Official Rules, and the Organizer is responsible for honoring it.
 10.2 Voters may participate (free or paid) from outside the United States. The Organizer must not solicit or accept participation where prohibited by law, and all Competitions are void where prohibited. EliteRank does not warrant that participation is lawful in any particular jurisdiction.
 10.3 The Organizer must comply with the laws of each jurisdiction in which it offers a Competition or solicits participation. Operating a Competition for contestants outside the supported countries is not supported and is undertaken at the Organizer's own risk.
 
 11. Data, Privacy & Communications
 11.1 The Organizer may receive contestant and voter contact information generated through its Competitions. With respect to that information, the Organizer is an independent controller and is solely responsible for its lawful collection, use, storage, and any marketing.
-11.2 The Organizer must comply with all applicable privacy and anti-spam laws, including CAN-SPAM (U.S.), the GDPR / UK GDPR (EU/UK), and other applicable anti-spam and privacy laws for any non-U.S. individuals, and must obtain any consent those laws require before marketing.
+11.2 The Organizer must comply with all applicable privacy and anti-spam laws, including CAN-SPAM (U.S.), Canada's Anti-Spam Legislation (CASL) and PIPEDA (Canada), the GDPR / UK GDPR (EU/UK), and other applicable anti-spam and privacy laws for any non-U.S. individuals, and must obtain any consent those laws require before marketing.
 11.3 The Organizer must handle contestant photographs and any biometric data in compliance with applicable law (including the Illinois Biometric Information Privacy Act, where applicable) and obtain all required consents.
 11.4 The Organizer must honor data-subject and consumer requests as required by law and cooperate with EliteRank on any privacy request relating to its Competitions.
 11.5 Voters and contestants are also governed by the Platform's participant-facing terms (including the Voter Terms and each Competition's Official Rules). The Organizer must not, in any Competition or communication, contradict those terms, misstate how votes work or what a vote buys, or contravene applicable consumer-protection law.
@@ -121,9 +122,9 @@ D. The parties therefore agree as follows.
 12.3 The Organizer must cooperate with EliteRank's anti-fraud, compliance, and trust-and-safety processes.
 
 13. Cancellation, Non-Fulfillment & Abandonment
-13.1 Cancellation & refunds. If a Competition is canceled before completion, is materially altered, or fails to run as published, the Organizer must promptly refund all paid votes for that Competition. Refunds are issued through Stripe from the Organizer's account balance, including any amounts whose payout EliteRank has delayed under clause 9.3. As merchant of record, the Organizer is responsible for effecting refunds; EliteRank may assist operationally but provides no automated refund mechanism and does not fund refunds from its own assets. Free votes and AMOE entries involve no payment and are not refundable. Affected contestants and voters must be notified.
+13.1 Cancellation & refunds. If a Competition is canceled before completion, is materially altered, or fails to run as published, the Organizer must promptly refund all paid votes for that Competition. Refunds are issued through Stripe from the Organizer's connected-account balance, including amounts still held under the uniform payout delay in clause 9.3. Because that delay holds only a rolling window and earlier funds may already have been paid out to the Organizer, the Organizer must maintain sufficient balance to refund all paid votes. As merchant of record, the Organizer is responsible for effecting refunds; EliteRank may assist operationally but provides no automated refund mechanism and does not fund refunds from its own assets. Free votes and AMOE entries involve no payment and are not refundable. Affected contestants and voters must be notified.
 13.2 No winner where integrity fails. If the integrity of a Competition cannot reasonably be assured, no winner will be declared and paid votes will be refunded as in clause 13.1.
-13.3 Abandonment. If the Organizer abandons a Competition or fails to fulfill prizes or obligations, EliteRank may reverse or withhold payouts, decline to declare a winner, remove the Competition, effect participant refunds from the Organizer's funds or reserve, and suspend or ban the Organizer.
+13.3 Abandonment. If the Organizer abandons a Competition or fails to complete it and crown its winner(s) as published, EliteRank may, as a remedy for that failure: pause or suspend further payouts to the Organizer's connected account; decline to declare a winner; remove the Competition; issue or require refunds of paid votes from the Organizer's connected-account balance; and suspend or ban the Organizer. These are remedies for a failure to run the Competition as published; they are not routine controls over the Organizer's funds, which settle to and remain in the Organizer's own account under clause 9. Prize sourcing, delivery, and fulfillment remain solely the responsibility of the Organizer and its Prize Sponsors under clauses 2.2 and 7 and are addressed there and under clause 16 — not by this clause.
 13.4 The Organizer remains responsible to contestants, voters, and winners for its Competitions. EliteRank's remedies are in addition to, not in place of, the Organizer's obligations, and EliteRank's ability to effect a refund does not make it the party responsible for the refund.
 
 14. Suspension, Removal & Publication Control
