@@ -13,6 +13,7 @@ import { CountdownDisplay } from '../components/CountdownDisplay';
 import { CompetitionHeader } from '../components/CompetitionHeader';
 import { CharityHighlight } from '../components/CharityHighlight';
 import { JudgesSection } from '../components/JudgesSection';
+import { HostSection } from '../components/HostSection';
 
 /**
  * Nominations phase view
@@ -27,7 +28,7 @@ import { JudgesSection } from '../components/JudgesSection';
 export function NominationsPhase() {
   const {
     competition, orgSlug, competitionSlug, votingRounds, nominationPeriods,
-    about, events, isPreview,
+    about, events, isPreview, sponsors,
   } = usePublicCompetition();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -69,6 +70,8 @@ export function NominationsPhase() {
     || competition?.finals_date,
   );
   const hasTimelineColumn = hasTimelineData || Boolean(competition?.charity_name);
+
+  const hasSponsors = sponsors && sponsors.length > 0;
 
   // Auto-redirect if ?apply param is present (skipped in preview so hosts
   // don't get kicked out of the preview by a stray query param).
@@ -180,6 +183,17 @@ export function NominationsPhase() {
         <section className="sidebar-stack">
           <RulesAccordion competition={competition} votingRounds={votingRounds} about={about} events={events} rulesPath={rulesPath} />
         </section>
+      )}
+
+      {/* Sponsors — hosts are already featured above, so suppress them here.
+          Matches the boxed-logo layout used on the Coming Soon phase. */}
+      {hasSponsors && (
+        <>
+          <hr className="phase-divider" />
+          <section className="phase-section">
+            <HostSection showHosts={false} />
+          </section>
+        </>
       )}
     </div>
   );
