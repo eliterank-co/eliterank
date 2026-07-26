@@ -16,13 +16,16 @@ import { avatarUrl } from '../../../lib/storageImage';
 
 // Show $10 for round totals and $9.90 for fractional bundler prices. The
 // shared formatCurrency truncates to whole dollars, which hides the discount.
-const priceFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-const formatPrice = (amount) => priceFormatter.format(amount);
+// Currency-aware: US hosts charge USD, Ontario/CA hosts charge CAD, so the
+// symbol must follow the competition's settlement currency rather than being
+// hardcoded (a CAD charge would otherwise render with a bare "$").
+const makePriceFormatter = (currency = 'USD') =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: (currency || 'USD').toUpperCase(),
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 
 export default function VoteModal({
   isOpen,
@@ -41,6 +44,10 @@ export default function VoteModal({
   autoCheckout = false,
   votePrice = 1.00,
   useBundler = false,
+  // Settlement currency for this competition's host (USD | CAD). Drives the
+  // displayed price symbol; defaults to USD. The authoritative charge currency
+  // still comes from create-payment-intent's response.
+  currency = 'USD',
   // Optional — when the opener pre-creates the PaymentIntent (for speed),
   // set externalCheckout=true and pass the clientSecret as soon as it
   // resolves. The modal won't fire its own createVotePaymentIntent.
@@ -81,12 +88,25 @@ export default function VoteModal({
   // Cents. Once set, replaces the client-side calculateVotePrice estimate
   // everywhere downstream. Null = no PaymentIntent has resolved yet.
   const [confirmedAmount, setConfirmedAmount] = useState(serverAmount);
+  // Currency the price is displayed in. Starts from the competition prop and is
+  // overwritten by the authoritative currency create-payment-intent returns.
+  const [displayCurrency, setDisplayCurrency] = useState(currency);
 
   // Adopt the server amount whenever the opener pushes a fresh one in
   // (externalCheckout flow — the parent's createVotePaymentIntent landed).
   useEffect(() => {
     if (serverAmount != null) setConfirmedAmount(serverAmount);
   }, [serverAmount]);
+
+  // Keep display currency in sync if the opener passes a new competition.
+  useEffect(() => {
+    if (currency) setDisplayCurrency(currency);
+  }, [currency]);
+
+  const formatPrice = useMemo(() => {
+    const f = makePriceFormatter(displayCurrency);
+    return (amount) => f.format(amount);
+  }, [displayCurrency]);
 
   // Authoritative price the UI should show. Falls back to the client estimate
   // before any PaymentIntent has resolved (preset tiles, modal-open total).
@@ -293,6 +313,7 @@ export default function VoteModal({
         setPaymentIntentId(result.paymentIntentId);
         setConnectedAccountId(result.connectedAccountId);
         if (result.amount != null) setConfirmedAmount(result.amount);
+        if (result.currency) setDisplayCurrency(result.currency);
         setShowPaymentForm(true);
       } else {
         toast.error(result.error || 'Failed to create payment');
@@ -581,6 +602,7 @@ export default function VoteModal({
                   onSuccess={handlePaymentSuccess}
                   onCancel={handleBackFromPayment}
                   amount={displayedTotal}
+                  currency={displayCurrency}
                   contestantName={contestant.name}
                   collectEmail={!isAuthenticated || !user?.email}
                   userEmail={user?.email}
@@ -998,9 +1020,13 @@ export default function VoteModal({
 /**
  * Payment checkout form using Stripe Elements
  */
-function PaymentCheckoutForm({ onSuccess, onCancel, amount, contestantName, collectEmail = false, userEmail = null, connectedAccountId = null }) {
+function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', contestantName, collectEmail = false, userEmail = null, connectedAccountId = null }) {
   const stripe = useStripe();
   const elements = useElements();
+  const formatPrice = useMemo(() => {
+    const f = makePriceFormatter(currency);
+    return (a) => f.format(a);
+  }, [currency]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
 

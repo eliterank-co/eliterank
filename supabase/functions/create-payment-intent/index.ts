@@ -110,7 +110,7 @@ serve(async (req) => {
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, stripe_connect_account_id, kyc_status, charges_enabled')
+      .select('id, stripe_connect_account_id, kyc_status, charges_enabled, default_currency')
       .eq('id', competition.organization_id)
       .single()
 
@@ -185,6 +185,12 @@ serve(async (req) => {
     const platformFeePct = parseFloat(competition.platform_fee_pct) || 0
     const applicationFeeAmount = Math.round((totalAmount * platformFeePct) / 100)
 
+    // Charge in the host's settlement currency. Direct charges settle in the
+    // connected account's own country/currency (US → usd, Ontario/CA → cad), so
+    // this must match the account rather than being hardcoded. Defaults to usd
+    // for every existing US host (default_currency defaults to 'usd').
+    const currency = (org.default_currency as string) || 'usd'
+
     // Create the PaymentIntent as a DIRECT CHARGE on the host's connected
     // account (Stripe-Account header). Funds settle to the host, never to the
     // platform balance (§2.1, Invariant 1); EliteRank takes only the
@@ -193,7 +199,7 @@ serve(async (req) => {
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: totalAmount,
-        currency: 'usd',
+        currency,
         automatic_payment_methods: {
           enabled: true,
         },
@@ -210,6 +216,7 @@ serve(async (req) => {
           organization_id: competition.organization_id,
           connected_account_id: connectedAccountId,
           platform_fee_amount: applicationFeeAmount.toString(),
+          currency,
         },
         description,
       },
@@ -221,6 +228,7 @@ serve(async (req) => {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
         amount: totalAmount,
+        currency,
         voteCount,
         contestantName: contestant.name,
         connectedAccountId,

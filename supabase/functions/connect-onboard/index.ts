@@ -44,6 +44,29 @@ const corsHeaders = {
 // after a competition ended, so the window comfortably outlasts that).
 const PAYOUT_DELAY_DAYS = Number(Deno.env.get('HOST_PAYOUT_DELAY_DAYS') || '14')
 
+// ── Country + capabilities ──────────────────────────────────────────────────
+// Direct-charge model: the connected account processes its own charges and is
+// the merchant of record; funds settle in the account's own country/currency
+// (US → USD, CA → CAD) and EliteRank never holds them. Capabilities are
+// country-aware because they differ by country: US accounts require
+// card_payments + transfers together (Stripe couples them), while Canadian
+// accounts use card_payments only (transfers is not offered for CA in our
+// Connect onboarding options). Requesting an unavailable capability would fail
+// account creation, so we must not blanket-request transfers.
+const SUPPORTED_COUNTRIES = ['US', 'CA'] as const
+type SupportedCountry = (typeof SUPPORTED_COUNTRIES)[number]
+
+function capabilitiesFor(country: string) {
+  if (country === 'CA') {
+    return { card_payments: { requested: true } }
+  }
+  return { card_payments: { requested: true }, transfers: { requested: true } }
+}
+
+function currencyForCountry(country: string): string {
+  return country === 'CA' ? 'cad' : 'usd'
+}
+
 type KycStatus = 'not_started' | 'pending' | 'verified' | 'failed'
 
 function deriveKycStatus(account: Stripe.Account): KycStatus {
@@ -104,10 +127,16 @@ serve(async (req) => {
     }
     const userId = userData.user.id
 
-    const { action, organization_id, return_url, refresh_url } = await req.json()
+    const { action, organization_id, return_url, refresh_url, country } = await req.json()
     if (!action || !organization_id) {
       return json({ error: 'action and organization_id are required' }, 400)
     }
+
+    // Host declares their legal-entity country at onboarding (must match the
+    // Stripe account + bank they'll use). Only honored before an account exists;
+    // once created, the country is fixed on the Stripe account.
+    const requestedCountry: SupportedCountry | null =
+      SUPPORTED_COUNTRIES.includes(country) ? country : null
 
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -117,7 +146,7 @@ serve(async (req) => {
     const { data: org, error: orgError } = await admin
       .from('organizations')
       .select(
-        'id, name, owner_id, stripe_connect_account_id, kyc_status, charges_enabled, payouts_enabled, connect_details_submitted, connect_onboarded_at'
+        'id, name, owner_id, country, default_currency, stripe_connect_account_id, kyc_status, charges_enabled, payouts_enabled, connect_details_submitted, connect_onboarded_at'
       )
       .eq('id', organization_id)
       .single()
@@ -179,15 +208,15 @@ serve(async (req) => {
     // reach current hosts, not just future ones. accounts.update is idempotent:
     // setting the same schedule again is a no-op.
     const payoutSchedule = { interval: 'daily', delay_days: PAYOUT_DELAY_DAYS }
+    // Country the connected account will be created in: the host's choice at
+    // onboarding, else the org's stored country, else US.
+    const accountCountry: string = requestedCountry || (org.country as string) || 'US'
     let accountId = org.stripe_connect_account_id as string | null
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: 'express',
-        country: 'US',
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
+        country: accountCountry,
+        capabilities: capabilitiesFor(accountCountry),
         business_profile: {
           name: org.name || undefined,
         },
@@ -204,7 +233,14 @@ serve(async (req) => {
       accountId = account.id
       await admin
         .from('organizations')
-        .update({ stripe_connect_account_id: accountId, kyc_status: 'pending' })
+        .update({
+          stripe_connect_account_id: accountId,
+          kyc_status: 'pending',
+          country: accountCountry,
+          // Stripe sets the account's settlement currency from its country; store
+          // it so create-payment-intent charges in the right currency.
+          default_currency: account.default_currency || currencyForCountry(accountCountry),
+        })
         .eq('id', organization_id)
     } else {
       // Back-fill the uniform payout delay onto a pre-existing account. Guarded
@@ -245,6 +281,13 @@ serve(async (req) => {
         charges_enabled: account.charges_enabled,
         payouts_enabled: account.payouts_enabled,
         connect_details_submitted: account.details_submitted,
+      }
+      // Keep the settlement currency in sync with Stripe's source of truth.
+      if (account.default_currency) {
+        update.default_currency = account.default_currency
+      }
+      if (account.country) {
+        update.country = account.country
       }
       if (kycStatus === 'verified' && !org.connect_onboarded_at) {
         update.connect_onboarded_at = new Date().toISOString()
