@@ -41,7 +41,7 @@ export function useStripeConnect() {
    * Create (or reuse) the org's Express account and redirect the browser to
    * Stripe's hosted onboarding. Returns nothing — it navigates away on success.
    */
-  const startOnboarding = useCallback(async (organizationId) => {
+  const startOnboarding = useCallback(async (organizationId, country) => {
     if (!organizationId) {
       setError('No organization to connect.');
       return;
@@ -54,6 +54,10 @@ export function useStripeConnect() {
         body: {
           action: 'create_account_link',
           organization_id: organizationId,
+          // Host's legal-entity country (US | CA). Only honored on first connect,
+          // before the Stripe account exists; the account's country is fixed
+          // once created. Omitted → the function defaults to the org's country.
+          ...(country ? { country } : {}),
           return_url: `${base}?connect=return&org=${organizationId}`,
           refresh_url: `${base}?connect=refresh&org=${organizationId}`,
         },

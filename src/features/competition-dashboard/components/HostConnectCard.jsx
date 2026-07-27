@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Landmark, CheckCircle, Clock, AlertTriangle, ExternalLink, Loader, RefreshCw } from 'lucide-react';
 import { Panel, Button } from '../../../components/ui';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
@@ -31,6 +31,11 @@ import { useStripeConnect } from '../hooks/useStripeConnect';
 export default function HostConnectCard({ connect, organizationId, locked = false, onSynced }) {
   const { startOnboarding, syncStatus, starting, syncing, error } = useStripeConnect();
   const toast = useToast();
+
+  // Host's legal-entity country, chosen before the first connect. Sets the
+  // Stripe account country + payout currency (US → USD, CA → CAD) and is fixed
+  // once the account exists, so the picker only shows before onboarding starts.
+  const [country, setCountry] = useState('US');
 
   const status = connect?.kycStatus || 'not_started';
   const verified = status === 'verified';
@@ -186,8 +191,65 @@ export default function HostConnectCard({ connect, organizationId, locked = fals
           </p>
         )}
 
+        {!connect?.hasAccount && (
+          <div style={{ marginBottom: spacing.lg }}>
+            <label
+              style={{
+                display: 'block',
+                color: colors.text.secondary,
+                fontSize: typography.fontSize.xs,
+                fontWeight: typography.fontWeight.semibold,
+                marginBottom: spacing.sm,
+              }}
+            >
+              Where is your business based?
+            </label>
+            <div style={{ display: 'flex', gap: spacing.sm }}>
+              {[
+                { code: 'US', label: '🇺🇸 United States' },
+                { code: 'CA', label: '🇨🇦 Canada' },
+              ].map((opt) => {
+                const selected = country === opt.code;
+                return (
+                  <button
+                    key={opt.code}
+                    type="button"
+                    onClick={() => setCountry(opt.code)}
+                    disabled={locked}
+                    style={{
+                      flex: 1,
+                      padding: `${spacing.sm} ${spacing.md}`,
+                      borderRadius: borderRadius.md,
+                      border: `1px solid ${selected ? colors.gold.primary : colors.border.primary}`,
+                      // Subtle gold tint on the selected option (matches the
+                      // status-tint pattern used elsewhere in this card).
+                      background: selected ? 'rgba(212,175,55,0.1)' : colors.background.secondary,
+                      color: selected ? colors.gold.primary : colors.text.secondary,
+                      fontSize: typography.fontSize.sm,
+                      fontWeight: selected ? typography.fontWeight.semibold : typography.fontWeight.normal,
+                      cursor: locked ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p
+              style={{
+                color: colors.text.muted,
+                fontSize: typography.fontSize.xs,
+                marginTop: spacing.sm,
+              }}
+            >
+              Choose where your business is legally registered and banks. This sets your payout
+              currency (USD or CAD) and can’t be changed after you connect.
+            </p>
+          </div>
+        )}
+
         <Button
-          onClick={() => startOnboarding(organizationId)}
+          onClick={() => startOnboarding(organizationId, country)}
           disabled={starting || !organizationId || locked}
           icon={starting ? Loader : ExternalLink}
           variant={verified ? 'secondary' : 'primary'}
