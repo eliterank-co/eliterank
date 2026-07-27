@@ -1019,14 +1019,32 @@ export default function EliteRankCityModal({
                 borderRadius: '16px',
                 overflow: 'hidden',
                 position: 'relative',
-                background: event.image_url
-                  ? `url(${event.image_url}) center/cover no-repeat`
-                  : 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.1) 100%)',
+                background: 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.1) 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                {!event.image_url && (
+                {event.image_url ? (
+                  /* Render as a real <img> (not a CSS background) so the browser
+                     decodes it once and never re-fetches on repaint — the infinite
+                     crown animation keeps the paint pipeline ticking, which caused
+                     non-cacheable background images to flicker. */
+                  <img
+                    src={event.image_url}
+                    alt={event.name || ''}
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                ) : (
                   <Crown size={48} style={{ color: 'rgba(212,175,55,0.4)' }} />
                 )}
 

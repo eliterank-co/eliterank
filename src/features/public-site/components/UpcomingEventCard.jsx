@@ -114,14 +114,30 @@ export default function UpcomingEventCard({ events = [], onViewAllEvents }) {
               borderRadius: '14px',
               overflow: 'hidden',
               position: 'relative',
-              background: nextEvent.imageUrl
-                ? `url(${nextEvent.imageUrl}) center/cover no-repeat`
-                : 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.1) 100%)',
+              background: 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.1) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              {!nextEvent.imageUrl && (
+              {nextEvent.imageUrl ? (
+                /* Real <img> instead of a CSS background so the browser decodes it once
+                   and never re-fetches on repaint (prevents cover-image flicker). */
+                <img
+                  src={nextEvent.imageUrl}
+                  alt={nextEvent.name || ''}
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+              ) : (
                 <Crown size={28} style={{ color: 'rgba(212,175,55,0.4)' }} />
               )}
 

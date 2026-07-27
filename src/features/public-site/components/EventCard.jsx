@@ -65,15 +65,33 @@ export default function EventCard({ event, isPast = false, canEdit = false, onEd
           borderRadius: '16px',
           overflow: 'hidden',
           position: 'relative',
-          background: imageUrl
-            ? `url(${imageUrl}) center/cover no-repeat`
-            : 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.1) 100%)',
+          background: 'linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(139,92,246,0.1) 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        {!imageUrl && <Crown size={56} style={{ color: 'rgba(212,175,55,0.35)' }} />}
+        {imageUrl ? (
+          /* Real <img> instead of a CSS background so the browser decodes it once
+             and never re-fetches on repaint (prevents cover-image flicker). */
+          <img
+            src={imageUrl}
+            alt={event.name || ''}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block',
+            }}
+          />
+        ) : (
+          <Crown size={56} style={{ color: 'rgba(212,175,55,0.35)' }} />
+        )}
 
         {canEdit && onEdit && (
           <button
