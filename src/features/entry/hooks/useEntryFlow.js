@@ -118,9 +118,12 @@ export function useEntryFlow(competition, profile, options = {}) {
   });
 
   // Step lists with the optional 'custom' step inserted when the host has
-  // configured questions. Self-mode inserts it after 'bio' so the nominee's
-  // bio is the last data they write before answering host questions; nominate
-  // mode inserts it after 'why' so the nominator finishes the pitch first.
+  // configured questions. Host custom questions are only ever answered by the
+  // nominee themselves — inserted after 'bio' so the nominee's bio is the last
+  // data they write before answering host questions. The nominate path never
+  // includes them: a nominator shouldn't answer host questions on behalf of
+  // the person they're nominating (the nominee answers them later when they
+  // accept and build their card).
   const selfStepsAuth = useMemo(
     () => (hasCustomQuestions ? withCustom(SELF_STEPS_AUTH_BASE, 'bio') : SELF_STEPS_AUTH_BASE),
     [hasCustomQuestions]
@@ -129,10 +132,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     () => (hasCustomQuestions ? withCustom(SELF_STEPS_ANON_BASE, 'bio') : SELF_STEPS_ANON_BASE),
     [hasCustomQuestions]
   );
-  const nominateSteps = useMemo(
-    () => (hasCustomQuestions ? withCustom(NOMINATE_STEPS_BASE, 'why') : NOMINATE_STEPS_BASE),
-    [hasCustomQuestions]
-  );
+  const nominateSteps = NOMINATE_STEPS_BASE;
 
   // Current steps list — frozen once mode is selected so mid-flow auth
   // changes (signUp) can't swap the array and invalidate the step index.
@@ -797,7 +797,9 @@ export function useEntryFlow(competition, profile, options = {}) {
         nominator_anonymous: nominatorData.anonymous,
         nominator_notify: nominatorData.emailOptIn,
         status: 'pending',
-        eligibility_answers: { ...eligibilityAnswers, ...customAnswers },
+        // Custom questions are answered by the nominee (self-entry / claim
+        // flow), never the nominator — so only eligibility answers here.
+        eligibility_answers: { ...eligibilityAnswers },
       };
 
       // Link nominator if logged in
@@ -842,7 +844,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [competition, nomineeData, nominatorData, eligibilityAnswers, customAnswers, profile, steps, isPreview]);
+  }, [competition, nomineeData, nominatorData, eligibilityAnswers, profile, steps, isPreview]);
 
   // Reset for nominating another person (keeps nominator info + eligibility)
   const resetForNewNomination = useCallback(() => {

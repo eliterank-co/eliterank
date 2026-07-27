@@ -333,7 +333,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           questions={flow.customQuestions}
           answers={flow.customAnswers}
           onChange={flow.setCustomAnswer}
-          onSubmit={flow.mode === 'self' ? flow.submitSelfEntry : flow.next}
+          onSubmit={flow.submitSelfEntry}
           isSubmitting={flow.isSubmitting}
           error={flow.submitError}
         />

@@ -2,6 +2,23 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { uploadPhoto } from '../utils/uploadPhoto';
 import { getCityName } from '../utils/eligibilityEngine';
+import { resolveNominationFormConfig } from '../../../utils/nominationFormDefaults';
+
+/**
+ * Split a persisted `eligibility_answers` blob into eligibility keys vs. host
+ * custom-question answers (prefixed `cq_`) so each renders in the right step.
+ */
+function splitAnswers(blob) {
+  const elig = {};
+  const custom = {};
+  if (blob && typeof blob === 'object') {
+    Object.entries(blob).forEach(([k, v]) => {
+      if (k.startsWith('cq_')) custom[k] = v;
+      else elig[k] = v;
+    });
+  }
+  return { elig, custom };
+}
 
 /** Race a promise against a timeout. Rejects if the promise doesn't settle in time. */
 function withTimeout(promise, ms) {
@@ -38,23 +55,40 @@ export function useBuildCardFlow({
   nominee,
   needsPassword = false,
 }) {
+  // Host-defined custom questions for this competition. Answered by the nominee
+  // themselves as they build their card — inserted right after 'bio' in every
+  // mode (self-nominee resuming, or third-party nominee accepting).
+  const customQuestions = useMemo(
+    () => resolveNominationFormConfig(competition?.nomination_form_config).custom_questions,
+    [competition?.nomination_form_config]
+  );
+  const hasCustomQuestions = customQuestions.length > 0;
+
   // Build step list based on mode
   const steps = useMemo(() => {
+    // Append 'custom' immediately after 'bio' when the host added questions.
+    const withCustom = (list) => {
+      if (!hasCustomQuestions) return list;
+      const idx = list.indexOf('bio');
+      if (idx === -1) return list;
+      return [...list.slice(0, idx + 1), 'custom', ...list.slice(idx + 1)];
+    };
+
     switch (mode) {
       case 'self-auth':
-        return ['eligibility', 'photo', 'details', 'bio', 'card'];
+        return withCustom(['eligibility', 'photo', 'details', 'bio', 'card']);
       case 'self-anon':
-        return ['eligibility', 'photo', 'details', 'bio', 'password', 'card'];
+        return withCustom(['eligibility', 'photo', 'details', 'bio', 'password', 'card']);
       case 'third-party': {
         const base = ['accept', 'eligibility-confirm', 'photo', 'details', 'bio'];
         if (needsPassword) base.push('password');
         base.push('card');
-        return base;
+        return withCustom(base);
       }
       default:
-        return ['photo', 'details', 'bio', 'card'];
+        return withCustom(['photo', 'details', 'bio', 'card']);
     }
-  }, [mode, needsPassword]);
+  }, [mode, needsPassword, hasCustomQuestions]);
 
   // Flow state
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -75,10 +109,13 @@ export function useBuildCardFlow({
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Eligibility (for self modes)
-  const [eligibilityAnswers, setEligibilityAnswers] = useState(
-    nominee?.eligibility_answers || {}
-  );
+  // Eligibility (for self modes) and host custom-question answers are stored in
+  // the same `eligibility_answers` JSONB column but kept in separate state so
+  // each renders in its own step. Split any persisted blob on init (custom
+  // question IDs are prefixed `cq_`).
+  const initialAnswers = splitAnswers(nominee?.eligibility_answers);
+  const [eligibilityAnswers, setEligibilityAnswers] = useState(initialAnswers.elig);
+  const [customAnswers, setCustomAnswers] = useState(initialAnswers.custom);
 
   // Pre-fill card data from profile or nominee record
   const nameParts = nominee?.name?.split(' ') || [];
@@ -106,6 +143,14 @@ export function useBuildCardFlow({
     }
     if (nominee.invite_token && !inviteToken) {
       setInviteToken(nominee.invite_token);
+    }
+
+    // Fill answer state from the persisted blob when it loads (nominee arrives
+    // async on the claim page). Only fill while empty so in-progress edits win.
+    if (nominee.eligibility_answers) {
+      const { elig, custom } = splitAnswers(nominee.eligibility_answers);
+      setEligibilityAnswers((prev) => (Object.keys(prev).length ? prev : elig));
+      setCustomAnswers((prev) => (Object.keys(prev).length ? prev : custom));
     }
 
     setCardData((prev) => {
@@ -179,8 +224,10 @@ export function useBuildCardFlow({
       });
   }, [nomineeId, nominee?.id]);
 
-  // Steps that already persist flow_stage in their own handler
-  const SELF_PERSISTING_STEPS = new Set(['accept', 'details', 'bio', 'card']);
+  // Steps that already persist flow_stage in their own handler. 'custom'
+  // submits via submitCard (which writes flow_stage='card'), so next() must
+  // not follow up with a persistFlowStage('custom') that undoes it.
+  const SELF_PERSISTING_STEPS = new Set(['accept', 'details', 'bio', 'custom', 'card']);
 
   // Navigation
   const next = useCallback(() => {
@@ -203,6 +250,10 @@ export function useBuildCardFlow({
   // Field updates
   const setEligibility = useCallback((id, value) => {
     setEligibilityAnswers((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
+  const setCustomAnswer = useCallback((id, value) => {
+    setCustomAnswers((prev) => ({ ...prev, [id]: value }));
   }, []);
 
   const updateCardData = useCallback((updates) => {
@@ -423,6 +474,14 @@ export function useBuildCardFlow({
         flow_stage: 'card',
       };
 
+      // The 'custom' step (host questions) runs right before this submit, so
+      // persist the nominee's answers here. Merge onto existing eligibility
+      // answers so nothing already in the blob is dropped. Only written when
+      // the host configured questions, to leave other flows untouched.
+      if (hasCustomQuestions) {
+        record.eligibility_answers = { ...eligibilityAnswers, ...customAnswers };
+      }
+
       if (currentUser?.id) {
         record.user_id = currentUser.id;
         // If no password step follows, this is the final step — mark claimed
@@ -443,7 +502,7 @@ export function useBuildCardFlow({
         record.competition_id = competition?.id;
         record.nominated_by = 'self';
         record.status = 'pending';
-        record.eligibility_answers = eligibilityAnswers;
+        record.eligibility_answers = { ...eligibilityAnswers, ...customAnswers };
         // Self-auth users (logged in, no password step) are done here
         if (currentUser?.id) {
           record.claimed_at = new Date().toISOString();
@@ -501,7 +560,7 @@ export function useBuildCardFlow({
     } finally {
       setIsSubmitting(false);
     }
-  }, [cardData, currentUser, nomineeId, competition, eligibilityAnswers, steps, next]);
+  }, [cardData, currentUser, nomineeId, competition, eligibilityAnswers, customAnswers, hasCustomQuestions, steps, next]);
 
   // ---- Create account / set password ----
   //
@@ -783,11 +842,15 @@ export function useBuildCardFlow({
     // Data
     cardData,
     eligibilityAnswers,
+    customQuestions,
+    customAnswers,
+    hasCustomQuestions,
 
     // Actions
     next,
     back,
     setEligibility,
+    setCustomAnswer,
     updateCardData,
     acceptNomination,
     declineNomination,
