@@ -866,10 +866,24 @@ export default function PeopleTab({
   };
 
   // Person row component - shared between contestants and nominees
-  const PersonRow = ({ person, actions, dimmed, showVotes, onNameClick, cardType, onAvatarUpload }) => (
+  const PersonRow = ({ person, actions, dimmed, showVotes, onNameClick, cardType, onAvatarUpload }) => {
+    // Whether this person has host custom-question answers to show. When they
+    // do, the expandable panel makes the row tall — anchor the avatar and
+    // actions to the top so they don't drift to the vertical center once the
+    // dropdown is open. Rows without the panel keep the default centered look.
+    const hasCustomAnswers =
+      customQuestions.length > 0 &&
+      !!person.eligibilityAnswers &&
+      customQuestions.some((q) => {
+        const v = person.eligibilityAnswers[q.id];
+        if (v === undefined || v === null) return false;
+        if (typeof v === 'string') return v.trim().length > 0;
+        return true;
+      });
+    return (
     <div style={{
       display: 'flex',
-      alignItems: 'center',
+      alignItems: hasCustomAnswers ? 'flex-start' : 'center',
       gap: spacing.md,
       padding: spacing.md,
       background: colors.background.secondary,
@@ -1016,7 +1030,8 @@ export default function PeopleTab({
       {cardType && <CardDownloadButton person={person} type={cardType} />}
       {actions}
     </div>
-  );
+    );
+  };
 
   const totalPeople = activeNominees.length + contestants.length;
   const isNewHost = totalPeople === 0;
