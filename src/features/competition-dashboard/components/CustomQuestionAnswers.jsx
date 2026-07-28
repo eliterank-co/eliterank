@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { ChevronDown, ChevronUp, ClipboardList } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
 
 /**
@@ -61,7 +61,7 @@ export default function CustomQuestionAnswers({ questions, answers }) {
         }}
         aria-expanded={open}
       >
-        <MessageSquare size={12} />
+        <ClipboardList size={12} />
         {answeredCount === 1 ? '1 response' : `${answeredCount} responses`}
         {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
       </button>
