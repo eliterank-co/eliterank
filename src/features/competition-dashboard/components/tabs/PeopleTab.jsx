@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
   Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
@@ -17,6 +17,8 @@ import { sortContestantsByStanding } from '../../../../utils/contestantRanking';
 import { getReachedTierLabel } from '../../../../utils/roundLabels';
 import { getNominationWindow, isLive } from '../../../../utils/competitionPhase';
 import WinnersManager from '../WinnersManager';
+import NomineeCustomAnswers from '../NomineeCustomAnswers';
+import { resolveNominationFormConfig } from '../../../../utils/nominationFormDefaults';
 
 // Normalize an instagram handle that may be a bare username, "@name", or full URL
 const parseInstagram = (raw) => {
@@ -92,6 +94,14 @@ export default function PeopleTab({
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
   const toast = useToast();
+  // Host-defined custom questions for this competition — used to label the
+  // nominee's answers shown on their row (answers live in eligibilityAnswers).
+  const customQuestions = useMemo(
+    () => resolveNominationFormConfig(
+      competition?.nominationFormConfig ?? competition?.nomination_form_config
+    ).custom_questions,
+    [competition?.nominationFormConfig, competition?.nomination_form_config]
+  );
   const [processingIds, setProcessingIds] = useState(new Set());
   const addProcessing = (id) => setProcessingIds(prev => new Set(prev).add(id));
   const removeProcessing = (id) => setProcessingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
@@ -993,6 +1003,9 @@ export default function PeopleTab({
           </span>
           {person.instagram && <InstagramLink instagram={person.instagram} />}
         </div>
+        {cardType === 'nominee' && customQuestions.length > 0 && (
+          <NomineeCustomAnswers questions={customQuestions} answers={person.eligibilityAnswers} />
+        )}
       </div>
       {cardType && <CardDownloadButton person={person} type={cardType} />}
       {actions}

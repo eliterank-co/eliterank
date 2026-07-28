@@ -422,6 +422,9 @@ export function useCompetitionDashboard(competitionId) {
           claimedAt: n.claimed_at,
           flowStage: n.flow_stage || null,
           convertedToContestant: n.converted_to_contestant,
+          // Raw answer blob (eligibility + host custom questions, cq_-prefixed)
+          // so the host can review the nominee's responses on the People tab.
+          eligibilityAnswers: n.eligibility_answers || null,
           createdAt: n.created_at,
         };
       });
