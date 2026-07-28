@@ -105,8 +105,10 @@ export default function EntryFlow() {
   // Early persist after details step for self-entry
   const handleDetailsNext = async () => {
     try {
-      await flow.persistSelfProgress('details');
-      flow.next();
+      const res = await flow.persistSelfProgress('details');
+      // On a collision the hook navigates to the password step itself to
+      // resume the existing entry — don't advance again on top of it.
+      if (!res?.handled) flow.next();
     } catch {
       // Error already set in hook — don't navigate
     }
@@ -348,6 +350,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           error={flow.submitError}
           isSettingPassword={false}
           onForgotPassword={flow.sendPasswordReset}
+          resumeExisting={flow.resumeExisting}
         />
       );
 

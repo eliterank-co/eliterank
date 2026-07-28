@@ -73,6 +73,11 @@ export function useEntryFlow(competition, profile, options = {}) {
   const [nomineeId, setNomineeId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // True when an anon entrant collided with an existing entry for this
+  // competition (their own abandoned attempt) and we routed them to the
+  // password step to resume/recover instead of dead-ending.
+  const [resumeExisting, setResumeExisting] = useState(false);
+
   // Eligibility
   const [eligibilityAnswers, setEligibilityAnswers] = useState({});
 
@@ -421,6 +426,21 @@ export function useEntryFlow(competition, profile, options = {}) {
 
         if (error) {
           if (error.code === '23505') {
+            // An entry with this email already exists for this competition.
+            // For an anon entrant this is almost always their own abandoned
+            // attempt (they got here before setting a password). Rather than a
+            // dead-end, route them to the password step to resume/recover —
+            // createAccount() looks the entry up by email+competition and
+            // either finishes account setup (unclaimed) or offers login/reset
+            // (already claimed). Logged-in users genuinely re-entering keep
+            // the plain "already entered" message.
+            if (!profile?.id) {
+              setResumeExisting(true);
+              setSubmitError('');
+              const pwIndex = steps.indexOf('password');
+              if (pwIndex >= 0) setCurrentStepIndex(pwIndex);
+              return { handled: true };
+            }
             throw new Error('You have already entered this competition.');
           }
           throw error;
@@ -437,7 +457,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [competition, selfData, eligibilityAnswers, customAnswers, profile, nomineeId, isPreview]);
+  }, [competition, selfData, eligibilityAnswers, customAnswers, profile, nomineeId, steps, isPreview]);
 
   // Submit self-entry
   const submitSelfEntry = useCallback(async () => {
@@ -535,6 +555,16 @@ export function useEntryFlow(competition, profile, options = {}) {
 
         if (error) {
           if (error.code === '23505') {
+            // Same collision-recovery as persistSelfProgress: anon entrant hit
+            // their own existing entry — send them to the password step to
+            // resume instead of dead-ending.
+            if (!profile?.id) {
+              setResumeExisting(true);
+              setSubmitError('');
+              const pwIndex = steps.indexOf('password');
+              if (pwIndex >= 0) setCurrentStepIndex(pwIndex);
+              return;
+            }
             throw new Error('You have already entered this competition.');
           }
           throw error;
@@ -632,6 +662,9 @@ export function useEntryFlow(competition, profile, options = {}) {
         nominee_id: nomineeId || undefined,
         password,
         email,
+        // Scope the email-based lookup so a collision-recovery resume finds the
+        // entry for THIS competition (nomineeId is null in the resume case).
+        competition_id: competition?.id || undefined,
       });
 
       let fnResp = await fetch(fnUrl, { method: 'POST', headers: fnHeaders, body: fnBody });
@@ -733,6 +766,21 @@ export function useEntryFlow(competition, profile, options = {}) {
           .eq('id', nomineeId);
       }
 
+      // On the collision-recovery path we skipped submitSelfEntry, so
+      // submittedData was never set — build it now (from what they typed,
+      // falling back to the card data the edge function returned) so the
+      // card reveal renders instead of an empty card.
+      const recoveredNominee = fnData?.nominee || null;
+      setSubmittedData((prev) => prev || {
+        name: `${selfData.firstName} ${selfData.lastName}`.trim() || recoveredNominee?.name || 'Your entry',
+        photoUrl: (selfData.photoPreview && !selfData.photoPreview.startsWith('blob:'))
+          ? selfData.photoPreview
+          : (recoveredNominee?.avatar_url || null),
+        handle: selfData.instagram || recoveredNominee?.instagram || '',
+        bio: selfData.bio || recoveredNominee?.bio || '',
+        isNomination: false,
+      });
+
       // Move to card
       setCurrentStepIndex(steps.indexOf('card'));
     } catch (err) {
@@ -740,7 +788,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selfData, nomineeId, steps, isPreview]);
+  }, [selfData, nomineeId, steps, competition, isPreview]);
 
   // ---- Skip password — send magic link so they can claim their account later ----
   const skipPassword = useCallback(() => {
@@ -934,6 +982,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     submitError,
     submittedData,
     isLoggedIn,
+    resumeExisting,
 
     // Data
     eligibilityAnswers,

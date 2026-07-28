@@ -19,6 +19,7 @@ export default function CreatePasswordStep({
   error,
   isSettingPassword, // true = existing user setting password, false = new signup
   onForgotPassword, // async (email) => { success, error } — sends reset email
+  resumeExisting, // true = arrived here by colliding with their own prior entry
 }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -67,12 +68,16 @@ export default function CreatePasswordStep({
   return (
     <form className="entry-step entry-step-password" onSubmit={handleSubmit}>
       <h2 className="entry-step-title">
-        {isSettingPassword ? 'Set your password' : 'Create your account'}
+        {resumeExisting
+          ? 'Finish your entry'
+          : isSettingPassword ? 'Set your password' : 'Create your account'}
       </h2>
       <p className="entry-step-subtitle">
-        {isSettingPassword
-          ? 'So you can log back in anytime'
-          : 'Save your entry and track your progress'}
+        {resumeExisting
+          ? "Looks like you already started an entry with this email. Set a password to pick up where you left off. Already have an account? Log in with your existing password below."
+          : isSettingPassword
+            ? 'So you can log back in anytime'
+            : 'Save your entry and track your progress'}
       </p>
 
       {/* Show email (read-only) */}

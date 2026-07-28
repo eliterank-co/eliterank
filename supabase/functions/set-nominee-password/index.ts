@@ -11,11 +11,24 @@ const corsHeaders = {
  *
  * Sets a password for a nominee's auth account using the admin API.
  * Used when the nominee arrives at the claim page without a session and
- * client-side signUp fails (e.g. handle_new_user trigger crash).
+ * client-side signUp fails (e.g. handle_new_user trigger crash), and to
+ * resume/recover an abandoned self-entry (email-only lookup).
  *
- * Accepts: { invite_token?: string, nominee_id?: string, password: string, email?: string }
+ * Accepts: { invite_token?, nominee_id?, email?, competition_id?, password }
  *   - Looks up nominee by invite_token first, then nominee_id, then email
- * Returns: { success: true, user_id: string }
+ *   - competition_id scopes the email lookup to the right competition when a
+ *     person has entered more than one.
+ *
+ * SECURITY — ownership guard: setting a password on a *pre-existing* auth
+ * account is only permitted when the caller presents the secret invite_token
+ * (the claim link, which is emailed to the account owner). The email-only
+ * paths (self-entry password step / collision recovery) prove no ownership,
+ * so if an account already exists for the email they get { error:
+ * 'account_exists' } and must fall back to login / password reset. Without
+ * this guard, anyone could take over an account by entering its email.
+ *
+ * Returns: { success: true, user_id, nominee: { name, avatar_url, instagram, bio } | null }
+ *   or, when an account already exists on an email-only call: { error: 'account_exists' }
  */
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -23,7 +36,7 @@ serve(async (req) => {
   }
 
   try {
-    const { invite_token, nominee_id, password, email: clientEmail } = await req.json()
+    const { invite_token, nominee_id, password, email: clientEmail, competition_id } = await req.json()
 
     if (!password) {
       return new Response(
@@ -81,11 +94,15 @@ serve(async (req) => {
     }
 
     if (!nominee && clientEmail) {
-      console.log('Looking up nominee by email:', clientEmail)
-      const result = await supabase
+      console.log('Looking up nominee by email:', clientEmail, 'competition:', competition_id ?? '(any)')
+      // Scope to the competition when provided so a person entered in multiple
+      // competitions resumes the correct entry (not just the most recent).
+      let query = supabase
         .from('nominees')
         .select('id, email, user_id, name')
         .ilike('email', clientEmail.trim())
+      if (competition_id) query = query.eq('competition_id', competition_id)
+      const result = await query
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -174,6 +191,21 @@ serve(async (req) => {
         authUserId = match.id
         console.log('Found auth user via listUsers:', authUserId)
       }
+    }
+
+    // ── 3d. Ownership guard ─────────────────────────────────────────────
+    // If an auth account already exists for this email, only allow setting
+    // its password when the caller proved ownership with the secret
+    // invite_token (the claim link emailed to the owner). Email-only callers
+    // (self-entry password step / abandoned-entry recovery) have proven
+    // nothing, so they must fall back to login / password reset instead —
+    // otherwise entering someone else's email would take over their account.
+    if (authUserId && !invite_token) {
+      console.warn('Refusing to set password on existing account without invite_token for email:', email)
+      return new Response(
+        JSON.stringify({ error: 'account_exists', account_exists: true }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // ── 4. Create or update the auth user ───────────────────────────────
@@ -340,7 +372,20 @@ serve(async (req) => {
 
     console.log('set-nominee-password completed successfully for user:', authUserId)
     return new Response(
-      JSON.stringify({ success: true, user_id: authUserId }),
+      JSON.stringify({
+        success: true,
+        user_id: authUserId,
+        // Card fields let the client render the reveal on resume without an
+        // extra (RLS-restricted) read of the nominee row.
+        nominee: fullNominee
+          ? {
+              name: fullNominee.name,
+              avatar_url: fullNominee.avatar_url,
+              instagram: fullNominee.instagram,
+              bio: fullNominee.bio,
+            }
+          : null,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
