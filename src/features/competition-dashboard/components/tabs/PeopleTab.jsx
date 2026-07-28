@@ -1003,7 +1003,13 @@ export default function PeopleTab({
           </span>
           {person.instagram && <InstagramLink instagram={person.instagram} />}
         </div>
-        {(cardType === 'nominee' || cardType === 'contestant') && customQuestions.length > 0 && (
+        {/* Custom-question responses. Gated on answers presence rather than
+            cardType so it shows for every person who carries them (nominees in
+            any bucket — including declined/rejected — and converted
+            contestants) without pulling in cardType-specific chrome like the
+            card-download button. Only nominees/contestants ever have the field;
+            the component renders nothing when there are no answers. */}
+        {customQuestions.length > 0 && person.eligibilityAnswers && (
           <CustomQuestionAnswers questions={customQuestions} answers={person.eligibilityAnswers} />
         )}
       </div>
