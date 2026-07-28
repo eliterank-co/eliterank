@@ -3,19 +3,21 @@ import { ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
 
 /**
- * NomineeCustomAnswers
+ * CustomQuestionAnswers
  *
- * Host-facing, read-only display of a nominee's answers to the host-defined
- * custom questions (stored in `nominees.eligibility_answers` under the
- * question's `cq_`-prefixed id). Collapsible so nominee rows stay compact by
- * default. Renders nothing unless the competition has custom questions AND the
- * nominee answered at least one of them (so nominees who never reached the
- * questions — e.g. still awaiting response — show no empty section).
+ * Host-facing, read-only display of a person's answers to the host-defined
+ * custom questions (stored on the nominee row in `eligibility_answers` under
+ * the question's `cq_`-prefixed id). Shown on both nominee rows and, after a
+ * nominee is converted, contestant rows (the answers are carried over from the
+ * retained nominee record). Collapsible so rows stay compact by default.
+ * Renders nothing unless the competition has custom questions AND the person
+ * answered at least one of them (so people who never reached the questions —
+ * e.g. a nominee still awaiting response — show no empty section).
  *
  * @param {Array}  questions - resolved custom questions: { id, label, type, options }
  * @param {Object} answers   - the raw eligibility_answers blob (may be null)
  */
-export default function NomineeCustomAnswers({ questions, answers }) {
+export default function CustomQuestionAnswers({ questions, answers }) {
   const [open, setOpen] = useState(false);
 
   if (!Array.isArray(questions) || questions.length === 0) return null;

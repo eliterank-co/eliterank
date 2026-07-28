@@ -17,7 +17,7 @@ import { sortContestantsByStanding } from '../../../../utils/contestantRanking';
 import { getReachedTierLabel } from '../../../../utils/roundLabels';
 import { getNominationWindow, isLive } from '../../../../utils/competitionPhase';
 import WinnersManager from '../WinnersManager';
-import NomineeCustomAnswers from '../NomineeCustomAnswers';
+import CustomQuestionAnswers from '../CustomQuestionAnswers';
 import { resolveNominationFormConfig } from '../../../../utils/nominationFormDefaults';
 
 // Normalize an instagram handle that may be a bare username, "@name", or full URL
@@ -1003,8 +1003,8 @@ export default function PeopleTab({
           </span>
           {person.instagram && <InstagramLink instagram={person.instagram} />}
         </div>
-        {cardType === 'nominee' && customQuestions.length > 0 && (
-          <NomineeCustomAnswers questions={customQuestions} answers={person.eligibilityAnswers} />
+        {(cardType === 'nominee' || cardType === 'contestant') && customQuestions.length > 0 && (
+          <CustomQuestionAnswers questions={customQuestions} answers={person.eligibilityAnswers} />
         )}
       </div>
       {cardType && <CardDownloadButton person={person} type={cardType} />}

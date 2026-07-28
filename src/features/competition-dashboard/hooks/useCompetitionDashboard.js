@@ -303,6 +303,25 @@ export function useCompetitionDashboard(competitionId) {
         })
         .filter(Boolean);
 
+      // Custom-question answers live only on the nominee row. When a nominee is
+      // converted to a contestant, the contestant row doesn't carry them, so
+      // build a lookup to re-attach the originating nominee's answer blob to the
+      // contestant (matched by user_id first, then email). The nominee row is
+      // retained on conversion, so this stays valid after promotion.
+      const nomineeAnswersByUserId = new Map();
+      const nomineeAnswersByEmail = new Map();
+      (nomineesResult.data || []).forEach((n) => {
+        if (!n.eligibility_answers) return;
+        if (n.user_id) nomineeAnswersByUserId.set(n.user_id, n.eligibility_answers);
+        if (n.email) nomineeAnswersByEmail.set(n.email.toLowerCase(), n.eligibility_answers);
+      });
+      const findNomineeAnswers = (userId, email) => {
+        if (userId && nomineeAnswersByUserId.has(userId)) return nomineeAnswersByUserId.get(userId);
+        const e = email?.toLowerCase();
+        if (e && nomineeAnswersByEmail.has(e)) return nomineeAnswersByEmail.get(e);
+        return null;
+      };
+
       // Transform contestants for leaderboard
       const contestants = (contestantsResult.data || []).map((c, index) => ({
         id: c.id,
@@ -320,6 +339,8 @@ export function useCompetitionDashboard(competitionId) {
         gender: c.gender || null,
         eliminatedInRound: c.eliminated_in_round,
         currentRound: c.current_round,
+        // Answers to host custom questions, carried over from their nominee row.
+        eligibilityAnswers: findNomineeAnswers(c.user_id, c.email || c.profile?.email),
       }));
 
       // Targeted profile lookup for nominee matching
