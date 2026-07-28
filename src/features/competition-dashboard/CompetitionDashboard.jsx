@@ -17,7 +17,9 @@ import { OverviewTab, PeopleTab, EmailActivityTab, ContentTab, SetupTab, Engagem
 import AnnouncementsManager from './components/AnnouncementsManager';
 import AudienceManager from './components/AudienceManager';
 import JudgingResultsPanel from './components/JudgingResultsPanel';
+import HostAgreementGate from './components/HostAgreementGate';
 import { COMPETITION_STATUS } from '../../types/competition';
+import { HOST_AGREEMENT_VERSION } from '../../lib/hostAgreement';
 
 // Consolidated tab navigation. Launch leads — it's the guided checklist for
 // getting a competition live; the rest are the day-to-day management surfaces.
@@ -170,6 +172,21 @@ export default function CompetitionDashboard({
 
   const competition = data.competition;
   const competitionName = competition?.name || 'Competition';
+
+  // Blocking re-acceptance gate: after the Host Agreement version is bumped, an
+  // existing host who accepted an OLDER version must re-accept before using the
+  // dashboard. New hosts (no prior acceptance) go through the normal onboarding
+  // card, so we gate only a stale prior acceptance. Managed orgs and super-admin
+  // viewers are never gated.
+  const agreementVersion = competition?.agreement?.version || null;
+  const needsAgreementReAcceptance =
+    !loading &&
+    !isSuperAdmin &&
+    !!competition &&
+    !competition.managed &&
+    !!competition.organizationId &&
+    !!agreementVersion &&
+    agreementVersion !== HOST_AGREEMENT_VERSION;
 
   // A finished competition (completed/archived) has already run, so the launch
   // flow is moot — hide the Launch tab entirely rather than presenting its
@@ -959,6 +976,13 @@ export default function CompetitionDashboard({
           {renderContent()}
         </main>
       </div>
+      {needsAgreementReAcceptance && (
+        <HostAgreementGate
+          organizationId={competition?.organizationId}
+          onAccepted={refresh}
+          onLogout={onLogout}
+        />
+      )}
       <HostAssignmentModal
         isOpen={showHostAssignment}
         onClose={() => setShowHostAssignment(false)}

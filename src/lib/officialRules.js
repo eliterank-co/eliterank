@@ -175,6 +175,17 @@ export function buildOfficialRules(competition, context = {}) {
   const pricePerVote = pick(c, 'pricePerVote', 'price_per_vote', null);
   const cityVal = c.city;
   const cityName = typeof cityVal === 'object' ? cityVal?.name : cityVal;
+  // Geography-driven country detection. The competition's anchor city carries a
+  // province/state code; Ontario ('ON') is the only Canadian geography currently
+  // supported (Toronto). A Canadian competition must open eligibility to Ontario
+  // residents and carry the mandatory Canadian skill-testing question, so the
+  // rules follow the geography rather than assuming US-only. (The dashboard
+  // passes the city as a name string plus a `cityData` object; the public row
+  // passes the joined city object directly — handle both.)
+  const cityObj =
+    cityVal && typeof cityVal === 'object' ? cityVal : pick(c, 'cityData', 'city_data', null);
+  const cityProvince = cityObj && typeof cityObj === 'object' ? cityObj.state || null : null;
+  const isCanadianCompetition = cityProvince === 'ON';
 
   const rounds =
     (ctxRounds && ctxRounds.length ? ctxRounds : pick(c, 'voting_rounds', 'votingRounds', [])) || [];
@@ -273,13 +284,34 @@ export function buildOfficialRules(competition, context = {}) {
       {
         kind: 'ul',
         items: [
-          'Entrants and voters must be legal residents of the United States and not residents of any jurisdiction where the Competition is prohibited by law.',
+          isCanadianCompetition
+            ? 'Entrants and voters must be legal residents of the United States or of the province of Ontario, Canada, and not residents of any jurisdiction where the Competition is prohibited by law.'
+            : 'Entrants and voters must be legal residents of the United States and not residents of any jurisdiction where the Competition is prohibited by law.',
           'Employees, officers, directors, and contractors of the Host and the other Promotion Entities, and their immediate family and household members, are not eligible to win prizes.',
           'It is your responsibility to confirm your eligibility before nominating, entering, or voting.',
         ],
       },
     ],
   });
+
+  // ── Skill-Testing Question (Canadian residents) ──────────────────────────
+  // Required by Canadian law (Criminal Code + Competition Act) for prize
+  // contests open to Canadian residents, so it appears only for a Canadian
+  // competition. Mirrors the wording on ContestTermsPage. The administered
+  // question must be a genuine multi-step (four-operation) math problem, timed
+  // and unaided — the enforcement mechanism is tracked separately in #639.
+  if (isCanadianCompetition) {
+    sections.push({
+      id: 'skill-testing',
+      title: 'Skill-Testing Question (Canadian Residents)',
+      blocks: [
+        {
+          kind: 'p',
+          text: 'To comply with Canadian law, any potential winner who is a resident of Canada must, before any prize is awarded, correctly answer without mechanical or other aid a time-limited mathematical skill-testing question administered by the Host. Failure to correctly answer the skill-testing question within the time allowed will result in disqualification, and an alternate winner may be selected.',
+        },
+      ],
+    });
+  }
 
   // ── How to Enter ─────────────────────────────────────────────────────────
   let entry;

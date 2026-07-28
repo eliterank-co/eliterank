@@ -436,6 +436,7 @@ export async function createVotePaymentIntent({
       clientSecret: data.clientSecret,
       paymentIntentId: data.paymentIntentId,
       amount: data.amount,
+      currency: data.currency,
       voteCount: data.voteCount,
       contestantName: data.contestantName,
       connectedAccountId: data.connectedAccountId,

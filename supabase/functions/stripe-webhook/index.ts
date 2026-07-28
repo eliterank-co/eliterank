@@ -284,6 +284,7 @@ serve(async (req) => {
             voter_email: resolvedVoterEmail || null,
             vote_count: voteCount,
             amount_paid: amountPaid,
+            currency: paymentIntent.currency,
             payment_intent_id: paymentIntent.id,
             is_double_vote: isDoubleVoteDay,
           })
