@@ -25,6 +25,7 @@ export default function BuildCardDetailsStep({
   error,
   isSubmitting,
   splitByGender = false,
+  emailLocked = false,
 }) {
   const handleChange = (field) => (e) => {
     onChange({ [field]: e.target.value });
@@ -141,8 +142,14 @@ export default function BuildCardDetailsStep({
             onChange={handleChange('email')}
             placeholder="your@email.com"
             autoComplete="email"
+            readOnly={emailLocked}
+            disabled={emailLocked}
+            style={emailLocked ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
           />
         </div>
+        {emailLocked && (
+          <p className="entry-hint">Your entry is tied to your account email.</p>
+        )}
       </div>
 
       <div className="entry-form-field">

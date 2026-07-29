@@ -161,6 +161,30 @@ export default function EntryFlow() {
     );
   }
 
+  // Already entered — a logged-in user who has already completed a self-entry
+  // for this competition can't enter again (previously bypassable by editing
+  // the email on the details step).
+  if (flow.alreadyEntered) {
+    return (
+      <div className="entry-flow">
+        <div className="entry-closed-state">
+          <AlertCircle size={48} />
+          <h2>You're already entered</h2>
+          <p>
+            You've already entered {competitionTitle} with this account. Each person
+            can only enter once.
+          </p>
+          <button
+            className="entry-btn-primary"
+            onClick={() => navigate(competitionPathWithPreview)}
+          >
+            View Competition
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Progress dots
   const totalDots = flow.totalSteps;
   const currentDot = flow.currentStepIndex;
@@ -312,6 +336,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           error={flow.submitError}
           isSubmitting={flow.isSubmitting}
           splitByGender={!!competition?.winners_split_by_gender}
+          emailLocked={flow.isLoggedIn}
         />
       );
 

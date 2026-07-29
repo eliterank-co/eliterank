@@ -72,6 +72,10 @@ export function useEntryFlow(competition, profile, options = {}) {
   const [submittedData, setSubmittedData] = useState(null);
   const [nomineeId, setNomineeId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  // Set when a logged-in user already has a completed self-entry for this
+  // competition — they can't re-enter (the flow shows a block screen instead
+  // of letting them walk the form again with a different email).
+  const [alreadyEntered, setAlreadyEntered] = useState(false);
 
   // Eligibility
   const [eligibilityAnswers, setEligibilityAnswers] = useState({});
@@ -162,33 +166,49 @@ export function useEntryFlow(competition, profile, options = {}) {
 
     const checkExistingProgress = async () => {
       try {
-        // Get user's email - from profile if logged in, or from session if exists
-        let userEmail = profile?.email;
-        
-        if (!userEmail) {
-          const { data: { session } } = await supabase.auth.getSession();
-          userEmail = session?.user?.email;
-        }
-
-        if (!userEmail) return; // Can't check without email
-
-        // Look for an existing self-nomination in progress for this competition
-        const { data: existingNominee, error } = await supabase
+        // Identity check. Logged-in users are matched by user_id so a
+        // re-entry with a slightly-different email can't slip past the
+        // "already entered" rule; anonymous users fall back to email.
+        let query = supabase
           .from('nominees')
           .select('*')
           .eq('competition_id', competition.id)
-          .ilike('email', userEmail)
-          .eq('nominated_by', 'self')
-          .maybeSingle();
+          .eq('nominated_by', 'self');
 
-        if (error || !existingNominee) return;
+        if (profile?.id) {
+          query = query.eq('user_id', profile.id);
+        } else {
+          let userEmail = profile?.email;
+          if (!userEmail) {
+            const { data: { session } } = await supabase.auth.getSession();
+            userEmail = session?.user?.email;
+          }
+          if (!userEmail) return; // Can't check without identity
+          query = query.ilike('email', userEmail);
+        }
+
+        // Order so the most relevant record is first: prefer records that are
+        // not rejected, then the most recently touched.
+        const { data: rows, error } = await query.order('created_at', { ascending: false });
+
+        if (error || !rows || rows.length === 0) return;
+
+        // A rejected entry is void — it doesn't count as "already entered" and
+        // shouldn't be resumed, so the person can start a fresh entry.
+        const liveRows = rows.filter((r) => r.status !== 'rejected');
+        if (liveRows.length === 0) return;
+
+        const existingNominee = liveRows[0];
 
         // Found existing entry - check if we should resume
         const flowStage = existingNominee.flow_stage;
         const hasClaimed = !!existingNominee.claimed_at;
-        
-        // If already claimed and completed, don't resume
-        if (hasClaimed && flowStage === 'card') {
+
+        // Already finished a real entry → block re-entry outright. Logged-in
+        // users can't re-enter by editing their email; the flow renders an
+        // "already entered" screen instead of the form.
+        if (hasClaimed || flowStage === 'card') {
+          if (profile?.id) setAlreadyEntered(true);
           return;
         }
 
@@ -257,7 +277,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     };
 
     checkExistingProgress();
-  }, [competition?.id, profile?.email, isLoggedIn, isPreview]);
+  }, [competition?.id, profile?.id, profile?.email, isLoggedIn, isPreview]);
 
   // Select mode
   const selectMode = useCallback((selectedMode) => {
@@ -931,6 +951,7 @@ export function useEntryFlow(competition, profile, options = {}) {
     submitError,
     submittedData,
     isLoggedIn,
+    alreadyEntered,
 
     // Data
     eligibilityAnswers,
