@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
   Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
@@ -17,6 +17,8 @@ import { sortContestantsByStanding } from '../../../../utils/contestantRanking';
 import { getReachedTierLabel } from '../../../../utils/roundLabels';
 import { getNominationWindow, isLive } from '../../../../utils/competitionPhase';
 import WinnersManager from '../WinnersManager';
+import CustomQuestionAnswers from '../CustomQuestionAnswers';
+import { resolveNominationFormConfig, countAnsweredCustomQuestions } from '../../../../utils/nominationFormDefaults';
 
 // Normalize an instagram handle that may be a bare username, "@name", or full URL
 const parseInstagram = (raw) => {
@@ -92,6 +94,14 @@ export default function PeopleTab({
   const { isMobile } = useResponsive();
   const navigate = useNavigate();
   const toast = useToast();
+  // Host-defined custom questions for this competition — used to label the
+  // nominee's answers shown on their row (answers live in eligibilityAnswers).
+  const customQuestions = useMemo(
+    () => resolveNominationFormConfig(
+      competition?.nominationFormConfig ?? competition?.nomination_form_config
+    ).custom_questions,
+    [competition?.nominationFormConfig, competition?.nomination_form_config]
+  );
   const [processingIds, setProcessingIds] = useState(new Set());
   const addProcessing = (id) => setProcessingIds(prev => new Set(prev).add(id));
   const removeProcessing = (id) => setProcessingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
@@ -856,10 +866,18 @@ export default function PeopleTab({
   };
 
   // Person row component - shared between contestants and nominees
-  const PersonRow = ({ person, actions, dimmed, showVotes, onNameClick, cardType, onAvatarUpload }) => (
+  const PersonRow = ({ person, actions, dimmed, showVotes, onNameClick, cardType, onAvatarUpload }) => {
+    // Whether this person has host custom-question answers to show. When they
+    // do, the expandable panel makes the row tall — anchor the avatar and
+    // actions to the top so they don't drift to the vertical center once the
+    // dropdown is open. Rows without the panel keep the default centered look.
+    const hasCustomAnswers =
+      customQuestions.length > 0 &&
+      countAnsweredCustomQuestions(customQuestions, person.eligibilityAnswers) > 0;
+    return (
     <div style={{
       display: 'flex',
-      alignItems: 'center',
+      alignItems: hasCustomAnswers ? 'flex-start' : 'center',
       gap: spacing.md,
       padding: spacing.md,
       background: colors.background.secondary,
@@ -993,11 +1011,21 @@ export default function PeopleTab({
           </span>
           {person.instagram && <InstagramLink instagram={person.instagram} />}
         </div>
+        {/* Custom-question responses. Gated on answers presence rather than
+            cardType so it shows for every person who carries them (nominees in
+            any bucket — including declined/rejected — and converted
+            contestants) without pulling in cardType-specific chrome like the
+            card-download button. Only nominees/contestants ever have the field;
+            the component renders nothing when there are no answers. */}
+        {customQuestions.length > 0 && person.eligibilityAnswers && (
+          <CustomQuestionAnswers questions={customQuestions} answers={person.eligibilityAnswers} />
+        )}
       </div>
       {cardType && <CardDownloadButton person={person} type={cardType} />}
       {actions}
     </div>
-  );
+    );
+  };
 
   const totalPeople = activeNominees.length + contestants.length;
   const isNewHost = totalPeople === 0;

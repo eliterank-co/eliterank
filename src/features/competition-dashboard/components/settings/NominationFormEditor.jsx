@@ -377,7 +377,9 @@ export function NominationFormEditor({
 
         <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: `0 0 ${spacing.xl}` }}>
           Add up to {MAX_CUSTOM_QUESTIONS} custom questions on top of the standard nomination flow.
-          Answers are saved with the nominee.
+          The nominee answers these themselves — when they self-nominate, or when
+          they accept a nomination and build their card. Nominators never answer
+          on someone else's behalf. Answers are saved with the nominee.
         </p>
 
         {/* Standard fields (read-only) */}
@@ -433,7 +435,7 @@ export function NominationFormEditor({
                 Custom Questions ({customQuestions.length}/{MAX_CUSTOM_QUESTIONS})
               </div>
               <p style={{ color: colors.text.muted, fontSize: typography.fontSize.xs, margin: 0 }}>
-                Shown on the self-nomination form, below the standard fields.
+                Answered by the nominee when they self-nominate or build their card.
               </p>
             </div>
             <Button

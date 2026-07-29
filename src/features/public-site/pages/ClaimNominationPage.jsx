@@ -13,6 +13,7 @@ import EligibilityConfirmStep from '../../entry/components/EligibilityConfirmSte
 import PhotoUpload from '../../entry/components/PhotoUpload';
 import BuildCardDetailsStep from '../../entry/components/BuildCardDetailsStep';
 import SelfPitchStep from '../../entry/components/SelfPitchStep';
+import CustomQuestionsStep from '../../entry/components/CustomQuestionsStep';
 import CreatePasswordStep from '../../entry/components/CreatePasswordStep';
 import WelcomeBackStep from '../../entry/components/WelcomeBackStep';
 import CardReveal from '../../entry/components/CardReveal';
@@ -108,7 +109,7 @@ export default function ClaimNominationPage({ token, onClose, onSuccess }) {
         // after a failed magic-link hash exchange) can't leave the page
         // frozen on the loading spinner. If it times out, fall back to a
         // direct REST call with the anon key — nominees are public-readable.
-        const selectCols = `*,competition:competitions(id,name,city:cities(name),season,status,nomination_start,nomination_end,voting_start,organization:organizations(name,logo_url,slug),demographic:demographics(*),category:categories(*))`;
+        const selectCols = `*,competition:competitions(id,name,city:cities(name),season,status,nomination_start,nomination_end,voting_start,nomination_form_config,organization:organizations(name,logo_url,slug),demographic:demographics(*),category:categories(*))`;
 
         const queryPromise = supabase
           .from('nominees')
@@ -487,10 +488,22 @@ function renderClaimStep(flow, competition, nominee, handleDecline, handleInelig
         <SelfPitchStep
           bio={flow.cardData.bio}
           onChange={(bio) => flow.updateCardData({ bio })}
-          onSubmit={flow.submitCard}
+          onSubmit={flow.hasCustomQuestions ? flow.next : flow.submitCard}
           isSubmitting={flow.isSubmitting}
           error={flow.submitError}
           competition={competition}
+        />
+      );
+
+    case 'custom':
+      return (
+        <CustomQuestionsStep
+          questions={flow.customQuestions}
+          answers={flow.customAnswers}
+          onChange={flow.setCustomAnswer}
+          onSubmit={flow.submitCard}
+          isSubmitting={flow.isSubmitting}
+          error={flow.submitError}
         />
       );
 
