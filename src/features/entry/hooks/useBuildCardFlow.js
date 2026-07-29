@@ -2,23 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { uploadPhoto } from '../utils/uploadPhoto';
 import { getCityName } from '../utils/eligibilityEngine';
-import { resolveNominationFormConfig } from '../../../utils/nominationFormDefaults';
-
-/**
- * Split a persisted `eligibility_answers` blob into eligibility keys vs. host
- * custom-question answers (prefixed `cq_`) so each renders in the right step.
- */
-function splitAnswers(blob) {
-  const elig = {};
-  const custom = {};
-  if (blob && typeof blob === 'object') {
-    Object.entries(blob).forEach(([k, v]) => {
-      if (k.startsWith('cq_')) custom[k] = v;
-      else elig[k] = v;
-    });
-  }
-  return { elig, custom };
-}
+import { resolveNominationFormConfig, splitCustomAnswers } from '../../../utils/nominationFormDefaults';
 
 /** Race a promise against a timeout. Rejects if the promise doesn't settle in time. */
 function withTimeout(promise, ms) {
@@ -113,8 +97,8 @@ export function useBuildCardFlow({
   // the same `eligibility_answers` JSONB column but kept in separate state so
   // each renders in its own step. Split any persisted blob on init (custom
   // question IDs are prefixed `cq_`).
-  const initialAnswers = splitAnswers(nominee?.eligibility_answers);
-  const [eligibilityAnswers, setEligibilityAnswers] = useState(initialAnswers.elig);
+  const initialAnswers = splitCustomAnswers(nominee?.eligibility_answers);
+  const [eligibilityAnswers, setEligibilityAnswers] = useState(initialAnswers.eligibility);
   const [customAnswers, setCustomAnswers] = useState(initialAnswers.custom);
 
   // Pre-fill card data from profile or nominee record
@@ -148,8 +132,8 @@ export function useBuildCardFlow({
     // Fill answer state from the persisted blob when it loads (nominee arrives
     // async on the claim page). Only fill while empty so in-progress edits win.
     if (nominee.eligibility_answers) {
-      const { elig, custom } = splitAnswers(nominee.eligibility_answers);
-      setEligibilityAnswers((prev) => (Object.keys(prev).length ? prev : elig));
+      const { eligibility, custom } = splitCustomAnswers(nominee.eligibility_answers);
+      setEligibilityAnswers((prev) => (Object.keys(prev).length ? prev : eligibility));
       setCustomAnswers((prev) => (Object.keys(prev).length ? prev : custom));
     }
 

@@ -18,7 +18,7 @@ import { getReachedTierLabel } from '../../../../utils/roundLabels';
 import { getNominationWindow, isLive } from '../../../../utils/competitionPhase';
 import WinnersManager from '../WinnersManager';
 import CustomQuestionAnswers from '../CustomQuestionAnswers';
-import { resolveNominationFormConfig } from '../../../../utils/nominationFormDefaults';
+import { resolveNominationFormConfig, countAnsweredCustomQuestions } from '../../../../utils/nominationFormDefaults';
 
 // Normalize an instagram handle that may be a bare username, "@name", or full URL
 const parseInstagram = (raw) => {
@@ -873,13 +873,7 @@ export default function PeopleTab({
     // dropdown is open. Rows without the panel keep the default centered look.
     const hasCustomAnswers =
       customQuestions.length > 0 &&
-      !!person.eligibilityAnswers &&
-      customQuestions.some((q) => {
-        const v = person.eligibilityAnswers[q.id];
-        if (v === undefined || v === null) return false;
-        if (typeof v === 'string') return v.trim().length > 0;
-        return true;
-      });
+      countAnsweredCustomQuestions(customQuestions, person.eligibilityAnswers) > 0;
     return (
     <div style={{
       display: 'flex',

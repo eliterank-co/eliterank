@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { uploadPhoto } from '../utils/uploadPhoto';
-import { resolveNominationFormConfig } from '../../../utils/nominationFormDefaults';
+import { resolveNominationFormConfig, splitCustomAnswers } from '../../../utils/nominationFormDefaults';
 
 // Columns added by later migrations — strip if migration hasn't run yet
 const NEW_COLUMNS = ['city', 'flow_stage', 'gender', 'birthdate'];
@@ -215,13 +215,8 @@ export function useEntryFlow(competition, profile, options = {}) {
         if (existingNominee.eligibility_answers) {
           // Split saved JSONB blob: eligibility yes/no keys vs. host-defined
           // custom question answers (prefixed `cq_`).
-          const elig = {};
-          const custom = {};
-          Object.entries(existingNominee.eligibility_answers).forEach(([k, v]) => {
-            if (k.startsWith('cq_')) custom[k] = v;
-            else elig[k] = v;
-          });
-          setEligibilityAnswers(elig);
+          const { eligibility, custom } = splitCustomAnswers(existingNominee.eligibility_answers);
+          setEligibilityAnswers(eligibility);
           if (Object.keys(custom).length > 0) setCustomAnswers(custom);
         }
 

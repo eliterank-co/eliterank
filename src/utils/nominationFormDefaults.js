@@ -75,3 +75,46 @@ export function resolveNominationFormConfig(stored) {
 export function newCustomQuestionId() {
   return 'cq_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 }
+
+/**
+ * Nominee/contestant custom-question answers live in the same
+ * `eligibility_answers` JSONB blob as the yes/no eligibility answers, keyed by
+ * the question id. Custom-question ids are always `cq_`-prefixed; eligibility
+ * keys never are. These helpers are the single source of truth for splitting,
+ * detecting, and counting answers so the entry flow, claim flow, and host
+ * viewer never drift apart.
+ */
+export const CUSTOM_QUESTION_KEY_PREFIX = 'cq_';
+
+/** Split a persisted answer blob into eligibility keys vs. `cq_` custom keys. */
+export function splitCustomAnswers(blob) {
+  const eligibility = {};
+  const custom = {};
+  if (blob && typeof blob === 'object') {
+    Object.entries(blob).forEach(([key, value]) => {
+      if (key.startsWith(CUSTOM_QUESTION_KEY_PREFIX)) custom[key] = value;
+      else eligibility[key] = value;
+    });
+  }
+  return { eligibility, custom };
+}
+
+/**
+ * Whether a nominee provided a displayable answer to a custom question.
+ * Display semantics: any non-empty value, including a boolean, counts. This is
+ * intentionally distinct from the entry form's required-field validation (which
+ * treats an explicit `false` checkbox as unanswered).
+ */
+export function hasCustomAnswer(question, answers) {
+  if (!question || !answers || typeof answers !== 'object') return false;
+  const v = answers[question.id];
+  if (v === undefined || v === null) return false;
+  if (typeof v === 'string') return v.trim().length > 0;
+  return true;
+}
+
+/** How many of the given custom questions the answer blob has responses to. */
+export function countAnsweredCustomQuestions(questions, answers) {
+  if (!Array.isArray(questions)) return 0;
+  return questions.filter((q) => hasCustomAnswer(q, answers)).length;
+}

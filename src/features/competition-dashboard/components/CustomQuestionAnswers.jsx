@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, ClipboardList } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
+import { countAnsweredCustomQuestions } from '../../../utils/nominationFormDefaults';
 
 /**
  * CustomQuestionAnswers
@@ -23,14 +24,7 @@ export default function CustomQuestionAnswers({ questions, answers }) {
   if (!Array.isArray(questions) || questions.length === 0) return null;
   const blob = answers && typeof answers === 'object' ? answers : {};
 
-  const isAnswered = (q) => {
-    const v = blob[q.id];
-    if (v === undefined || v === null) return false;
-    if (typeof v === 'string') return v.trim().length > 0;
-    return true; // booleans (yes/no, checkbox) count as answered
-  };
-
-  const answeredCount = questions.filter(isAnswered).length;
+  const answeredCount = countAnsweredCustomQuestions(questions, blob);
   if (answeredCount === 0) return null;
 
   const formatAnswer = (q) => {
