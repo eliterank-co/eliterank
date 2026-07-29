@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
   Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
-  ChevronUp, ChevronDown, MessageSquare,
+  ChevronUp, ChevronDown, MessageSquare, Search, X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge, Avatar, Panel, Modal } from '../../../../components/ui';
@@ -143,6 +143,13 @@ export default function PeopleTab({
   // 'all' | 'male' | 'female' — only meaningful when the competition splits
   // winners by gender. Filters every nominee / contestant section below.
   const [genderFilter, setGenderFilter] = useState('all');
+  // Free-text search across every nominee / contestant section — matches on
+  // name or email (case-insensitive substring).
+  const [searchQuery, setSearchQuery] = useState('');
+  // Date-added sort applied to every section. 'default' keeps each section's
+  // natural order (contestants by standing, nominees newest-first); 'newest'
+  // and 'oldest' sort every section by when the person was added.
+  const [sortOrder, setSortOrder] = useState('default');
 
   const splitByGender = !!competition?.winnersSplitByGender;
 
@@ -477,12 +484,40 @@ export default function PeopleTab({
     return list.filter((p) => p.gender === genderFilter);
   };
 
+  // Name/email search. Emails can arrive as "Name <email>" so we match against
+  // the raw string — a substring match still catches the address itself.
+  const searchTerm = searchQuery.trim().toLowerCase();
+  const applySearch = (list) => {
+    if (!searchTerm) return list;
+    return list.filter((p) =>
+      (p.name || '').toLowerCase().includes(searchTerm) ||
+      (p.email || '').toLowerCase().includes(searchTerm)
+    );
+  };
+
+  // Sort by date added. 'default' leaves the list untouched so each section
+  // keeps its own natural order; otherwise sort by createdAt in the chosen
+  // direction. Missing dates sort as oldest (0).
+  const isDateSort = sortOrder === 'newest' || sortOrder === 'oldest';
+  const applyDateSort = (list) => {
+    if (!isDateSort) return list;
+    const dir = sortOrder === 'newest' ? -1 : 1;
+    return [...list].sort((a, b) => {
+      const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return (ta - tb) * dir;
+    });
+  };
+
+  // Gender filter → search → date sort, applied to every section.
+  const refine = (list) => applyDateSort(applySearch(applyGenderFilter(list)));
+
   // Filtered views used in the section panels + their counts.
-  const nomineesWithProfile = applyGenderFilter(nomineesWithProfileAll);
-  const externalNominees = applyGenderFilter(externalNomineesAll);
-  const incompleteNominees = applyGenderFilter(incompleteNomineesAll);
-  const declinedNominees = applyGenderFilter(declinedNomineesAll);
-  const contestantsFiltered = applyGenderFilter(contestants || []);
+  const nomineesWithProfile = refine(nomineesWithProfileAll);
+  const externalNominees = refine(externalNomineesAll);
+  const incompleteNominees = refine(incompleteNomineesAll);
+  const declinedNominees = refine(declinedNomineesAll);
+  const contestantsFiltered = refine(contestants || []);
 
   // Whether a nominee can be approved (must have accepted and have a profile)
   const canApprove = (nominee) => {
@@ -1197,6 +1232,90 @@ export default function PeopleTab({
         })}
       </div>}
 
+      {/* Search + sort toolbar — filters and orders every section below.
+          No CSS `order` set, so it stays in the top (order-0) group above the
+          reorderable section panels. */}
+      {!isNewHost && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: spacing.sm,
+        }}>
+          <div style={{ position: 'relative', flex: '1 1 240px', minWidth: '180px' }}>
+            <Search
+              size={16}
+              style={{
+                position: 'absolute',
+                left: spacing.sm,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: colors.text.muted,
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name or email"
+              aria-label="Search contestants and nominees by name or email"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: `${spacing.sm} 34px`,
+                background: colors.background.secondary,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: borderRadius.md,
+                color: colors.text.primary,
+                fontSize: typography.fontSize.sm,
+                outline: 'none',
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+                aria-label="Clear search"
+                style={{
+                  position: 'absolute',
+                  right: spacing.xs,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: colors.text.muted,
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '4px',
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            aria-label="Sort by date added"
+            style={{
+              padding: `${spacing.sm} ${spacing.md}`,
+              background: colors.background.secondary,
+              border: `1px solid ${colors.border.primary}`,
+              borderRadius: borderRadius.md,
+              color: colors.text.primary,
+              fontSize: typography.fontSize.sm,
+              cursor: 'pointer',
+            }}
+          >
+            <option value="default">Sort: Default order</option>
+            <option value="newest">Sort: Newest added</option>
+            <option value="oldest">Sort: Oldest added</option>
+          </select>
+        </div>
+      )}
+
       {/* Contestants Section */}
       <Panel
         title={`Contestants (${contestantsFiltered.length})`}
@@ -1242,9 +1361,15 @@ export default function PeopleTab({
               </p>
             </div>
           ) : (() => {
-            const sortedContestants = showReorder
-              ? [...contestantsFiltered].sort((a, b) => (a.rank || 999) - (b.rank || 999))
-              : sortContestantsByStanding(contestantsFiltered, (c) => c.lifetimeVotes || 0);
+            // A date sort overrides the standing/rank order (contestantsFiltered
+            // is already date-sorted). Manual up/down reorder acts on rank, so
+            // it only makes sense in the default order — hide it during a sort.
+            const manualReorder = showReorder && !isDateSort;
+            const sortedContestants = isDateSort
+              ? contestantsFiltered
+              : showReorder
+                ? [...contestantsFiltered].sort((a, b) => (a.rank || 999) - (b.rank || 999))
+                : sortContestantsByStanding(contestantsFiltered, (c) => c.lifetimeVotes || 0);
             return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
               {sortedContestants.map((c, idx) => (
@@ -1257,7 +1382,7 @@ export default function PeopleTab({
                   onNameClick={c.userId ? () => handleViewProfile(c.userId) : undefined}
                   actions={
                     <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
-                      {showReorder && (
+                      {manualReorder && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <button
                             onClick={() => handleMoveContestant(c.id, 'up')}

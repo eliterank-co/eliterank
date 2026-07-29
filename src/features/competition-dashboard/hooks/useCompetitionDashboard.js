@@ -339,6 +339,7 @@ export function useCompetitionDashboard(competitionId) {
         gender: c.gender || null,
         eliminatedInRound: c.eliminated_in_round,
         currentRound: c.current_round,
+        createdAt: c.created_at,
         // Answers to host custom questions, carried over from their nominee row.
         eligibilityAnswers: findNomineeAnswers(c.user_id, c.email || c.profile?.email),
       }));
