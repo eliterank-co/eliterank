@@ -33,8 +33,10 @@ export default function CreatePasswordStep({
   const accountExists = /already exists|existing password|reset it/i.test(error || '');
 
   // Offer a reset path whenever a password already exists behind this email:
-  // an existing user setting a password, or the collision error above.
-  const showForgot = !!onForgotPassword && (isSettingPassword || accountExists);
+  // an existing user setting a password, the collision error above, or the
+  // resume case (they collided with their own prior entry — if that entry was
+  // already fully claimed, reset is their way in, so surface it up front).
+  const showForgot = !!onForgotPassword && (isSettingPassword || accountExists || resumeExisting);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -74,7 +76,7 @@ export default function CreatePasswordStep({
       </h2>
       <p className="entry-step-subtitle">
         {resumeExisting
-          ? "Looks like you already started an entry with this email. Set a password to pick up where you left off. Already have an account? Log in with your existing password below."
+          ? 'Looks like you already started an entry with this email. Set a password to pick up where you left off — or, if you already finished setting up an account, reset your password below.'
           : isSettingPassword
             ? 'So you can log back in anytime'
             : 'Save your entry and track your progress'}

@@ -272,6 +272,7 @@ export function useEntryFlow(competition, profile, options = {}) {
   // Select mode
   const selectMode = useCallback((selectedMode) => {
     setMode(selectedMode);
+    setResumeExisting(false);
 
     // Freeze steps based on auth state at the moment mode is chosen
     if (selectedMode === 'nominate') {
@@ -308,9 +309,10 @@ export function useEntryFlow(competition, profile, options = {}) {
   const back = useCallback(() => {
     setSubmitError('');
     if (currentStepIndex === 1) {
-      // Going back to mode select — unfreeze steps
+      // Going back to mode select — unfreeze steps and drop resume state
       frozenStepsRef.current = null;
       setMode(null);
+      setResumeExisting(false);
       setCurrentStepIndex(0);
     } else {
       setCurrentStepIndex((i) => Math.max(i - 1, 0));
