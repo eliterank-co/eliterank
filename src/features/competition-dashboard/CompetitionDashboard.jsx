@@ -4,7 +4,7 @@ import {
   Eye, AlertCircle, ChevronDown, Check, Rocket, TrendingUp, Activity, Megaphone, Globe, Lock, Gauge, Plus
 } from 'lucide-react';
 import { Button, Badge, Avatar, NotificationBell } from '../../components/ui';
-import { HostAssignmentModal, JudgeModal, SponsorWizardModal, EventModal, PrizeModal, AddPersonModal, CharityModal } from '../../components/modals';
+import { HostAssignmentModal, JudgeModal, SponsorWizardModal, EventModal, PrizeModal, AddPersonModal, ImportRosterModal, CharityModal } from '../../components/modals';
 import { colors, gradients, spacing, borderRadius, typography, transitions } from '../../styles/theme';
 import { useResponsive } from '../../hooks/useResponsive';
 import { useToast } from '../../contexts/ToastContext';
@@ -134,6 +134,7 @@ export default function CompetitionDashboard({
     sendHostBroadcast,
     getHostBroadcastStatus,
     addContestant,
+    bulkImportContestants,
     addJudge,
     updateJudge,
     deleteJudge,
@@ -304,6 +305,12 @@ export default function CompetitionDashboard({
   const closeAddPersonModal = () => {
     setAddPersonModal({ isOpen: false, type: 'nominee' });
   };
+
+  // Import roster (bulk contestant upload) modal
+  const [showImportRoster, setShowImportRoster] = useState(false);
+
+  // The modal shows its own per-add confirmation, so just pass the result back.
+  const handleImportRoster = (rows) => bulkImportContestants(rows);
 
   const handleAddPerson = async (personData) => {
     const { type } = addPersonModal;
@@ -866,6 +873,7 @@ export default function CompetitionDashboard({
             onUnconvertContestant={unconvertContestant}
             onRestoreNominee={restoreNominee}
             onOpenAddPersonModal={openAddPersonModal}
+            onOpenImportRoster={() => setShowImportRoster(true)}
             onShowHostAssignment={() => setShowHostAssignment(true)}
             onRemoveHost={removeHost}
             onShowAddCoHost={() => setShowAddCoHost(true)}
@@ -1096,6 +1104,12 @@ export default function CompetitionDashboard({
         onAdd={handleAddPerson}
         type={addPersonModal.type}
         competitionId={competitionId}
+        splitByGender={!!competition?.winnersSplitByGender}
+      />
+      <ImportRosterModal
+        isOpen={showImportRoster}
+        onClose={() => setShowImportRoster(false)}
+        onImport={handleImportRoster}
         splitByGender={!!competition?.winnersSplitByGender}
       />
     </>

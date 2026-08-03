@@ -79,6 +79,7 @@ export default function PeopleTab({
   onRejectNominee,
   onRestoreNominee,
   onOpenAddPersonModal,
+  onOpenImportRoster,
   onShowHostAssignment,
   onRemoveHost,
   onShowAddCoHost,
@@ -215,6 +216,12 @@ export default function PeopleTab({
   const isLegacy = competition?.is_legacy;
   const isCompleted = competition?.status === 'completed';
   const showReorder = isLegacy || isCompleted;
+
+  // The manual "Add Contestant" (roster upload) path is only for competitions
+  // whose entry type is host_upload — the host provides the roster instead of
+  // running a public nomination period. For every other entry type contestants
+  // come in through nominations/applications, so the button stays hidden.
+  const isHostUpload = (competition?.entryType || competition?.entry_type) === 'host_upload';
 
   // Vertical order of the People sections, via CSS flex `order` on the column
   // container — so we reorder without physically moving the large JSX blocks.
@@ -1299,6 +1306,17 @@ export default function PeopleTab({
         defaultCollapsed
         action={
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {onOpenImportRoster && isHostUpload && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={UserPlus}
+                onClick={onOpenImportRoster}
+                title="Add a contestant from your roster (creates their account + emails a claim link)"
+              >
+                Add Contestant
+              </Button>
+            )}
             {onSendHostBroadcast && contestantsFiltered.length > 0 && (
               <Button
                 size="sm"
