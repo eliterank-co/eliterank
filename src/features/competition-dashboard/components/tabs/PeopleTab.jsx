@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
   Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
-  ChevronUp, ChevronDown, MessageSquare,
+  ChevronUp, ChevronDown, MessageSquare, ArrowUpDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge, Avatar, Panel, Modal } from '../../../../components/ui';
@@ -143,6 +143,51 @@ export default function PeopleTab({
   // 'all' | 'male' | 'female' — only meaningful when the competition splits
   // winners by gender. Filters every nominee / contestant section below.
   const [genderFilter, setGenderFilter] = useState('all');
+
+  // How every People section (contestants + nominee buckets) is ordered.
+  // 'default' keeps each section's natural order — contestants by standing
+  // (or manual rank in reorder mode), nominees newest-first as loaded. The
+  // other options let the host re-sort by when the person was added or by
+  // name. See applySort below.
+  const [sortBy, setSortBy] = useState('default');
+  const SORT_OPTIONS = [
+    { value: 'default', label: 'Default order' },
+    { value: 'newest', label: 'Newest added' },
+    { value: 'oldest', label: 'Oldest added' },
+    { value: 'name-asc', label: 'Name (A–Z)' },
+    { value: 'name-desc', label: 'Name (Z–A)' },
+  ];
+  // "Date added" = when the row was created. Contestants and nominees both
+  // carry createdAt; fall back to claim/invite timestamps, then 0 so undated
+  // rows sort last for newest / first for oldest deterministically.
+  const getAddedTime = (p) => {
+    const d = p?.createdAt || p?.claimedAt || p?.inviteSentAt;
+    const t = d ? new Date(d).getTime() : NaN;
+    return Number.isFinite(t) ? t : 0;
+  };
+  // Re-orders a person list per the host's chosen sort. When 'default', the
+  // caller's own ordering is preserved (returns the list untouched).
+  const applySort = (list) => {
+    if (sortBy === 'default' || !Array.isArray(list)) return list;
+    const arr = [...list];
+    switch (sortBy) {
+      case 'newest':
+        arr.sort((a, b) => getAddedTime(b) - getAddedTime(a));
+        break;
+      case 'oldest':
+        arr.sort((a, b) => getAddedTime(a) - getAddedTime(b));
+        break;
+      case 'name-asc':
+        arr.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+        break;
+      case 'name-desc':
+        arr.sort((a, b) => (b.name || '').localeCompare(a.name || '', undefined, { sensitivity: 'base' }));
+        break;
+      default:
+        break;
+    }
+    return arr;
+  };
 
   const splitByGender = !!competition?.winnersSplitByGender;
 
@@ -1197,6 +1242,54 @@ export default function PeopleTab({
         })}
       </div>}
 
+      {/* Sort control — reorders contestants + every nominee bucket by date
+       *  added or name. Sits directly above the section panels so it reads as
+       *  applying to all of them. */}
+      {!isNewHost && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: spacing.sm,
+          flexWrap: 'wrap',
+        }}>
+          <label
+            htmlFor="people-sort"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: spacing.xs,
+              color: colors.text.secondary,
+              fontSize: typography.fontSize.sm,
+              fontWeight: typography.fontWeight.medium,
+            }}
+          >
+            <ArrowUpDown size={14} />
+            Sort by
+          </label>
+          <select
+            id="people-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={{
+              background: colors.background.card,
+              border: `1px solid ${colors.border.light}`,
+              color: colors.text.primary,
+              padding: `${spacing.xs} ${spacing.md}`,
+              borderRadius: borderRadius.md,
+              fontSize: typography.fontSize.sm,
+              fontWeight: typography.fontWeight.medium,
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Contestants Section */}
       <Panel
         title={`Contestants (${contestantsFiltered.length})`}
@@ -1242,9 +1335,15 @@ export default function PeopleTab({
               </p>
             </div>
           ) : (() => {
-            const sortedContestants = showReorder
-              ? [...contestantsFiltered].sort((a, b) => (a.rank || 999) - (b.rank || 999))
-              : sortContestantsByStanding(contestantsFiltered, (c) => c.lifetimeVotes || 0);
+            // A host-chosen sort overrides both standing and manual-rank order.
+            // Manual reorder arrows only make sense against rank order, so
+            // they're hidden while a custom sort is active (canReorder below).
+            const sortedContestants = sortBy !== 'default'
+              ? applySort(contestantsFiltered)
+              : showReorder
+                ? [...contestantsFiltered].sort((a, b) => (a.rank || 999) - (b.rank || 999))
+                : sortContestantsByStanding(contestantsFiltered, (c) => c.lifetimeVotes || 0);
+            const canReorder = showReorder && sortBy === 'default';
             return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
               {sortedContestants.map((c, idx) => (
@@ -1257,7 +1356,7 @@ export default function PeopleTab({
                   onNameClick={c.userId ? () => handleViewProfile(c.userId) : undefined}
                   actions={
                     <div style={{ display: 'flex', alignItems: 'center', gap: spacing.xs }}>
-                      {showReorder && (
+                      {canReorder && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                           <button
                             onClick={() => handleMoveContestant(c.id, 'up')}
@@ -1379,7 +1478,7 @@ export default function PeopleTab({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {nomineesWithProfile.map(n => (
+              {applySort(nomineesWithProfile).map(n => (
                 <PersonRow
                   key={n.id}
                   person={n}
@@ -1476,7 +1575,7 @@ export default function PeopleTab({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {externalNominees.map(n => (
+              {applySort(externalNominees).map(n => (
                 <PersonRow
                   key={n.id}
                   person={n}
@@ -1518,7 +1617,7 @@ export default function PeopleTab({
               )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {incompleteNominees.map(n => (
+              {applySort(incompleteNominees).map(n => (
                 <PersonRow
                   key={n.id}
                   person={n}
@@ -1619,7 +1718,7 @@ export default function PeopleTab({
         >
           <div style={{ padding: isMobile ? spacing.md : spacing.xl }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}>
-              {declinedNominees.map(n => (
+              {applySort(declinedNominees).map(n => (
                 <PersonRow
                   key={n.id}
                   person={n}
