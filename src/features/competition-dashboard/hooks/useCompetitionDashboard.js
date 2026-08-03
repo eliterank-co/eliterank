@@ -1291,8 +1291,8 @@ export function useCompetitionDashboard(competitionId) {
    * "claim your profile" link. Runs server-side via the bulk-import-contestants
    * edge function (service role + host authorization).
    *
-   * `rows` is an array of { name, email, phone, instagram, city, age, bio,
-   * gender, avatar_url }. Returns { success, created, skipped, errors, summary }.
+   * `rows` is an array of { name, email, instagram, gender, avatar_url }.
+   * Returns { success, created, skipped, errors, summary }.
    */
   const bulkImportContestants = useCallback(async (rows) => {
     if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
@@ -1310,8 +1310,20 @@ export function useCompetitionDashboard(competitionId) {
       await fetchDashboardData();
       return { success: true, ...result };
     } catch (err) {
+      // A non-2xx from the function (e.g. 403 permission) surfaces as a
+      // FunctionsHttpError whose real message lives in the response body; pull
+      // it out so the host sees the actual reason, not a generic status line.
+      let message = err?.message || 'Import failed';
+      try {
+        if (err?.context && typeof err.context.json === 'function') {
+          const body = await err.context.json();
+          if (body?.error) message = body.error;
+        }
+      } catch {
+        // Response wasn't JSON — keep the original message.
+      }
       console.error('Error importing roster:', err);
-      return { success: false, error: err.message || 'Import failed', created: [], skipped: [], errors: [] };
+      return { success: false, error: message, created: [], skipped: [], errors: [] };
     }
   }, [competitionId, fetchDashboardData]);
 

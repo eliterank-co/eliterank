@@ -150,8 +150,8 @@ export default function ImportRosterModal({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
         <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: 0, lineHeight: 1.6 }}>
-          Add someone from your roster. They're created with an account and added
-          straight to your contestant lineup, then emailed a link to set a
+          Add someone from your roster. They're added straight to your contestant
+          lineup with an account — new sign-ups are emailed a link to set a
           password and claim their profile.
         </p>
 
@@ -160,7 +160,7 @@ export default function ImportRosterModal({
             display: 'flex', alignItems: 'center', gap: spacing.xs,
             fontSize: typography.fontSize.xs, color: colors.text.muted,
           }}>
-            <CheckCircle size={13} style={{ color: '#22c55e', flexShrink: 0 }} />
+            <CheckCircle size={13} style={{ color: colors.status.success, flexShrink: 0 }} />
             {addedCount} added this session — the form clears after each so you can keep going.
           </div>
         )}
@@ -289,9 +289,9 @@ function Field({ label, value, onChange, placeholder, type = 'text', required = 
 
 function Banner({ banner, onDismiss }) {
   const config = {
-    success: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)', Icon: CheckCircle },
-    skip: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', Icon: AlertTriangle },
-    error: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', Icon: XCircle },
+    success: { color: colors.status.success, bg: colors.status.successMuted, Icon: CheckCircle },
+    skip: { color: colors.status.warning, bg: colors.status.warningMuted, Icon: AlertTriangle },
+    error: { color: colors.status.error, bg: colors.status.errorMuted, Icon: XCircle },
   }[banner.kind] || {};
   const { color, bg, Icon } = config;
   return (

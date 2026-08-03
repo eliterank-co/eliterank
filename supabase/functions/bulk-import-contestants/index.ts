@@ -152,11 +152,14 @@ serve(async (req) => {
         let authUserId: string | null = null
         let isNewAccount = false
 
-        // Existing profile by email?
+        // Existing profile by email? Use ilike for case-insensitive matching,
+        // but escape LIKE wildcards (_ and %) so an address such as
+        // "a_b@x.com" can't accidentally match a different account.
+        const emailPattern = email.replace(/([\\%_])/g, '\\$1')
         const { data: profileByEmail } = await supabase
           .from('profiles')
           .select('id')
-          .ilike('email', email)
+          .ilike('email', emailPattern)
           .maybeSingle()
 
         if (profileByEmail?.id) {
@@ -314,7 +317,7 @@ serve(async (req) => {
           name: profileName || name,
           email,
           phone: (useProfile ? current.phone : null) || row?.phone || null,
-          instagram: (useProfile ? current.instagram : null) || instagram,
+          instagram: normalizeInstagram((useProfile ? current.instagram : null) || instagram),
           city: (useProfile ? current.city : null) || row?.city || null,
           age: (useProfile ? current.age : null) ?? age,
           bio: (useProfile ? current.bio : null) || row?.bio || null,
