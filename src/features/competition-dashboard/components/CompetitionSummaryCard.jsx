@@ -337,6 +337,15 @@ export default function CompetitionSummaryCard({ competition, onNavigateToTab, o
             </select>
             <p style={helpStyle}>How winners are decided — public voting, a judging panel, or both.</p>
           </div>
+
+          <div>
+            <label style={labelStyle}>How contestants get in</label>
+            <select style={fieldStyle} value={form.entryType} onChange={(e) => set('entryType', e.target.value)}>
+              <option value="nominations">Nominations</option>
+              <option value="host_upload">I upload my roster</option>
+            </select>
+            <p style={helpStyle}>Nominations open a public nomination period; roster upload skips it — you add contestants yourself.</p>
+          </div>
         </div>
 
         {/* Who can enter */}

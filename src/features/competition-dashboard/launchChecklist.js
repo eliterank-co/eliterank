@@ -90,6 +90,10 @@ const STEP_NOMINATION_DATES = {
   icon: CalendarClock,
   title: 'Set nomination dates',
   description: 'Define the window when people can nominate or apply.',
+  // Host-upload competitions have no nomination period — the host provides the
+  // roster directly — so this step doesn't apply to them.
+  appliesTo: ({ competition }) =>
+    (competition?.entryType || competition?.entry_type) !== 'host_upload',
   getStatus: ({ competition }) => {
     const hasNomination = (competition?.nomination_periods || []).some(
       (p) => p.start_date && p.end_date
@@ -132,6 +136,9 @@ const STEP_NOMINATION_FORM = {
   title: 'Customize the nomination form',
   description: 'Add your own questions to the nomination form (optional).',
   optional: true,
+  // No nomination form for host-upload competitions.
+  appliesTo: ({ competition }) =>
+    (competition?.entryType || competition?.entry_type) !== 'host_upload',
   getStatus: ({ competition }) => {
     const questions = competition?.nominationFormConfig?.custom_questions || [];
     return questions.length > 0 ? STEP_STATUS.COMPLETE : STEP_STATUS.INCOMPLETE;
@@ -324,14 +331,18 @@ export function resolveLaunchChecklist(competition) {
  * host can launch without them.
  */
 export function computeChecklistProgress(checklist, ctx) {
-  const steps = checklist.steps.map((step) => {
-    const status = step.getStatus(ctx);
-    return {
-      ...step,
-      status,
-      detail: step.getDetail ? step.getDetail(ctx) : null,
-    };
-  });
+  const steps = checklist.steps
+    // Steps can opt out for competitions they don't apply to (e.g. nomination
+    // steps on a host-upload competition). Excluded steps never affect progress.
+    .filter((step) => !step.appliesTo || step.appliesTo(ctx))
+    .map((step) => {
+      const status = step.getStatus(ctx);
+      return {
+        ...step,
+        status,
+        detail: step.getDetail ? step.getDetail(ctx) : null,
+      };
+    });
 
   const required = steps.filter((s) => !s.optional);
   const requiredComplete = required.filter(

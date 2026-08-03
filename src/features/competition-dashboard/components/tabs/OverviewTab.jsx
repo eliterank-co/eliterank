@@ -161,10 +161,15 @@ export default function OverviewTab({
   };
 
   // "Rules entered" gate for the launch tracker: a name, an entry window and at
-  // least one dated voting round (the core scheduling rules).
+  // least one dated voting round (the core scheduling rules). Host-upload
+  // competitions have no public nomination window (the host provides the roster
+  // directly), so the entry-window requirement doesn't apply to them.
+  const isHostUpload = (competition?.entryType || competition?.entry_type) === 'host_upload';
   const rulesComplete = !!(
     competition?.name &&
-    ((competition?.nomination_periods || []).some((p) => p.start_date && p.end_date) || competition?.nominationStart) &&
+    (isHostUpload ||
+      (competition?.nomination_periods || []).some((p) => p.start_date && p.end_date) ||
+      competition?.nominationStart) &&
     (competition?.voting_rounds || []).some((r) => r.start_date && r.end_date)
   );
 

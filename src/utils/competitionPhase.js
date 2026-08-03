@@ -263,8 +263,12 @@ export function computeTimelinePhase(competition) {
     }
   }
 
-  // Default to nomination phase if nothing else matches
-  return TIMELINE_PHASES.NOMINATION;
+  // Default to nomination phase if nothing else matches — unless this
+  // competition has no nomination stage at all (the host uploads the roster
+  // directly). For those, the pre-voting state is "voting soon", not
+  // nominations, so it reads as LIVE rather than a phantom "nominations open".
+  const isHostUpload = (competition.entry_type || competition.entryType) === 'host_upload';
+  return isHostUpload ? TIMELINE_PHASES.BETWEEN_ROUNDS : TIMELINE_PHASES.NOMINATION;
 }
 
 /**
@@ -434,7 +438,10 @@ export function validateStatusChange(competition, newStatus) {
   }
 
   if (newStatus === COMPETITION_STATUSES.LIVE) {
-    if (!hasNominationDates(competition)) {
+    // Host-upload competitions have no nomination window (the host provides the
+    // roster directly), so nomination dates aren't required to go live.
+    const isHostUpload = (competition?.entry_type || competition?.entryType) === 'host_upload';
+    if (!isHostUpload && !hasNominationDates(competition)) {
       return {
         valid: false,
         error: 'Nomination start and end dates must be set before going live.',
