@@ -298,18 +298,28 @@ serve(async (req) => {
         }
 
         // ── Insert the contestant row directly ───────────────────────────
+        // When the email already belongs to a real account, that person's OWN
+        // profile wins over the host's typed values — the host is just adding
+        // them, not overriding who they are. Fall back to the host input only
+        // where the profile is blank. A brand-new account has no profile to
+        // defer to, so the host's input is used as-is.
+        const useProfile = !isNewAccount && current
+        const profileName = useProfile
+          ? [current.first_name, current.last_name].filter(Boolean).join(' ').trim()
+          : ''
+
         const contestantRecord: Record<string, unknown> = {
           competition_id,
           user_id: authUserId,
-          name,
+          name: profileName || name,
           email,
-          phone: row?.phone || null,
-          instagram,
-          city: row?.city || null,
-          age,
-          bio: row?.bio || null,
+          phone: (useProfile ? current.phone : null) || row?.phone || null,
+          instagram: (useProfile ? current.instagram : null) || instagram,
+          city: (useProfile ? current.city : null) || row?.city || null,
+          age: (useProfile ? current.age : null) ?? age,
+          bio: (useProfile ? current.bio : null) || row?.bio || null,
           gender: row?.gender || null,
-          avatar_url: row?.avatar_url || null,
+          avatar_url: (useProfile ? current.avatar_url : null) || row?.avatar_url || null,
           status: 'active',
           votes: 0,
         }
@@ -400,7 +410,7 @@ serve(async (req) => {
         }
 
         created.push({
-          name,
+          name: (contestantRecord.name as string) || name,
           email,
           existingAccount: !isNewAccount,
           // We only email brand-new accounts a set-password link; someone who

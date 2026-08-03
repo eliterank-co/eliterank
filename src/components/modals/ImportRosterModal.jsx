@@ -104,10 +104,11 @@ export default function ImportRosterModal({
         // Someone who already had an account keeps their existing login, so no
         // claim email is sent — say so instead of implying we emailed them.
         const entry = created[0];
+        const shownName = entry?.name || name;
         setBanner({
           kind: 'success',
           text: entry?.existingAccount
-            ? `${name} added to your lineup. They already have an account, so no email was sent.`
+            ? `Added to your lineup as "${shownName}" — this email already has an account, so their own profile details were kept and no email was sent.`
             : `${name} added — they've been emailed a link to claim their profile.`,
         });
         setForm(EMPTY_FORM);
