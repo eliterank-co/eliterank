@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
-  Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
+  Plus, User, Star, UserPlus, Link2, Check, Download, Upload, Loader, Send, Camera, Wrench, Clock, Instagram,
   ChevronUp, ChevronDown, MessageSquare, ArrowUpDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -79,6 +79,7 @@ export default function PeopleTab({
   onRejectNominee,
   onRestoreNominee,
   onOpenAddPersonModal,
+  onOpenImportRoster,
   onShowHostAssignment,
   onRemoveHost,
   onShowAddCoHost,
@@ -1299,6 +1300,17 @@ export default function PeopleTab({
         defaultCollapsed
         action={
           <div style={{ display: 'flex', gap: spacing.xs, alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+            {onOpenImportRoster && (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={Upload}
+                onClick={onOpenImportRoster}
+                title="Bulk-import your existing roster (creates accounts + adds as contestants)"
+              >
+                Import Roster
+              </Button>
+            )}
             {onSendHostBroadcast && contestantsFiltered.length > 0 && (
               <Button
                 size="sm"

@@ -1285,6 +1285,36 @@ export function useCompetitionDashboard(competitionId) {
     }
   }, [competitionId, fetchDashboardData]);
 
+  /**
+   * Bulk-import a host's existing roster: creates an account for each person,
+   * adds them directly as active contestants, and (by default) emails a
+   * "claim your profile" link. Runs server-side via the bulk-import-contestants
+   * edge function (service role + host authorization).
+   *
+   * `rows` is an array of { name, email, phone, instagram, city, age, bio,
+   * gender, avatar_url }. Returns { success, created, skipped, errors, summary }.
+   */
+  const bulkImportContestants = useCallback(async (rows) => {
+    if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
+
+    try {
+      const { data: result, error: fnError } = await supabase.functions.invoke('bulk-import-contestants', {
+        body: { competition_id: competitionId, contestants: rows, send_invites: true },
+      });
+
+      if (fnError) throw fnError;
+      if (result && result.success === false) {
+        return { success: false, error: result.error || 'Import failed', ...result };
+      }
+
+      await fetchDashboardData();
+      return { success: true, ...result };
+    } catch (err) {
+      console.error('Error importing roster:', err);
+      return { success: false, error: err.message || 'Import failed', created: [], skipped: [], errors: [] };
+    }
+  }, [competitionId, fetchDashboardData]);
+
   // ============================================================================
   // JUDGE OPERATIONS
   // ============================================================================
@@ -2293,6 +2323,7 @@ export function useCompetitionDashboard(competitionId) {
     repairAllNomineeAccounts,
     // Contestant operations
     addContestant,
+    bulkImportContestants,
     // Judge operations
     addJudge,
     updateJudge,
