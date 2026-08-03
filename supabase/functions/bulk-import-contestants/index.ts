@@ -160,14 +160,18 @@ serve(async (req) => {
           .maybeSingle()
 
         if (profileByEmail?.id) {
-          const { data: existing } = await supabase.auth.admin.getUserById(profileByEmail.id)
+          const { data: existing, error: getErr } = await supabase.auth.admin.getUserById(profileByEmail.id)
           if (existing?.user) {
             authUserId = existing.user.id
-          } else {
-            // Orphaned profile with no auth user — clear it out so createUser
-            // (which triggers handle_new_user) doesn't collide.
+          } else if (!getErr) {
+            // Definitively no auth user for this profile id — a truly orphaned
+            // profile. Clear it so createUser (which triggers handle_new_user)
+            // doesn't collide. We only do this on a clean "not found", never on
+            // a transient error, so we can't delete a real user's profile.
             await supabase.from('profiles').delete().eq('id', profileByEmail.id)
           }
+          // On a transient error we leave the profile alone and fall through to
+          // the listUsers lookup below.
         }
 
         // Existing auth user by email (not yet in profiles)?
@@ -236,9 +240,19 @@ serve(async (req) => {
         const age = parseAge(row?.age)
         const instagram = normalizeInstagram(row?.instagram)
 
+        // Does a real profile row already exist for this account?
+        const { data: current } = await supabase
+          .from('profiles')
+          .select('email, first_name, last_name, avatar_url, bio, city, age, instagram, phone, onboarded_at')
+          .eq('id', authUserId)
+          .maybeSingle()
+
         let profilePayload: Record<string, unknown>
-        if (isNewAccount) {
-          // Brand-new account — seed the whole profile from the roster row.
+        if (isNewAccount || !current) {
+          // Brand-new account, OR an auth user that somehow has no profile row
+          // yet (orphaned account). Seed the profile fully from the roster row.
+          // `email` MUST be present — profiles.email is NOT NULL, and without a
+          // row to update this upsert becomes an insert.
           profilePayload = {
             id: authUserId,
             email,
@@ -254,26 +268,24 @@ serve(async (req) => {
             updated_at: new Date().toISOString(),
           }
         } else {
-          // Existing account — this is a real person who already set up their
-          // profile. Never clobber what they entered; only fill in fields that
-          // are currently blank (e.g. they never added a photo but the host
-          // has one). Their name/email are left exactly as they are.
-          const { data: current } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, avatar_url, bio, city, age, instagram, phone, onboarded_at')
-            .eq('id', authUserId)
-            .maybeSingle()
-
-          profilePayload = { id: authUserId, updated_at: new Date().toISOString() }
-          if (!current?.first_name && firstName) profilePayload.first_name = firstName
-          if (!current?.last_name && lastName) profilePayload.last_name = lastName
-          if (!current?.avatar_url && row?.avatar_url) profilePayload.avatar_url = row.avatar_url
-          if (!current?.bio && row?.bio) profilePayload.bio = row.bio
-          if (!current?.city && row?.city) profilePayload.city = row.city
-          if (!current?.age && age != null) profilePayload.age = age
-          if (!current?.instagram && instagram) profilePayload.instagram = instagram
-          if (!current?.phone && row?.phone) profilePayload.phone = row.phone
-          if (!current?.onboarded_at) profilePayload.onboarded_at = new Date().toISOString()
+          // Existing account with a real profile — this is a person who already
+          // set themselves up. Never clobber what they entered; only fill in
+          // fields that are currently blank (e.g. they never added a photo but
+          // the host has one). Keep their existing email.
+          profilePayload = {
+            id: authUserId,
+            email: current.email || email,
+            updated_at: new Date().toISOString(),
+          }
+          if (!current.first_name && firstName) profilePayload.first_name = firstName
+          if (!current.last_name && lastName) profilePayload.last_name = lastName
+          if (!current.avatar_url && row?.avatar_url) profilePayload.avatar_url = row.avatar_url
+          if (!current.bio && row?.bio) profilePayload.bio = row.bio
+          if (!current.city && row?.city) profilePayload.city = row.city
+          if (!current.age && age != null) profilePayload.age = age
+          if (!current.instagram && instagram) profilePayload.instagram = instagram
+          if (!current.phone && row?.phone) profilePayload.phone = row.phone
+          if (!current.onboarded_at) profilePayload.onboarded_at = new Date().toISOString()
         }
 
         const { error: profileError } = await supabase
