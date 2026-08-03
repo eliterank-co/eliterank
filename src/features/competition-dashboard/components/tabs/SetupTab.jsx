@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Lock, CheckCircle } from 'lucide-react';
+import { Calendar, Lock, CheckCircle, Users } from 'lucide-react';
 import { Panel } from '../../../../components/ui';
 import { colors, spacing, typography } from '../../../../styles/theme';
 import { useResponsive } from '../../../../hooks/useResponsive';
@@ -108,9 +108,14 @@ export default function SetupTab({
     // out and sink below the active ones.
     const usesJudgesLocal = ['judges', 'hybrid'].includes(competition?.selectionCriteria);
     const charityActive = !!competition?.charityPercentage || !!competition?.charityName;
+    // Host-upload competitions have no public nomination period, so the
+    // nomination form doesn't apply — gray it out and sink it to the bottom.
+    const isHostUploadLocal =
+      (competition?.entryType || competition?.entry_type) === 'host_upload';
     const locked =
       (!usesJudgesLocal && id === 'judgingCriteria') ||
-      (!charityActive && id === 'charity');
+      (!charityActive && id === 'charity') ||
+      (isHostUploadLocal && id === 'nominationForm');
     return { order: locked ? 100 + idx : 1 + idx, opacity: 1 };
   };
 
@@ -119,6 +124,9 @@ export default function SetupTab({
   //  - judging is only relevant if winners are decided by judges (not pure votes)
   const charityApplies = !!competition?.charityPercentage || !!competition?.charityName;
   const usesJudges = ['judges', 'hybrid'].includes(competition?.selectionCriteria);
+  //  - the nomination form only applies when contestants enter by nomination;
+  //    host-upload competitions build the roster directly, so it's not used
+  const isHostUpload = (competition?.entryType || competition?.entry_type) === 'host_upload';
   // These public-facing sections only actually lock once the competition is
   // published (publish-lock tier) — show the lock badge only then.
   const publishLocked = !isFieldEditable('nomination_form', competition?.status);
@@ -226,18 +234,30 @@ export default function SetupTab({
 
       {/* Nomination Form — checklist step 4. Lives here in Setup (not Content)
           so the launch flow's build steps (timeline → form → judging → events)
-          all sit in one tab, in order. */}
-      <NominationFormEditor
-        key={`section-nominationForm-${focusId === 'nominationForm' ? focusNonce : 'x'}`}
-        id="setup-section-nominationForm"
-        style={sectionStyle('nominationForm')}
-        competition={competition}
-        onSave={onRefresh}
-        locked={publishLocked}
-        badge={lockBadge}
-        collapsible
-        defaultCollapsed={focusId !== 'nominationForm'}
-      />
+          all sit in one tab, in order. Host-upload competitions have no public
+          nomination period, so it's grayed out and sinks to the bottom (like the
+          Charity Partner card when charity is off). */}
+      {isHostUpload ? (
+        <div id="setup-section-nominationForm" style={sectionStyle('nominationForm')}>
+          <LockedSection
+            title="Nomination Form"
+            icon={Users}
+            reason="Not used — you’re uploading your contestant roster yourself, so there’s no public nomination period. Switch entry to Nominations in your competition details to set this up."
+          />
+        </div>
+      ) : (
+        <NominationFormEditor
+          key={`section-nominationForm-${focusId === 'nominationForm' ? focusNonce : 'x'}`}
+          id="setup-section-nominationForm"
+          style={sectionStyle('nominationForm')}
+          competition={competition}
+          onSave={onRefresh}
+          locked={publishLocked}
+          badge={lockBadge}
+          collapsible
+          defaultCollapsed={focusId !== 'nominationForm'}
+        />
+      )}
 
       {/* Judging criteria + weight — locks at publish. Only relevant when
           winners are decided by judges (or a hybrid); for pure public-vote
