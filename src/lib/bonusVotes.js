@@ -222,7 +222,7 @@ export async function getBonusVoteCompletionStats(competitionId) {
 /**
  * Create a custom bonus vote task for a competition
  */
-export async function createCustomBonusTask(competitionId, { label, description, votesAwarded, proofLabel, createdBy, hostManaged }) {
+export async function createCustomBonusTask(competitionId, { label, description, votesAwarded, proofLabel, createdBy, hostManaged, linkUrl }) {
   if (!supabase || !competitionId) {
     return { success: false, error: 'Missing required parameters' };
   }
@@ -247,6 +247,7 @@ export async function createCustomBonusTask(competitionId, { label, description,
         description: description || null,
         votes_awarded: votesAwarded || 5,
         proof_label: hostManaged ? null : (proofLabel || 'Upload a screenshot as proof'),
+        link_url: linkUrl || null,
         is_custom: true,
         requires_approval: !hostManaged,
         host_managed: hostManaged || false,

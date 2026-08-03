@@ -112,6 +112,7 @@ export default function BonusVotesSection({
         proof_label: data.hostManaged ? null : data.proofLabel,
         host_managed: data.hostManaged || false,
         requires_approval: !data.hostManaged,
+        link_url: data.linkUrl || null,
       });
     } else {
       await createCustomBonusTask(competitionId, {

@@ -206,6 +206,26 @@ const TaskRow = memo(function TaskRow({ task, onAction, isAwarding }) {
             Confirmed by host after event
           </p>
         )}
+        {task.link_url && (
+          <a
+            href={task.link_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '6px',
+              fontSize: typography.fontSize.xs,
+              fontWeight: typography.fontWeight.medium,
+              color: colors.gold.primary,
+              textDecoration: 'none',
+            }}
+          >
+            <ExternalLink size={12} /> View event
+          </a>
+        )}
       </div>
 
       {/* Votes badge / status */}

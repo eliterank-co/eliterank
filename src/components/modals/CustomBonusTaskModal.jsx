@@ -10,7 +10,16 @@ const INITIAL_STATE = {
   votesAwarded: '5',
   proofLabel: '',
   hostManaged: false,
+  linkUrl: '',
 };
+
+// Prepend https:// when the host types a bare domain (e.g. "example.com/rsvp")
+function normalizeUrl(raw) {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
 
 export default function CustomBonusTaskModal({
   isOpen,
@@ -26,6 +35,7 @@ export default function CustomBonusTaskModal({
       votesAwarded: (task.votes_awarded ?? 5).toString(),
       proofLabel: task.proof_label || '',
       hostManaged: task.host_managed || false,
+      linkUrl: task.link_url || '',
     };
   }, [task]);
 
@@ -40,6 +50,7 @@ export default function CustomBonusTaskModal({
       votesAwarded: parseInt(data.votesAwarded, 10) || 5,
       proofLabel: data.hostManaged ? '' : (data.proofLabel.trim() || 'Upload a screenshot as proof'),
       hostManaged: data.hostManaged,
+      linkUrl: normalizeUrl(data.linkUrl),
     });
   };
 
@@ -77,6 +88,14 @@ export default function CustomBonusTaskModal({
           value={form.description}
           onChange={(e) => updateField('description', e.target.value)}
           placeholder="e.g., Share the competition on your Instagram or TikTok"
+        />
+
+        <Input
+          label="Event Link (optional)"
+          type="url"
+          value={form.linkUrl}
+          onChange={(e) => updateField('linkUrl', e.target.value)}
+          placeholder="e.g., https://lu.ma/kickoff-event"
         />
 
         {/* Task type toggle */}
