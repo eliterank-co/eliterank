@@ -98,9 +98,9 @@ export function LeaderboardCompact() {
 
       {splitByGender ? (
         <>
-          <h4 className="leaderboard-gender-subheading">Men</h4>
+          <h4 className="leaderboard-gender-subheading">Women</h4>
           <div className="portrait-grid">
-            {topMen.map((contestant, index) => (
+            {topWomen.map((contestant, index) => (
               <PortraitCard
                 key={contestant.id}
                 contestant={contestant}
@@ -113,9 +113,9 @@ export function LeaderboardCompact() {
               />
             ))}
           </div>
-          <h4 className="leaderboard-gender-subheading">Women</h4>
+          <h4 className="leaderboard-gender-subheading">Men</h4>
           <div className="portrait-grid">
-            {topWomen.map((contestant, index) => (
+            {topMen.map((contestant, index) => (
               <PortraitCard
                 key={contestant.id}
                 contestant={contestant}

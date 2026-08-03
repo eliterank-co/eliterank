@@ -84,15 +84,15 @@ export function LeaderboardView() {
       {splitByGender ? (
         <div className="leaderboard-gender-split">
           <GenderColumn
-            label="Men"
-            list={men}
+            label="Women"
+            list={women}
             numberOfWinners={winnersPerGender}
             isBetweenRounds={isBetweenRounds}
             onCardClick={handleCardClick}
           />
           <GenderColumn
-            label="Women"
-            list={women}
+            label="Men"
+            list={men}
             numberOfWinners={winnersPerGender}
             isBetweenRounds={isBetweenRounds}
             onCardClick={handleCardClick}
