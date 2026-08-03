@@ -1,9 +1,8 @@
 -- =============================================================================
 -- Bonus Task Link URL
--- Allows hosts to attach an optional link (e.g. an event page / RSVP link) to a
--- bonus task. Contestants see this as a clickable "View event" link on their
--- bonus votes checklist. Especially useful for host-managed attendance tasks
--- like "Attend Competition Kickoff Event".
+-- Allows hosts to attach an optional link to a bonus task (e.g. an RSVP page,
+-- signup form, resource, or event). Contestants see this as a clickable
+-- "Open link" on their bonus votes checklist.
 -- =============================================================================
 
 ALTER TABLE bonus_vote_tasks

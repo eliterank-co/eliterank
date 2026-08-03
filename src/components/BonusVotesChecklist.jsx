@@ -223,7 +223,7 @@ const TaskRow = memo(function TaskRow({ task, onAction, isAwarding }) {
               textDecoration: 'none',
             }}
           >
-            <ExternalLink size={12} /> View event
+            <ExternalLink size={12} /> Open link
           </a>
         )}
       </div>

@@ -91,11 +91,11 @@ export default function CustomBonusTaskModal({
         />
 
         <Input
-          label="Event Link (optional)"
+          label="Link (optional)"
           type="url"
           value={form.linkUrl}
           onChange={(e) => updateField('linkUrl', e.target.value)}
-          placeholder="e.g., https://lu.ma/kickoff-event"
+          placeholder="e.g., https://example.com/rsvp"
         />
 
         {/* Task type toggle */}
