@@ -76,7 +76,7 @@ serve(async (req) => {
 
     const { data: comp, error: compError } = await supabase
       .from('competitions')
-      .select('id, name, host_id')
+      .select('id, name, host_id, entry_type')
       .eq('id', competition_id)
       .maybeSingle()
 
@@ -107,6 +107,16 @@ serve(async (req) => {
 
     if (!authorized) {
       return json({ error: 'You do not have permission to manage this competition' }, 403)
+    }
+
+    // This path is only for competitions whose entry type is host_upload — the
+    // host provides the roster instead of running nominations/applications.
+    // Enforced server-side so it can't be bypassed by calling the function
+    // directly. (The dashboard also hides the button for other entry types.)
+    if (comp.entry_type !== 'host_upload') {
+      return json({
+        error: 'This competition isn’t set up for host roster uploads. Set its entry type to “I upload my roster” first.',
+      }, 400)
     }
 
     const competitionName = comp.name || 'Most Eligible'
