@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import {
   Crown, RotateCcw, ExternalLink, UserCheck, Users, CheckCircle, XCircle,
-  Plus, User, Star, UserPlus, Link2, Check, Download, Upload, Loader, Send, Camera, Wrench, Clock, Instagram,
+  Plus, User, Star, UserPlus, Link2, Check, Download, Loader, Send, Camera, Wrench, Clock, Instagram,
   ChevronUp, ChevronDown, MessageSquare, ArrowUpDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -1304,11 +1304,11 @@ export default function PeopleTab({
               <Button
                 size="sm"
                 variant="secondary"
-                icon={Upload}
+                icon={UserPlus}
                 onClick={onOpenImportRoster}
-                title="Bulk-import your existing roster (creates accounts + adds as contestants)"
+                title="Add a contestant from your roster (creates their account + emails a claim link)"
               >
-                Import Roster
+                Add Contestant
               </Button>
             )}
             {onSendHostBroadcast && contestantsFiltered.length > 0 && (

@@ -309,15 +309,8 @@ export default function CompetitionDashboard({
   // Import roster (bulk contestant upload) modal
   const [showImportRoster, setShowImportRoster] = useState(false);
 
-  const handleImportRoster = async (rows) => {
-    const result = await bulkImportContestants(rows);
-    if (result?.created?.length) {
-      toast.success(`${result.created.length} ${result.created.length === 1 ? 'contestant' : 'contestants'} imported`);
-    } else if (!result?.success && result?.error) {
-      toast.error(result.error);
-    }
-    return result;
-  };
+  // The modal shows its own per-add confirmation, so just pass the result back.
+  const handleImportRoster = (rows) => bulkImportContestants(rows);
 
   const handleAddPerson = async (personData) => {
     const { type } = addPersonModal;

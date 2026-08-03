@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Check, Loader, Trash2, Plus, ImagePlus, ArrowRight, ArrowLeft,
-  AlertTriangle, CheckCircle, XCircle, FileSpreadsheet,
+  Check, Loader, ImagePlus, CheckCircle, AlertTriangle, XCircle, X,
 } from 'lucide-react';
 import { Modal, Button } from '../ui';
 import { colors, spacing, borderRadius, typography } from '../../styles/theme';
@@ -10,51 +9,20 @@ import { uploadPhoto } from '../../features/entry/utils/uploadPhoto';
 /**
  * ImportRosterModal
  *
- * Lets a host bring their existing roster into a competition in one shot.
+ * Adds a host's roster to a competition one person at a time via a structured
+ * form — individual fields plus a photo, so there's no CSV parsing to get
+ * wrong. Each submit creates a real account, adds the person directly as an
+ * active contestant, and emails them a "claim your profile / set password"
+ * link. The heavy lifting is done server-side by the bulk-import-contestants
+ * edge function via `onImport` (called with a single-element array).
  *
- * Flow:
- *  1. "input"  — paste rows (from a spreadsheet) or upload a .csv. Parsed into
- *                an editable table. A manual "Add row" is available too.
- *  2. "review" — an editable table: fix any cell, attach a photo per person
- *                (spreadsheets can't carry images), drop rows.
- *  3. "result" — a summary of what was created / skipped / errored.
- *
- * On import each person gets a real account + is added directly as a contestant,
- * and (by default) is emailed a "claim your profile" link. The heavy lifting is
- * done server-side by the bulk-import-contestants edge function via `onImport`.
+ * After each add the form clears so the host can keep going; a running tally
+ * and a per-add confirmation keep them oriented.
  */
 
-// Header aliases → canonical field. Anything not recognized is ignored.
-const HEADER_ALIASES = {
-  name: 'name',
-  'full name': 'name',
-  fullname: 'name',
-  email: 'email',
-  'e-mail': 'email',
-  'email address': 'email',
-  phone: 'phone',
-  'phone number': 'phone',
-  mobile: 'phone',
-  cell: 'phone',
-  instagram: 'instagram',
-  ig: 'instagram',
-  handle: 'instagram',
-  'instagram handle': 'instagram',
-  city: 'city',
-  location: 'city',
-  age: 'age',
-  bio: 'bio',
-  about: 'bio',
-  description: 'bio',
-  gender: 'gender',
-  sex: 'gender',
-};
+const isEmailish = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
 
-const DEFAULT_ORDER = ['name', 'email', 'phone', 'instagram', 'city', 'age', 'bio'];
-
-let rowIdCounter = 0;
-const makeRow = (data = {}) => ({
-  id: `row-${rowIdCounter++}`,
+const EMPTY_FORM = {
   name: '',
   email: '',
   phone: '',
@@ -64,84 +32,7 @@ const makeRow = (data = {}) => ({
   bio: '',
   gender: '',
   avatarUrl: '',
-  uploading: false,
-  ...data,
-});
-
-// Parse a single delimited line, respecting double-quoted fields.
-function parseLine(line, delimiter) {
-  const out = [];
-  let cur = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQuotes) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') { cur += '"'; i++; }
-        else inQuotes = false;
-      } else {
-        cur += ch;
-      }
-    } else if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === delimiter) {
-      out.push(cur);
-      cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out.map((s) => s.trim());
-}
-
-const isEmailish = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
-
-// Turn pasted/CSV text into row objects.
-function parseRoster(text) {
-  const lines = String(text || '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .filter((l) => l.trim().length > 0);
-  if (lines.length === 0) return [];
-
-  // Prefer tab when present (Excel/Sheets copy-paste), else comma.
-  const delimiter = lines[0].includes('\t') ? '\t' : ',';
-
-  const firstCells = parseLine(lines[0], delimiter).map((c) => c.toLowerCase());
-  const hasHeader = firstCells.some((c) => HEADER_ALIASES[c]);
-  const hasFirstLast = firstCells.includes('first name') && firstCells.includes('last name');
-
-  let columns; // canonical field name per column index (or null to skip)
-  let firstNameIdx = -1;
-  let lastNameIdx = -1;
-  let dataLines;
-
-  if (hasHeader || hasFirstLast) {
-    columns = firstCells.map((c) => HEADER_ALIASES[c] || null);
-    firstNameIdx = firstCells.indexOf('first name');
-    lastNameIdx = firstCells.indexOf('last name');
-    dataLines = lines.slice(1);
-  } else {
-    columns = DEFAULT_ORDER;
-    dataLines = lines;
-  }
-
-  return dataLines.map((line) => {
-    const cells = parseLine(line, delimiter);
-    const data = {};
-    columns.forEach((field, idx) => {
-      if (field && cells[idx] != null && cells[idx] !== '') data[field] = cells[idx];
-    });
-    if ((firstNameIdx >= 0 || lastNameIdx >= 0) && !data.name) {
-      data.name = [cells[firstNameIdx], cells[lastNameIdx]]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-    }
-    return makeRow(data);
-  });
-}
+};
 
 export default function ImportRosterModal({
   isOpen,
@@ -149,447 +40,292 @@ export default function ImportRosterModal({
   onImport,
   splitByGender = false,
 }) {
-  const [step, setStep] = useState('input'); // 'input' | 'review' | 'result'
-  const [rawText, setRawText] = useState('');
-  const [rows, setRows] = useState([]);
-  const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState(null);
-  const [parseError, setParseError] = useState('');
-  const fileInputRef = useRef(null);
-  const photoInputRefs = useRef({});
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [addedCount, setAddedCount] = useState(0);
+  const [banner, setBanner] = useState(null); // { kind: 'success'|'skip'|'error', text }
+  const photoInputRef = useRef(null);
+  const nameInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
-      setStep('input');
-      setRawText('');
-      setRows([]);
-      setImporting(false);
-      setResult(null);
-      setParseError('');
+      setForm(EMPTY_FORM);
+      setUploading(false);
+      setSubmitting(false);
+      setAddedCount(0);
+      setBanner(null);
     }
   }, [isOpen]);
 
-  const handleParse = () => {
-    setParseError('');
-    const parsed = parseRoster(rawText);
-    if (parsed.length === 0) {
-      setParseError('No rows found. Paste your roster (one person per line) or upload a CSV.');
-      return;
-    }
-    setRows(parsed);
-    setStep('review');
-  };
+  const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
-  const handleFile = (e) => {
-    const file = e.target.files?.[0];
+  const handlePhoto = useCallback(async (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setRawText(String(reader.result || ''));
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  const updateRow = (id, field, value) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
-  };
-
-  const removeRow = (id) => {
-    setRows((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  const addBlankRow = () => {
-    setRows((prev) => [...prev, makeRow()]);
-  };
-
-  const handlePhoto = useCallback(async (id, file) => {
-    if (!file) return;
-    updateRow(id, 'uploading', true);
+    setUploading(true);
     try {
       const url = await uploadPhoto(file, 'nominations');
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, avatarUrl: url, uploading: false } : r)));
+      setForm((f) => ({ ...f, avatarUrl: url }));
     } catch (err) {
       console.error('Photo upload failed:', err);
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, uploading: false } : r)));
+      setBanner({ kind: 'error', text: err?.message || 'Photo upload failed. Try a different image.' });
+    } finally {
+      setUploading(false);
     }
   }, []);
 
-  const rowValid = (r) =>
-    r.name.trim().length > 0 &&
-    isEmailish(r.email) &&
-    (!splitByGender || r.gender === 'male' || r.gender === 'female');
+  const genderValid = !splitByGender || form.gender === 'male' || form.gender === 'female';
+  const canSubmit =
+    !submitting && !uploading &&
+    form.name.trim().length > 0 &&
+    isEmailish(form.email) &&
+    genderValid;
 
-  const validRows = rows.filter(rowValid);
-  const invalidCount = rows.length - validRows.length;
-  const anyUploading = rows.some((r) => r.uploading);
-
-  const handleImport = async () => {
-    if (validRows.length === 0 || !onImport) return;
-    setImporting(true);
+  const handleSubmit = async () => {
+    if (!canSubmit || !onImport) return;
+    setSubmitting(true);
+    setBanner(null);
+    const name = form.name.trim();
     try {
-      const payload = validRows.map((r) => ({
-        name: r.name.trim(),
-        email: r.email.trim(),
-        phone: r.phone.trim() || null,
-        instagram: r.instagram.trim() || null,
-        city: r.city.trim() || null,
-        age: r.age.toString().trim() || null,
-        bio: r.bio.trim() || null,
-        gender: splitByGender ? r.gender : (r.gender || null),
-        avatar_url: r.avatarUrl || null,
-      }));
-      const res = await onImport(payload);
-      setResult(res || { created: [], skipped: [], errors: [] });
-      setStep('result');
+      const row = {
+        name,
+        email: form.email.trim(),
+        phone: form.phone.trim() || null,
+        instagram: form.instagram.trim() || null,
+        city: form.city.trim() || null,
+        age: form.age.toString().trim() || null,
+        bio: form.bio.trim() || null,
+        gender: splitByGender ? form.gender : (form.gender || null),
+        avatar_url: form.avatarUrl || null,
+      };
+      const res = await onImport([row]);
+
+      const created = res?.created || [];
+      const skipped = res?.skipped || [];
+      const errors = res?.errors || [];
+
+      if (created.length > 0) {
+        setAddedCount((c) => c + 1);
+        setBanner({ kind: 'success', text: `${name} added — they've been emailed a link to claim their profile.` });
+        setForm(EMPTY_FORM);
+        // Return focus to the top of the form for the next person.
+        setTimeout(() => nameInputRef.current?.focus(), 0);
+      } else if (errors.length > 0) {
+        setBanner({ kind: 'error', text: errors[0].error || 'Could not add this contestant.' });
+      } else if (skipped.length > 0) {
+        setBanner({ kind: 'skip', text: `${name} was skipped — ${skipped[0].reason || 'already in this competition'}.` });
+      } else if (res?.success === false) {
+        setBanner({ kind: 'error', text: res.error || 'Could not add this contestant.' });
+      } else {
+        setBanner({ kind: 'error', text: 'Could not add this contestant.' });
+      }
     } catch (err) {
-      console.error('Roster import failed:', err);
-      setResult({ created: [], skipped: [], errors: [{ name: '', email: '', error: err?.message || 'Import failed' }] });
-      setStep('result');
+      console.error('Add contestant failed:', err);
+      setBanner({ kind: 'error', text: err?.message || 'Something went wrong.' });
     } finally {
-      setImporting(false);
+      setSubmitting(false);
     }
   };
-
-  const title =
-    step === 'result' ? 'Import Complete'
-      : step === 'review' ? 'Review Roster'
-        : 'Import Roster';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={title}
-      maxWidth={step === 'review' ? '920px' : '560px'}
-      footer={renderFooter()}
+      title="Add Contestant"
+      maxWidth="560px"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {addedCount > 0 ? 'Done' : 'Cancel'}
+          </Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit} icon={submitting ? Loader : Check}>
+            {submitting ? 'Adding...' : 'Add Contestant'}
+          </Button>
+        </>
+      }
     >
-      {step === 'input' && renderInput()}
-      {step === 'review' && renderReview()}
-      {step === 'result' && renderResult()}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
+        <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: 0, lineHeight: 1.6 }}>
+          Add someone from your roster. They're created with an account and added
+          straight to your contestant lineup, then emailed a link to set a
+          password and claim their profile.
+        </p>
+
+        {addedCount > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: spacing.xs,
+            fontSize: typography.fontSize.xs, color: colors.text.muted,
+          }}>
+            <CheckCircle size={13} style={{ color: '#22c55e', flexShrink: 0 }} />
+            {addedCount} added this session — the form clears after each so you can keep going.
+          </div>
+        )}
+
+        {/* Photo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.lg }}>
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            title="Add photo"
+            style={{
+              width: 72, height: 72, borderRadius: borderRadius.full,
+              border: `1px solid ${colors.border.primary}`,
+              background: form.avatarUrl ? `url(${form.avatarUrl}) center/cover` : colors.background.secondary,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: colors.text.muted, padding: 0, flexShrink: 0,
+            }}
+          >
+            {uploading
+              ? <Loader size={20} style={{ animation: 'spin 1s linear infinite', color: colors.gold.primary }} />
+              : !form.avatarUrl && <ImagePlus size={22} />}
+          </button>
+          <div>
+            <p style={{ fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.medium, color: colors.text.primary, margin: 0 }}>
+              Profile photo
+            </p>
+            <p style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, margin: `2px 0 0` }}>
+              {form.avatarUrl ? 'Tap the photo to replace it.' : 'Optional. JPG, PNG, or WebP.'}
+            </p>
+          </div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => { handlePhoto(e.target.files?.[0]); e.target.value = ''; }}
+          />
+        </div>
+
+        {/* Fields */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.md }}>
+          <Field label="Full name" required value={form.name} onChange={(v) => update('name', v)} placeholder="Jane Doe" inputRef={nameInputRef} span={2} />
+          <Field label="Email" required type="email" value={form.email} onChange={(v) => update('email', v)} placeholder="jane@example.com" invalid={form.email.length > 0 && !isEmailish(form.email)} span={2} />
+          <Field label="Instagram" value={form.instagram} onChange={(v) => update('instagram', v)} placeholder="@janedoe" />
+          <Field label="City" value={form.city} onChange={(v) => update('city', v)} placeholder="Dallas" />
+          <Field label="Age" value={form.age} onChange={(v) => update('age', v)} placeholder="—" />
+          <Field label="Phone" value={form.phone} onChange={(v) => update('phone', v)} placeholder="—" />
+
+          {splitByGender && (
+            <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+              <span style={fieldLabelStyle}>
+                Gender <span style={{ color: colors.status.error }}>*</span>
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.xs }}>
+                {[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }].map((opt) => {
+                  const active = form.gender === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => update('gender', opt.value)}
+                      style={{
+                        padding: `${spacing.sm} ${spacing.md}`,
+                        background: active ? 'rgba(212,175,55,0.22)' : colors.background.secondary,
+                        border: `1px solid ${active ? colors.gold.primary : colors.border.primary}`,
+                        borderRadius: borderRadius.lg,
+                        color: active ? colors.gold.primary : colors.text.secondary,
+                        fontSize: typography.fontSize.sm,
+                        fontWeight: typography.fontWeight.medium,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+            <span style={fieldLabelStyle}>Bio</span>
+            <textarea
+              value={form.bio}
+              onChange={(e) => update('bio', e.target.value)}
+              placeholder="A short intro (optional)"
+              rows={3}
+              style={{
+                width: '100%',
+                padding: spacing.md,
+                background: colors.background.secondary,
+                border: `1px solid ${colors.border.light}`,
+                borderRadius: borderRadius.lg,
+                color: colors.text.primary,
+                fontSize: typography.fontSize.sm,
+                outline: 'none',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        </div>
+
+        {banner && <Banner banner={banner} onDismiss={() => setBanner(null)} />}
+      </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </Modal>
   );
-
-  function renderFooter() {
-    if (step === 'input') {
-      return (
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleParse} disabled={!rawText.trim()} icon={ArrowRight}>
-            Continue
-          </Button>
-        </>
-      );
-    }
-    if (step === 'review') {
-      return (
-        <>
-          <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep('input')}>
-            Back
-          </Button>
-          <Button
-            onClick={handleImport}
-            disabled={importing || anyUploading || validRows.length === 0}
-            icon={importing ? Loader : Check}
-          >
-            {importing
-              ? 'Importing...'
-              : `Import ${validRows.length} ${validRows.length === 1 ? 'Contestant' : 'Contestants'}`}
-          </Button>
-        </>
-      );
-    }
-    return <Button onClick={onClose}>Done</Button>;
-  }
-
-  function renderInput() {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-        <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: 0, lineHeight: 1.6 }}>
-          Paste your roster from a spreadsheet (one person per row), or upload a CSV.
-          Each person gets an account and is added straight to your contestant lineup —
-          they'll be emailed a link to set a password and claim their profile.
-        </p>
-
-        <div style={{
-          padding: spacing.md,
-          background: colors.background.secondary,
-          border: `1px solid ${colors.border.light}`,
-          borderRadius: borderRadius.lg,
-          fontSize: typography.fontSize.xs,
-          color: colors.text.muted,
-          lineHeight: 1.6,
-        }}>
-          Recognized columns:{' '}
-          <span style={{ color: colors.text.secondary }}>
-            name, email, phone, instagram, city, age, bio{splitByGender ? ', gender' : ''}
-          </span>
-          . A header row is optional — without one, columns are read in that order.
-          Photos are added in the next step.
-        </div>
-
-        <textarea
-          value={rawText}
-          onChange={(e) => setRawText(e.target.value)}
-          placeholder={`name, email, instagram, city\nJane Doe, jane@example.com, @janedoe, Dallas\nJohn Smith, john@example.com, @johnsmith, Austin`}
-          rows={8}
-          style={{
-            width: '100%',
-            padding: spacing.md,
-            background: colors.background.secondary,
-            border: `1px solid ${colors.border.light}`,
-            borderRadius: borderRadius.lg,
-            color: colors.text.primary,
-            fontSize: typography.fontSize.sm,
-            fontFamily: 'monospace',
-            outline: 'none',
-            resize: 'vertical',
-            boxSizing: 'border-box',
-          }}
-        />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing.md }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,text/csv,text/plain"
-            style={{ display: 'none' }}
-            onChange={handleFile}
-          />
-          <Button variant="secondary" size="sm" icon={FileSpreadsheet} onClick={() => fileInputRef.current?.click()}>
-            Upload CSV
-          </Button>
-          <span style={{ color: colors.text.muted, fontSize: typography.fontSize.xs }}>
-            .csv file from Excel, Google Sheets, Numbers, etc.
-          </span>
-        </div>
-
-        {parseError && (
-          <p style={{ color: colors.status.error, fontSize: typography.fontSize.sm, margin: 0 }}>
-            {parseError}
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  function renderReview() {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.sm }}>
-          <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: 0 }}>
-            {rows.length} {rows.length === 1 ? 'person' : 'people'} • {validRows.length} ready
-            {invalidCount > 0 && (
-              <span style={{ color: '#f59e0b' }}>
-                {' '}• {invalidCount} need{invalidCount === 1 ? 's' : ''} a name{splitByGender ? ', email & gender' : ' & valid email'}
-              </span>
-            )}
-          </p>
-          <Button variant="secondary" size="sm" icon={Plus} onClick={addBlankRow}>
-            Add row
-          </Button>
-        </div>
-
-        <div style={{ overflowX: 'auto', border: `1px solid ${colors.border.light}`, borderRadius: borderRadius.lg }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
-            <thead>
-              <tr style={{ background: colors.background.secondary }}>
-                {['Photo', 'Name *', 'Email *', 'Age', 'City', 'Instagram', 'Phone']
-                  .concat(splitByGender ? ['Gender *'] : [])
-                  .concat(['']).map((h, i) => (
-                    <th key={i} style={{
-                      textAlign: 'left',
-                      padding: `${spacing.sm} ${spacing.md}`,
-                      fontSize: typography.fontSize.xs,
-                      fontWeight: typography.fontWeight.medium,
-                      color: colors.text.secondary,
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {h}
-                    </th>
-                  ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const valid = rowValid(r);
-                return (
-                  <tr key={r.id} style={{
-                    borderTop: `1px solid ${colors.border.lighter}`,
-                    background: valid ? 'transparent' : 'rgba(245,158,11,0.06)',
-                  }}>
-                    <td style={cellStyle}>
-                      <button
-                        type="button"
-                        onClick={() => photoInputRefs.current[r.id]?.click()}
-                        title="Add photo"
-                        style={{
-                          width: 40, height: 40, borderRadius: borderRadius.full,
-                          border: `1px solid ${colors.border.primary}`,
-                          background: r.avatarUrl ? `url(${r.avatarUrl}) center/cover` : colors.background.secondary,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: 'pointer', color: colors.text.muted, padding: 0, flexShrink: 0,
-                        }}
-                      >
-                        {r.uploading
-                          ? <Loader size={16} style={{ animation: 'spin 1s linear infinite', color: colors.gold.primary }} />
-                          : !r.avatarUrl && <ImagePlus size={16} />}
-                      </button>
-                      <input
-                        ref={(el) => { photoInputRefs.current[r.id] = el; }}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        style={{ display: 'none' }}
-                        onChange={(e) => { handlePhoto(r.id, e.target.files?.[0]); e.target.value = ''; }}
-                      />
-                    </td>
-                    <td style={cellStyle}><CellInput value={r.name} onChange={(v) => updateRow(r.id, 'name', v)} placeholder="Full name" width={140} /></td>
-                    <td style={cellStyle}><CellInput value={r.email} onChange={(v) => updateRow(r.id, 'email', v)} placeholder="email@…" width={170} invalid={r.email.length > 0 && !isEmailish(r.email)} /></td>
-                    <td style={cellStyle}><CellInput value={r.age} onChange={(v) => updateRow(r.id, 'age', v)} placeholder="—" width={48} /></td>
-                    <td style={cellStyle}><CellInput value={r.city} onChange={(v) => updateRow(r.id, 'city', v)} placeholder="—" width={100} /></td>
-                    <td style={cellStyle}><CellInput value={r.instagram} onChange={(v) => updateRow(r.id, 'instagram', v)} placeholder="@handle" width={110} /></td>
-                    <td style={cellStyle}><CellInput value={r.phone} onChange={(v) => updateRow(r.id, 'phone', v)} placeholder="—" width={110} /></td>
-                    {splitByGender && (
-                      <td style={cellStyle}>
-                        <select
-                          value={r.gender}
-                          onChange={(e) => updateRow(r.id, 'gender', e.target.value)}
-                          style={{
-                            padding: `6px ${spacing.sm}`,
-                            background: colors.background.secondary,
-                            border: `1px solid ${r.gender ? colors.border.light : '#f59e0b'}`,
-                            borderRadius: borderRadius.md,
-                            color: colors.text.primary,
-                            fontSize: typography.fontSize.sm,
-                            outline: 'none',
-                          }}
-                        >
-                          <option value="">—</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                        </select>
-                      </td>
-                    )}
-                    <td style={cellStyle}>
-                      <button
-                        type="button"
-                        onClick={() => removeRow(r.id)}
-                        title="Remove"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text.muted, padding: spacing.xs }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {invalidCount > 0 && (
-          <p style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, color: colors.text.muted, fontSize: typography.fontSize.xs, margin: 0 }}>
-            <AlertTriangle size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
-            Rows missing a name{splitByGender ? ', email or gender' : ' or a valid email'} are skipped on import.
-          </p>
-        )}
-      </div>
-    );
-  }
-
-  function renderResult() {
-    const created = result?.created || [];
-    const skipped = result?.skipped || [];
-    const errors = result?.errors || [];
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
-        <div style={{ display: 'flex', gap: spacing.md, flexWrap: 'wrap' }}>
-          <ResultStat icon={CheckCircle} color="#22c55e" count={created.length} label="Added" />
-          <ResultStat icon={AlertTriangle} color="#f59e0b" count={skipped.length} label="Skipped" />
-          <ResultStat icon={XCircle} color="#ef4444" count={errors.length} label="Errors" />
-        </div>
-
-        {created.length > 0 && (
-          <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: 0, lineHeight: 1.6 }}>
-            {created.length} {created.length === 1 ? 'person is' : 'people are'} now in your lineup and
-            {' '}have been emailed a link to claim their profile.
-          </p>
-        )}
-
-        {(skipped.length > 0 || errors.length > 0) && (
-          <div style={{
-            maxHeight: 220, overflowY: 'auto',
-            border: `1px solid ${colors.border.light}`, borderRadius: borderRadius.lg,
-          }}>
-            {[...errors.map((e) => ({ ...e, kind: 'error' })), ...skipped.map((s) => ({ ...s, kind: 'skip' }))].map((item, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: spacing.sm,
-                padding: `${spacing.sm} ${spacing.md}`,
-                borderBottom: `1px solid ${colors.border.lighter}`,
-                fontSize: typography.fontSize.sm,
-              }}>
-                {item.kind === 'error'
-                  ? <XCircle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  : <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />}
-                <span style={{ color: colors.text.primary, minWidth: 0, flex: 1 }}>
-                  <strong>{item.name || item.email || 'Unknown'}</strong>
-                  <span style={{ color: colors.text.muted }}> — {item.error || item.reason}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
 }
 
-const cellStyle = {
-  padding: `${spacing.sm} ${spacing.md}`,
-  verticalAlign: 'middle',
+const fieldLabelStyle = {
+  fontSize: typography.fontSize.xs,
+  fontWeight: typography.fontWeight.medium,
+  color: colors.text.secondary,
 };
 
-function CellInput({ value, onChange, placeholder, width = 120, invalid = false }) {
+function Field({ label, value, onChange, placeholder, type = 'text', required = false, invalid = false, inputRef, span = 1 }) {
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      style={{
-        width,
-        maxWidth: '100%',
-        padding: `6px ${spacing.sm}`,
-        background: colors.background.secondary,
-        border: `1px solid ${invalid ? colors.status.error : colors.border.light}`,
-        borderRadius: borderRadius.md,
-        color: colors.text.primary,
-        fontSize: typography.fontSize.sm,
-        outline: 'none',
-        boxSizing: 'border-box',
-      }}
-    />
+    <label style={{ gridColumn: `span ${span}`, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
+      <span style={fieldLabelStyle}>
+        {label}{required && <span style={{ color: colors.status.error }}> *</span>}
+      </span>
+      <input
+        ref={inputRef}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          padding: spacing.md,
+          background: colors.background.secondary,
+          border: `1px solid ${invalid ? colors.status.error : colors.border.light}`,
+          borderRadius: borderRadius.lg,
+          color: colors.text.primary,
+          fontSize: typography.fontSize.md,
+          outline: 'none',
+          boxSizing: 'border-box',
+        }}
+      />
+    </label>
   );
 }
 
-function ResultStat({ icon: Icon, color, count, label }) {
+function Banner({ banner, onDismiss }) {
+  const config = {
+    success: { color: '#22c55e', bg: 'rgba(34,197,94,0.1)', Icon: CheckCircle },
+    skip: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', Icon: AlertTriangle },
+    error: { color: '#ef4444', bg: 'rgba(239,68,68,0.1)', Icon: XCircle },
+  }[banner.kind] || {};
+  const { color, bg, Icon } = config;
   return (
     <div style={{
-      flex: 1, minWidth: 120,
-      background: colors.background.card,
-      border: `1px solid ${colors.border.light}`,
+      display: 'flex', alignItems: 'flex-start', gap: spacing.sm,
+      padding: spacing.md,
+      background: bg,
+      border: `1px solid ${color}`,
       borderRadius: borderRadius.lg,
-      padding: spacing.lg,
-      display: 'flex', alignItems: 'center', gap: spacing.md,
     }}>
-      <Icon size={22} style={{ color }} />
-      <div>
-        <p style={{ fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color, margin: 0 }}>
-          {count}
-        </p>
-        <p style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, margin: 0 }}>{label}</p>
-      </div>
+      {Icon && <Icon size={16} style={{ color, flexShrink: 0, marginTop: 1 }} />}
+      <span style={{ flex: 1, minWidth: 0, color: colors.text.primary, fontSize: typography.fontSize.sm }}>
+        {banner.text}
+      </span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: colors.text.muted, padding: 0, flexShrink: 0 }}
+      >
+        <X size={14} />
+      </button>
     </div>
   );
 }
