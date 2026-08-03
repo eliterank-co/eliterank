@@ -126,7 +126,7 @@ serve(async (req) => {
         .filter(Boolean)
     )
 
-    const created: Array<{ name: string; email: string; action: string }> = []
+    const created: Array<{ name: string; email: string; action: string; existingAccount: boolean; emailed: boolean }> = []
     const skipped: Array<{ name: string; email: string; reason: string }> = []
     const errors: Array<{ name: string; email: string; error: string }> = []
 
@@ -236,8 +236,10 @@ serve(async (req) => {
         const age = parseAge(row?.age)
         const instagram = normalizeInstagram(row?.instagram)
 
-        const { error: profileError } = await supabase.from('profiles').upsert(
-          {
+        let profilePayload: Record<string, unknown>
+        if (isNewAccount) {
+          // Brand-new account — seed the whole profile from the roster row.
+          profilePayload = {
             id: authUserId,
             email,
             first_name: firstName,
@@ -250,9 +252,33 @@ serve(async (req) => {
             phone: row?.phone || null,
             onboarded_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'id', ignoreDuplicates: false }
-        )
+          }
+        } else {
+          // Existing account — this is a real person who already set up their
+          // profile. Never clobber what they entered; only fill in fields that
+          // are currently blank (e.g. they never added a photo but the host
+          // has one). Their name/email are left exactly as they are.
+          const { data: current } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, avatar_url, bio, city, age, instagram, phone, onboarded_at')
+            .eq('id', authUserId)
+            .maybeSingle()
+
+          profilePayload = { id: authUserId, updated_at: new Date().toISOString() }
+          if (!current?.first_name && firstName) profilePayload.first_name = firstName
+          if (!current?.last_name && lastName) profilePayload.last_name = lastName
+          if (!current?.avatar_url && row?.avatar_url) profilePayload.avatar_url = row.avatar_url
+          if (!current?.bio && row?.bio) profilePayload.bio = row.bio
+          if (!current?.city && row?.city) profilePayload.city = row.city
+          if (!current?.age && age != null) profilePayload.age = age
+          if (!current?.instagram && instagram) profilePayload.instagram = instagram
+          if (!current?.phone && row?.phone) profilePayload.phone = row.phone
+          if (!current?.onboarded_at) profilePayload.onboarded_at = new Date().toISOString()
+        }
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert(profilePayload, { onConflict: 'id', ignoreDuplicates: false })
 
         if (profileError) {
           errors.push({ name, email, error: `Profile sync failed: ${profileError.message}` })
@@ -364,11 +390,15 @@ serve(async (req) => {
         created.push({
           name,
           email,
+          existingAccount: !isNewAccount,
+          // We only email brand-new accounts a set-password link; someone who
+          // already has an account keeps their existing login.
+          emailed: isNewAccount && send_invites,
           action: isNewAccount
             ? send_invites
               ? 'Created account + added as contestant + sent claim email'
               : 'Created account + added as contestant'
-            : 'Linked existing account + added as contestant',
+            : 'Linked existing account + added as contestant (no email — already has a login)',
         })
       } catch (err) {
         console.error(`Error importing ${name} (${email}):`, err)

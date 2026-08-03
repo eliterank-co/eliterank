@@ -106,7 +106,15 @@ export default function ImportRosterModal({
 
       if (created.length > 0) {
         setAddedCount((c) => c + 1);
-        setBanner({ kind: 'success', text: `${name} added — they've been emailed a link to claim their profile.` });
+        // Someone who already had an account keeps their existing login, so no
+        // claim email is sent — say so instead of implying we emailed them.
+        const entry = created[0];
+        setBanner({
+          kind: 'success',
+          text: entry?.existingAccount
+            ? `${name} added to your lineup. They already have an account, so no email was sent.`
+            : `${name} added — they've been emailed a link to claim their profile.`,
+        });
         setForm(EMPTY_FORM);
         // Return focus to the top of the form for the next person.
         setTimeout(() => nameInputRef.current?.focus(), 0);
