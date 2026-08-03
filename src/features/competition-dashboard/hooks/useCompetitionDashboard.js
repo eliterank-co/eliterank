@@ -341,6 +341,9 @@ export function useCompetitionDashboard(competitionId) {
         currentRound: c.current_round,
         // Answers to host custom questions, carried over from their nominee row.
         eligibilityAnswers: findNomineeAnswers(c.user_id, c.email || c.profile?.email),
+        // When the contestant row was created — powers the host's "date added"
+        // sort on the People tab.
+        createdAt: c.created_at,
       }));
 
       // Targeted profile lookup for nominee matching
