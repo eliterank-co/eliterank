@@ -242,7 +242,7 @@ export default function ImportRosterModal({
 
         <p style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, color: colors.text.muted, fontSize: typography.fontSize.xs, margin: 0 }}>
           <CheckCircle size={13} style={{ color: colors.gold.primary, flexShrink: 0 }} />
-          Contestants add their age, city, phone, and bio themselves when they claim their profile.
+          Contestants will be able to update their profile independently after they claim their profile.
         </p>
 
         {banner && <Banner banner={banner} onDismiss={() => setBanner(null)} />}
