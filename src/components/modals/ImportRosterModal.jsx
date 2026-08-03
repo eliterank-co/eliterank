@@ -22,14 +22,13 @@ import { uploadPhoto } from '../../features/entry/utils/uploadPhoto';
 
 const isEmailish = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
 
+// The host only supplies what they have on their roster (name, email, photo,
+// social handle). Contestants fill in their own age, city, phone, and bio when
+// they claim their profile.
 const EMPTY_FORM = {
   name: '',
   email: '',
-  phone: '',
   instagram: '',
-  city: '',
-  age: '',
-  bio: '',
   gender: '',
   avatarUrl: '',
 };
@@ -90,11 +89,7 @@ export default function ImportRosterModal({
       const row = {
         name,
         email: form.email.trim(),
-        phone: form.phone.trim() || null,
         instagram: form.instagram.trim() || null,
-        city: form.city.trim() || null,
-        age: form.age.toString().trim() || null,
-        bio: form.bio.trim() || null,
         gender: splitByGender ? form.gender : (form.gender || null),
         avatar_url: form.avatarUrl || null,
       };
@@ -204,14 +199,12 @@ export default function ImportRosterModal({
           />
         </div>
 
-        {/* Fields */}
+        {/* Fields — only what the host has on their roster. Contestants add
+            their own age, city, phone, and bio when they claim their profile. */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.md }}>
           <Field label="Full name" required value={form.name} onChange={(v) => update('name', v)} placeholder="Jane Doe" inputRef={nameInputRef} span={2} />
           <Field label="Email" required type="text" inputMode="email" autoComplete="off" value={form.email} onChange={(v) => update('email', v)} placeholder="jane@example.com" span={2} />
-          <Field label="Instagram" value={form.instagram} onChange={(v) => update('instagram', v)} placeholder="@janedoe" />
-          <Field label="City" value={form.city} onChange={(v) => update('city', v)} placeholder="Dallas" />
-          <Field label="Age" value={form.age} onChange={(v) => update('age', v)} placeholder="—" />
-          <Field label="Phone" value={form.phone} onChange={(v) => update('phone', v)} placeholder="—" />
+          <Field label="Instagram" value={form.instagram} onChange={(v) => update('instagram', v)} placeholder="@janedoe" span={2} />
 
           {splitByGender && (
             <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
@@ -244,29 +237,12 @@ export default function ImportRosterModal({
               </div>
             </div>
           )}
-
-          <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
-            <span style={fieldLabelStyle}>Bio</span>
-            <textarea
-              value={form.bio}
-              onChange={(e) => update('bio', e.target.value)}
-              placeholder="A short intro (optional)"
-              rows={3}
-              style={{
-                width: '100%',
-                padding: spacing.md,
-                background: colors.background.secondary,
-                border: `1px solid ${colors.border.light}`,
-                borderRadius: borderRadius.lg,
-                color: colors.text.primary,
-                fontSize: typography.fontSize.sm,
-                outline: 'none',
-                resize: 'vertical',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
         </div>
+
+        <p style={{ display: 'flex', alignItems: 'center', gap: spacing.xs, color: colors.text.muted, fontSize: typography.fontSize.xs, margin: 0 }}>
+          <CheckCircle size={13} style={{ color: colors.gold.primary, flexShrink: 0 }} />
+          Contestants add their age, city, phone, and bio themselves when they claim their profile.
+        </p>
 
         {banner && <Banner banner={banner} onDismiss={() => setBanner(null)} />}
       </div>
