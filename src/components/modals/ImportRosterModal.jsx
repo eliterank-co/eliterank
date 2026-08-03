@@ -207,7 +207,7 @@ export default function ImportRosterModal({
         {/* Fields */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing.md }}>
           <Field label="Full name" required value={form.name} onChange={(v) => update('name', v)} placeholder="Jane Doe" inputRef={nameInputRef} span={2} />
-          <Field label="Email" required type="email" value={form.email} onChange={(v) => update('email', v)} placeholder="jane@example.com" invalid={form.email.length > 0 && !isEmailish(form.email)} span={2} />
+          <Field label="Email" required type="text" inputMode="email" autoComplete="off" value={form.email} onChange={(v) => update('email', v)} placeholder="jane@example.com" span={2} />
           <Field label="Instagram" value={form.instagram} onChange={(v) => update('instagram', v)} placeholder="@janedoe" />
           <Field label="City" value={form.city} onChange={(v) => update('city', v)} placeholder="Dallas" />
           <Field label="Age" value={form.age} onChange={(v) => update('age', v)} placeholder="—" />
@@ -281,7 +281,7 @@ const fieldLabelStyle = {
   color: colors.text.secondary,
 };
 
-function Field({ label, value, onChange, placeholder, type = 'text', required = false, invalid = false, inputRef, span = 1 }) {
+function Field({ label, value, onChange, placeholder, type = 'text', required = false, invalid = false, inputRef, span = 1, inputMode, autoComplete }) {
   return (
     <label style={{ gridColumn: `span ${span}`, display: 'flex', flexDirection: 'column', gap: spacing.xs }}>
       <span style={fieldLabelStyle}>
@@ -290,6 +290,8 @@ function Field({ label, value, onChange, placeholder, type = 'text', required = 
       <input
         ref={inputRef}
         type={type}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
