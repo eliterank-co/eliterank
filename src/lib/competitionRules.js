@@ -93,7 +93,9 @@ export function buildAutoRules(competition) {
 
   // ── How to enter ────────────────────────────────────────────────────────
   let entry;
-  if (entryType === 'applications') {
+  if (entryType === 'host_upload') {
+    entry = 'Contestants are selected by the Host: the Host assembles the field directly, and there is no public nomination or application period.';
+  } else if (entryType === 'applications') {
     entry = 'Entry is by application: eligible people apply directly to take part.';
   } else {
     entry = 'Entry is by nomination: anyone can nominate an eligible person, and prospective contestants can also nominate themselves. Nominees confirm and complete a profile to join the competition.';

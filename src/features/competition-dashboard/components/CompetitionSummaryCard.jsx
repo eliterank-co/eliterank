@@ -13,7 +13,7 @@ import { COMPETITION_TEMPLATES, CUSTOM_TEMPLATE, US_STATES } from '../../../lib/
  * card shows a read-only recap. The lock follows `isFieldEditable('category', …)`.
  */
 const GENDER = { all: 'All genders', female: 'Women', male: 'Men', 'LGBTQ+': 'LGBTQ+' };
-const ENTRY = { nominations: 'Nomination', applications: 'Application' };
+const ENTRY = { nominations: 'Nomination', applications: 'Application', host_upload: 'Host uploads roster' };
 const WIN = { votes: 'Public votes', hybrid: 'Votes + judges', judges: 'Judges only' };
 
 const labelStyle = { display: 'block', color: colors.text.secondary, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.medium, marginBottom: spacing.xs };

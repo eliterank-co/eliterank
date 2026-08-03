@@ -646,6 +646,12 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // pure public-vote competitions we hide the judging controls entirely.
   const usesJudges = ['judges', 'hybrid'].includes(competition?.selectionCriteria);
 
+  // Host-upload competitions have no public nomination period — the host builds
+  // the contestant roster directly. Voting doesn't derive from a nomination
+  // close for these, so the nomination-window gate below doesn't apply.
+  const isHostUpload =
+    (competition?.entryType || competition?.entry_type) === 'host_upload';
+
   // Recommended first-voting start = 5 days after nominations close (owned by
   // the Nomination Form section). Used to auto-fill the first voting round.
   const nominationCloseIso = competition?.nominationEnd || competition?.nomination_end || null;
@@ -668,7 +674,11 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // unlocks automatically once the Nomination Form section saves and the parent
   // refetches. Existing rounds are never hidden — this only gates *new* ones,
   // so no live competition's timeline is affected.
+  // Host-upload competitions skip nominations entirely, so they're never gated
+  // on a saved nomination window — the host can build the voting schedule from
+  // the start (dates fall back to a planned-launch estimate).
   const hasSavedNominationWindow =
+    isHostUpload ||
     !!nominationCloseIso ||
     nominationPeriods.some((p) => p.start_date && p.end_date);
 
@@ -741,7 +751,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       validationErrors.push('Voting needs at least 3 rounds.');
     }
 
-    if (status === COMPETITION_STATUS.LIVE) {
+    if (status === COMPETITION_STATUS.LIVE && !isHostUpload) {
       if (nominationPeriods.length === 0) {
         validationErrors.push('At least one prospecting period is required for Live status');
       } else {

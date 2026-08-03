@@ -315,7 +315,9 @@ export function buildOfficialRules(competition, context = {}) {
 
   // ── How to Enter ─────────────────────────────────────────────────────────
   let entry;
-  if (entryType === 'applications') {
+  if (entryType === 'host_upload') {
+    entry = 'Contestants are selected by the Host: the Host assembles the field of contestants directly, and there is no public nomination or application period. By being entered into the Competition, each contestant agrees to these Official Rules.';
+  } else if (entryType === 'applications') {
     entry = 'Entry is by application: eligible people apply directly to take part. Applicants complete the required profile information and agree to these Official Rules to become a contestant.';
   } else {
     entry = 'Entry is by nomination: anyone can nominate an eligible person, and prospective contestants can also nominate themselves. A nominee confirms the nomination, completes the required profile information, and agrees to these Official Rules to become a contestant.';
