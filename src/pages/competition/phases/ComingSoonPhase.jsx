@@ -67,6 +67,12 @@ export function ComingSoonPhase() {
   const hasCountdown = Boolean(countdown && !countdown.isExpired);
   const hasCharity = Boolean(competition?.charity_name);
 
+  // Host-upload competitions have no nomination period — the next public
+  // milestone is voting opening, so the teaser copy points there instead.
+  const isHostUpload = (competition?.entry_type || competition?.entryType) === 'host_upload';
+  const opensLabel = isHostUpload ? 'voting opens' : 'nominations open';
+  const opensInLabel = isHostUpload ? 'Voting opens in' : 'Nominations open in';
+
   // Timeline renders nothing unless at least one phase has dates.
   const hasTimeline = Boolean(
     nominationPeriods?.some(p => p.start_date || p.end_date)
@@ -89,7 +95,7 @@ export function ComingSoonPhase() {
           <CompetitionHeader badge="Coming Soon" badgeVariant="default" />
           {hasCountdown && (
             <div className="phase-coming-soon-countdown">
-              <CountdownDisplay label="Nominations open in" large showPlaceholder={false} />
+              <CountdownDisplay label={opensInLabel} large showPlaceholder={false} />
             </div>
           )}
         </div>
@@ -106,7 +112,7 @@ export function ComingSoonPhase() {
           {isSubscribed ? (
             <>
               <Check size={18} />
-              <span className="phase-cta-primary-label">You'll be notified when nominations open</span>
+              <span className="phase-cta-primary-label">You'll be notified when {opensLabel}</span>
             </>
           ) : subLoading ? (
             <>
@@ -116,7 +122,7 @@ export function ComingSoonPhase() {
           ) : (
             <>
               <Bell size={18} />
-              <span className="phase-cta-primary-label">Get notified when nominations open</span>
+              <span className="phase-cta-primary-label">Get notified when {opensLabel}</span>
             </>
           )}
         </button>

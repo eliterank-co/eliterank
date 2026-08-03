@@ -646,6 +646,12 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // pure public-vote competitions we hide the judging controls entirely.
   const usesJudges = ['judges', 'hybrid'].includes(competition?.selectionCriteria);
 
+  // Host-upload competitions have no public nomination period — the host builds
+  // the contestant roster directly. Voting doesn't derive from a nomination
+  // close for these, so the nomination-window gate below doesn't apply.
+  const isHostUpload =
+    (competition?.entryType || competition?.entry_type) === 'host_upload';
+
   // Recommended first-voting start = 5 days after nominations close (owned by
   // the Nomination Form section). Used to auto-fill the first voting round.
   const nominationCloseIso = competition?.nominationEnd || competition?.nomination_end || null;
@@ -668,7 +674,11 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   // unlocks automatically once the Nomination Form section saves and the parent
   // refetches. Existing rounds are never hidden — this only gates *new* ones,
   // so no live competition's timeline is affected.
+  // Host-upload competitions skip nominations entirely, so they're never gated
+  // on a saved nomination window — the host can build the voting schedule from
+  // the start (dates fall back to a planned-launch estimate).
   const hasSavedNominationWindow =
+    isHostUpload ||
     !!nominationCloseIso ||
     nominationPeriods.some((p) => p.start_date && p.end_date);
 
@@ -734,25 +744,14 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
     }
 
     // Voting minimums (only enforced once the host has started adding voting
-    // rounds): at least 3 rounds and at least 30 days of voting total.
+    // rounds): at least 3 rounds. There is no minimum total duration — hosts are
+    // free to run shorter voting windows (well under 30 days) if they want to.
     const votingTypeRounds = votingRounds.filter((r) => r.round_type === 'voting');
-    if (votingTypeRounds.length > 0) {
-      if (votingTypeRounds.length < 3) {
-        validationErrors.push('Voting needs at least 3 rounds.');
-      }
-      const starts = votingTypeRounds.map((r) => r.start_date && new Date(r.start_date)).filter(Boolean);
-      const ends = votingTypeRounds.map((r) => r.end_date && new Date(r.end_date)).filter(Boolean);
-      if (starts.length && ends.length) {
-        const firstStart = Math.min(...starts.map((d) => d.getTime()));
-        const lastEnd = Math.max(...ends.map((d) => d.getTime()));
-        const days = (lastEnd - firstStart) / 86400000;
-        if (days < 30) {
-          validationErrors.push('Voting must run at least 30 days total (first round start to last round end).');
-        }
-      }
+    if (votingTypeRounds.length > 0 && votingTypeRounds.length < 3) {
+      validationErrors.push('Voting needs at least 3 rounds.');
     }
 
-    if (status === COMPETITION_STATUS.LIVE) {
+    if (status === COMPETITION_STATUS.LIVE && !isHostUpload) {
       if (nominationPeriods.length === 0) {
         validationErrors.push('At least one prospecting period is required for Live status');
       } else {
@@ -1074,7 +1073,8 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
   };
 
   // Build the recommended schedule: three contiguous 10-day voting rounds
-  // (≥30 days total, the validator's minimum). Judging is tied to the LAST
+  // (~30 days total — a comfortable default; hosts can shorten it afterward).
+  // Judging is tied to the LAST
   // voting round — that round becomes the determining round with judges at the
   // 60% skill-contest floor (the "blend" layout JudgingPanel offers), so there
   // is never a separate judging round. The finale is set 1 hour after that
@@ -1381,7 +1381,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
             : 'This competition is vote-based only. To add judges, change “How they win” in your competition details before submitting.'}
         </p>
         <p style={{ fontSize: typography.fontSize.xs, color: colors.gold.primary, marginBottom: spacing.md }}>
-          Voting should run at least <strong>30 days</strong> across at least <strong>3 rounds</strong>. We recommend voting opens 5 days after nominations close
+          Voting runs across at least <strong>3 rounds</strong> — as short or as long as you like. We recommend voting opens 5 days after nominations close
           {recommendedVotingStartIso ? <> — about <strong>{formatDateForDisplay(recommendedVotingStartIso)}</strong>.</> : '.'}{' '}
           Use <strong>Auto-fill recommended</strong> to lay out 3 voting rounds and the finale for you
           {usesJudges ? <> — judges decide the final round at <strong>60%</strong>. Prefer a judges-only finale? Change it on the final round below.</> : '. '}

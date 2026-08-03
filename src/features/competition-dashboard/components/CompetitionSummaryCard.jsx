@@ -13,7 +13,7 @@ import { COMPETITION_TEMPLATES, CUSTOM_TEMPLATE, US_STATES } from '../../../lib/
  * card shows a read-only recap. The lock follows `isFieldEditable('category', …)`.
  */
 const GENDER = { all: 'All genders', female: 'Women', male: 'Men', 'LGBTQ+': 'LGBTQ+' };
-const ENTRY = { nominations: 'Nomination', applications: 'Application' };
+const ENTRY = { nominations: 'Nomination', applications: 'Application', host_upload: 'Host uploads roster' };
 const WIN = { votes: 'Public votes', hybrid: 'Votes + judges', judges: 'Judges only' };
 
 const labelStyle = { display: 'block', color: colors.text.secondary, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.medium, marginBottom: spacing.xs };
@@ -336,6 +336,15 @@ export default function CompetitionSummaryCard({ competition, onNavigateToTab, o
               <option value="judges">Judges only</option>
             </select>
             <p style={helpStyle}>How winners are decided — public voting, a judging panel, or both.</p>
+          </div>
+
+          <div>
+            <label style={labelStyle}>How contestants get in</label>
+            <select style={fieldStyle} value={form.entryType} onChange={(e) => set('entryType', e.target.value)}>
+              <option value="nominations">Nominations</option>
+              <option value="host_upload">I upload my roster</option>
+            </select>
+            <p style={helpStyle}>Nominations open a public nomination period; roster upload skips it — you add contestants yourself.</p>
           </div>
         </div>
 

@@ -549,7 +549,16 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
 
           {field('Number of winners',
             <input style={controlStyle} type="number" min="1" value={form.numberOfWinners} onChange={(e) => set('numberOfWinners', e.target.value)} />,
-            'Contestants enter by nomination — they can submit themselves or be nominated by someone else.')}
+            'How many winners this competition crowns.')}
+
+          {field('How contestants get in',
+            <select style={controlStyle} value={form.entryType} onChange={(e) => set('entryType', e.target.value)}>
+              <option value="nominations">Nominations — people nominate themselves or others</option>
+              <option value="host_upload">I’ll upload my roster — no nominations</option>
+            </select>,
+            form.entryType === 'host_upload'
+              ? 'You provide the contestant list yourself in your dashboard — there’s no public nomination period. Voting runs on the roster you upload.'
+              : 'Anyone can nominate an eligible person, and contestants can nominate themselves. Nominees confirm and complete a profile to join.')}
 
           {field('How they win',
             <select style={controlStyle} value={form.selectionCriteria} onChange={(e) => set('selectionCriteria', e.target.value)}>
@@ -675,7 +684,7 @@ export default function CreateCompetitionModal({ isOpen, onClose, userId, onCrea
             ['Host', form.hostType === 'individual' ? `${form.soloName} (individual)` : (orgCreatingNew ? `${form.newOrgName} (${form.orgType})` : lookups.orgs.find((o) => o.id === form.organizationId)?.name)],
             ['Template', template?.id === CUSTOM_TEMPLATE.id ? form.customCategory : template?.label],
             ['Winners', form.numberOfWinners],
-            ['Entry', form.entryType === 'nominations' ? 'Nomination' : 'Application'],
+            ['Entry', { nominations: 'Nomination', applications: 'Application', host_upload: 'Host uploads roster' }[form.entryType] || form.entryType],
             ['How they win', form.selectionCriteria === 'votes' ? 'Public votes' : form.selectionCriteria === 'judges' ? 'Judges only' : 'Votes + judges'],
             ['Territory', form.territoryScope === 'us'
               ? 'US-wide'
