@@ -382,18 +382,52 @@ serve(async (req) => {
           // Non-fatal — the stat can be reconciled later.
         }
 
-        // ── Email a "claim your profile / set password" link ─────────────
-        // Only for brand-new accounts, and only when the host asked us to.
-        if (send_invites && isNewAccount) {
+        // ── Email the contestant ─────────────────────────────────────────
+        // Brand-new accounts get a "claim your account & start campaigning"
+        // link (set password → claim profile). People who already have an
+        // EliteRank account get a lighter "make sure your profile is campaign
+        // ready" nudge — no password link, they already have a login. Both are
+        // gated on the host asking us to send invites.
+        const contestantDisplayName = (contestantRecord.name as string) || name
+        let emailed = false
+        if (send_invites) {
           try {
-            const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-              type: 'recovery',
-              email,
-              options: { redirectTo: `${appUrl}/reset-password` },
-            })
+            if (isNewAccount) {
+              const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+                type: 'recovery',
+                email,
+                options: { redirectTo: `${appUrl}/reset-password` },
+              })
 
-            const recoveryLink = linkData?.properties?.action_link
-            if (!linkError && recoveryLink) {
+              const recoveryLink = linkData?.properties?.action_link
+              if (!linkError && recoveryLink) {
+                const emailResp = await fetch(`${supabaseUrl}/functions/v1/send-onesignal-email`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({
+                    type: 'contestant_claim',
+                    to_email: email,
+                    to_name: contestantDisplayName,
+                    contestant_name: contestantDisplayName,
+                    competition_name: competitionName,
+                    competition_id,
+                    claim_url: recoveryLink,
+                  }),
+                })
+                if (emailResp.ok) {
+                  emailed = true
+                } else {
+                  console.warn(`contestant_claim email failed for ${email}:`, await emailResp.text())
+                }
+              } else if (linkError) {
+                console.warn(`generateLink failed for ${email}:`, linkError.message)
+              }
+            } else {
+              // Existing account — no claim link needed. Point them at their
+              // profile so they can get campaign ready.
               const emailResp = await fetch(`${supabaseUrl}/functions/v1/send-onesignal-email`, {
                 method: 'POST',
                 headers: {
@@ -401,39 +435,40 @@ serve(async (req) => {
                   Authorization: `Bearer ${supabaseServiceKey}`,
                 },
                 body: JSON.stringify({
-                  type: 'account_ready',
+                  type: 'contestant_ready',
                   to_email: email,
-                  to_name: name,
-                  nominee_name: name,
+                  to_name: contestantDisplayName,
+                  contestant_name: contestantDisplayName,
                   competition_name: competitionName,
                   competition_id,
-                  reset_password_url: recoveryLink,
+                  profile_url: `${appUrl}/profile`,
                 }),
               })
-              if (!emailResp.ok) {
-                console.warn(`account_ready email failed for ${email}:`, await emailResp.text())
+              if (emailResp.ok) {
+                emailed = true
+              } else {
+                console.warn(`contestant_ready email failed for ${email}:`, await emailResp.text())
               }
-            } else if (linkError) {
-              console.warn(`generateLink failed for ${email}:`, linkError.message)
             }
           } catch (emailErr) {
-            // Non-fatal — they can always use "Forgot password" to get in.
+            // Non-fatal — a new account can always use "Forgot password" to get
+            // in, and an existing account already has a login.
             console.warn(`Email send error for ${email}:`, emailErr)
           }
         }
 
         created.push({
-          name: (contestantRecord.name as string) || name,
+          name: contestantDisplayName,
           email,
           existingAccount: !isNewAccount,
-          // We only email brand-new accounts a set-password link; someone who
-          // already has an account keeps their existing login.
-          emailed: isNewAccount && send_invites,
+          emailed,
           action: isNewAccount
-            ? send_invites
+            ? emailed
               ? 'Created account + added as contestant + sent claim email'
               : 'Created account + added as contestant'
-            : 'Linked existing account + added as contestant (no email — already has a login)',
+            : emailed
+              ? 'Linked existing account + added as contestant + sent campaign-ready email'
+              : 'Linked existing account + added as contestant (already has a login)',
         })
       } catch (err) {
         console.error(`Error importing ${name} (${email}):`, err)

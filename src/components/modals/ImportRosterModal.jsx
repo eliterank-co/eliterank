@@ -11,10 +11,12 @@ import { uploadPhoto } from '../../features/entry/utils/uploadPhoto';
  *
  * Adds a host's roster to a competition one person at a time via a structured
  * form — individual fields plus a photo, so there's no CSV parsing to get
- * wrong. Each submit creates a real account, adds the person directly as an
- * active contestant, and emails them a "claim your profile / set password"
- * link. The heavy lifting is done server-side by the bulk-import-contestants
- * edge function via `onImport` (called with a single-element array).
+ * wrong. Each submit creates a real account (or links an existing one), adds
+ * the person directly as an active contestant, and emails them: new sign-ups
+ * get a "claim your account & start campaigning" link, existing accounts get a
+ * "get your profile campaign ready" nudge. The heavy lifting is done
+ * server-side by the bulk-import-contestants edge function via `onImport`
+ * (called with a single-element array).
  *
  * After each add the form clears so the host can keep going; a running tally
  * and a per-add confirmation keep them oriented.
@@ -108,8 +110,8 @@ export default function ImportRosterModal({
         setBanner({
           kind: 'success',
           text: entry?.existingAccount
-            ? `Added to your lineup as "${shownName}" — this email already has an account, so their own profile details were kept and no email was sent.`
-            : `${name} added — they've been emailed a link to claim their profile.`,
+            ? `Added to your lineup as "${shownName}" — this email already has an account, so their own profile details were kept. We emailed them a nudge to get their profile campaign ready.`
+            : `${name} added — they've been emailed a link to claim their account and start campaigning.`,
         });
         setForm(EMPTY_FORM);
         // Return focus to the top of the form for the next person.
@@ -151,8 +153,9 @@ export default function ImportRosterModal({
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.lg }}>
         <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, margin: 0, lineHeight: 1.6 }}>
           Add someone from your roster. They're added straight to your contestant
-          lineup with an account — new sign-ups are emailed a link to set a
-          password and claim their profile.
+          lineup with an account — new sign-ups are emailed a link to claim their
+          account and start campaigning; people who already have an account get a
+          nudge to make their profile campaign ready.
         </p>
 
         {addedCount > 0 && (

@@ -15,6 +15,12 @@ const corsHeaders = {
  *   - nominator_confirm:    "Your nomination was submitted" confirmation to the nominator
  *   - nominee_accepted:     "Your nominee accepted!" notification to the nominator
  *   - nominee_declined:     "Your nominee declined" notification to the nominator
+ *   - contestant_claim:     "Claim your account & start campaigning" — sent to a
+ *                          brand-new person a host uploaded straight onto the
+ *                          roster. Carries a set-password/claim link.
+ *   - contestant_ready:     "Get your profile campaign ready" — sent to a
+ *                          host-uploaded contestant who already has an EliteRank
+ *                          account (no password link; they already have a login).
  *   - contestant_promoted:  "You're officially a contestant!" sent to a nominee
  *                          once the host approves them into the competition
  *   - fan_confirmation:     "You're now a fan of X" — sent when a user becomes a fan
@@ -39,7 +45,7 @@ const corsHeaders = {
  */
 
 interface EmailRequest {
-  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'contestant_promoted' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
+  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'contestant_claim' | 'contestant_ready' | 'contestant_promoted' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
   to_email: string
   to_name?: string
   // When set, the send is recorded in email_logs so the host of this
@@ -365,6 +371,74 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             ${goldButton('Set Your Password', resetUrl)}
             <p style="color:#999;font-size:13px;margin-top:16px;">
               This link expires in 24 hours. If it expires, you can always use "Forgot Password" on the login page.
+            </p>
+          </div>
+        `),
+      }
+    }
+
+    case 'contestant_claim': {
+      // A host uploaded this person straight onto the roster and they don't
+      // have an account yet. This is their claim invite — no nomination
+      // happened, so the copy never mentions one.
+      const contestantName = req.contestant_name || req.to_name || req.nominee_name || ''
+      const firstName = contestantName ? contestantName.split(' ')[0] : ''
+      const competitionName = req.competition_name || 'the competition'
+      const cityLine = req.city_name
+        ? `<p style="color:#ccc;font-size:15px;margin-top:4px;">${req.city_name}</p>`
+        : ''
+      // claim_url carries the set-password/claim link; fall back to the plain
+      // reset-password entry point if the caller couldn't mint one.
+      const claimUrl = req.claim_url || req.reset_password_url || `${appUrl}/login`
+      return {
+        subject: `Claim your spot in ${competitionName} and start campaigning`,
+        body: wrapper(`
+          <div style="text-align:center;">
+            <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">Your Account is Ready to Claim</h1>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${competitionName}</p>
+            ${cityLine}
+            <p style="color:#ccc;font-size:15px;margin-top:16px;">
+              Hi${firstName ? ` ${firstName}` : ''}! Your account is ready for you to claim so you can begin campaigning for <strong>${competitionName}</strong>.
+            </p>
+            <p style="color:#999;font-size:14px;margin-top:16px;">
+              Claim your account to set your password, finish your profile, and start rallying votes.
+            </p>
+            ${goldButton('Claim Your Account', claimUrl)}
+            <p style="color:#666;font-size:12px;">
+              This link expires in 24 hours. If it expires, use "Forgot Password" on the login page to get back in.
+            </p>
+          </div>
+        `),
+      }
+    }
+
+    case 'contestant_ready': {
+      // A host uploaded this person onto the roster and they already have an
+      // EliteRank account, so there's nothing to claim — just a nudge to make
+      // sure their profile is ready before campaigning begins.
+      const contestantName = req.contestant_name || req.to_name || ''
+      const firstName = contestantName ? contestantName.split(' ')[0] : ''
+      const competitionName = req.competition_name || 'the competition'
+      const cityLine = req.city_name
+        ? `<p style="color:#ccc;font-size:15px;margin-top:4px;">${req.city_name}</p>`
+        : ''
+      const ctaUrl = req.profile_url || req.competition_url || `${appUrl}/profile`
+      return {
+        subject: `You're in ${competitionName} — get your profile campaign ready`,
+        body: wrapper(`
+          <div style="text-align:center;">
+            <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You're In!</h1>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${competitionName}</p>
+            ${cityLine}
+            <p style="color:#ccc;font-size:15px;margin-top:16px;">
+              Hi${firstName ? ` ${firstName}` : ''}! You've been added as a contestant in <strong>${competitionName}</strong>.
+            </p>
+            <p style="color:#999;font-size:14px;margin-top:16px;">
+              Make sure your profile is campaign ready — a strong photo, bio, and socials help you rally votes and climb the ranks.
+            </p>
+            ${goldButton('View Profile', ctaUrl)}
+            <p style="color:#666;font-size:12px;">
+              Log in with your existing EliteRank account to make changes.
             </p>
           </div>
         `),

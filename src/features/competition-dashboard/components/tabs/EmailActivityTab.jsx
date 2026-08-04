@@ -14,6 +14,8 @@ const EMAIL_TYPE_LABELS = {
   nominee_accepted: 'Nominee Accepted',
   nominee_declined: 'Nominee Declined',
   account_ready: 'Account Setup',
+  contestant_claim: 'Contestant Claim',
+  contestant_ready: 'Campaign Ready',
   fan_confirmation: 'Fan Confirmation',
   fan_weekly_digest: 'Weekly Performance Update',
   vote_receipt: 'Vote Receipt',
