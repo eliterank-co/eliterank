@@ -213,24 +213,41 @@ serve(async (req) => {
     // (the _sync_organization_connect trigger mirrors it into
     // organization_connect for the host UI), and return the new account id. The
     // uniform payout schedule is baked in at creation.
-    const createExpressAccount = async (country: string): Promise<string> => {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        country,
-        capabilities: capabilitiesFor(country),
-        business_profile: {
-          name: org.name || undefined,
-        },
-        settings: {
-          payouts: {
-            schedule: payoutSchedule,
+    //
+    // `replacingAccountId` is the account this creation replaces (null for the
+    // very first connect). It's folded into a Stripe idempotency key so that two
+    // concurrent requests for the SAME transition — a double-clicked "Connect"
+    // button or two open tabs — collapse to ONE account instead of creating a
+    // duplicate that gets orphaned. The key is safe to reuse only within a
+    // transition: once a switch succeeds the "from" account is no longer current,
+    // so a later, genuinely-separate attempt always carries a different key and
+    // never replays a stale (possibly deleted) account.
+    const createExpressAccount = async (
+      country: string,
+      replacingAccountId: string | null
+    ): Promise<string> => {
+      const idempotencyKey =
+        `connect:create:${organization_id}:from:${replacingAccountId ?? 'none'}:to:${country}`
+      const account = await stripe.accounts.create(
+        {
+          type: 'express',
+          country,
+          capabilities: capabilitiesFor(country),
+          business_profile: {
+            name: org.name || undefined,
+          },
+          settings: {
+            payouts: {
+              schedule: payoutSchedule,
+            },
+          },
+          metadata: {
+            organization_id: organization_id,
+            platform: 'eliterank',
           },
         },
-        metadata: {
-          organization_id: organization_id,
-          platform: 'eliterank',
-        },
-      })
+        { idempotencyKey }
+      )
       await admin
         .from('organizations')
         .update({
@@ -264,7 +281,7 @@ serve(async (req) => {
     }
 
     if (!accountId) {
-      accountId = await createExpressAccount(accountCountry)
+      accountId = await createExpressAccount(accountCountry, null)
     } else if (requestedCountry) {
       // An account exists AND the host explicitly declared a country. Read the
       // account back from Stripe (source of truth for its country + how far
@@ -291,7 +308,7 @@ serve(async (req) => {
         // Create the replacement first, persist it, THEN best-effort delete the
         // old one — so a failure at any step never leaves the org pointing at a
         // deleted account. Orphaning an empty account is harmless.
-        accountId = await createExpressAccount(requestedCountry)
+        accountId = await createExpressAccount(requestedCountry, oldAccountId)
         try {
           await stripe.accounts.del(oldAccountId)
         } catch (err) {
