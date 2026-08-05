@@ -3251,6 +3251,50 @@ a.rewards-carousel-link:hover .rewards-prize-image-wrap {
   text-transform: uppercase;
 }
 
+/* Paid sponsors get greater presence: larger tiles, larger logos, a defined
+   border, and their tier label emphasized. */
+.sponsors-list-paid {
+  gap: var(--spacing-md);
+}
+
+.sponsors-list-paid .sponsor-item {
+  padding: var(--spacing-md);
+  gap: var(--spacing-xs);
+  min-width: 120px;
+  border: 1px solid var(--color-border);
+}
+
+.sponsors-list-paid .sponsor-logo {
+  max-width: 120px;
+  max-height: 64px;
+}
+
+.sponsors-list-paid .sponsor-tier {
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 1px;
+}
+
+/* In-kind partners: a separate, quieter group below the paid sponsors. */
+.sponsors-inkind {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.sponsors-subheading {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sponsors-list-inkind .sponsor-logo {
+  max-width: 64px;
+  max-height: 32px;
+}
+
 /* Timeline */
 .timeline {
   background: var(--color-bg-secondary);
