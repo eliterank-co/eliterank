@@ -1,6 +1,5 @@
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
 import { RulesAccordion } from '../components/RulesAccordion';
-import { PrizePool } from '../components/PrizePool';
 import { Timeline } from '../components/Timeline';
 import { UpcomingEventCard } from '../components/UpcomingEventCard';
 import { HostSection } from '../components/HostSection';
@@ -47,7 +46,6 @@ export function ActivityView() {
     competition,
     votingRounds,
     about,
-    prizePool,
     orgSlug,
     competitionSlug,
   } = usePublicCompetition();
@@ -180,13 +178,6 @@ export function ActivityView() {
               )}
             </div>
           </section>
-
-          {/* Prize Pool — moved from competition page sidebar */}
-          {prizePool && (
-            <section className="activity-section">
-              <PrizePool />
-            </section>
-          )}
 
           {/* Timeline — moved from competition page sidebar */}
           <section className="activity-section">

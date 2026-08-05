@@ -7,7 +7,6 @@ import { HostSection } from '../components/HostSection';
 import { CompetitionHeader } from '../components/CompetitionHeader';
 import { CountdownDisplay } from '../components/CountdownDisplay';
 import { Timeline } from '../components/Timeline';
-import { PrizePool } from '../components/PrizePool';
 import { Rewards } from '../components/Rewards';
 import { JudgesSection } from '../components/JudgesSection';
 import { CharityHighlight } from '../components/CharityHighlight';
@@ -22,7 +21,7 @@ import { useCompetitionSubscription } from '../../../features/competition/useCom
  */
 export function ComingSoonPhase() {
   const {
-    competition, sponsors, judges, prizePool, countdown,
+    competition, sponsors, judges, countdown,
     nominationPeriods, votingRounds,
   } = usePublicCompetition();
 
@@ -63,7 +62,6 @@ export function ComingSoonPhase() {
   const hasSponsors = sponsors && sponsors.length > 0;
   const hasHost = Boolean(competition?.host);
   const hasJudges = judges && judges.length > 0;
-  const hasPrize = Boolean(prizePool) && Number(prizePool?.totalPrizePool) > 0;
   const hasCountdown = Boolean(countdown && !countdown.isExpired);
   const hasCharity = Boolean(competition?.charity_name);
 
@@ -138,19 +136,12 @@ export function ComingSoonPhase() {
         </section>
       )}
 
-      {/* Journey + Prize side-by-side on desktop, stacked on mobile */}
-      {(hasTimeline || hasPrize) && (
+      {/* Journey timeline */}
+      {hasTimeline && (
         <section className="phase-coming-soon-stakes">
-          {hasTimeline && (
-            <div className="phase-coming-soon-stakes-timeline">
-              <Timeline />
-            </div>
-          )}
-          {hasPrize && (
-            <div className="phase-coming-soon-stakes-prize">
-              <PrizePool showLiveBadge={false} />
-            </div>
-          )}
+          <div className="phase-coming-soon-stakes-timeline">
+            <Timeline />
+          </div>
         </section>
       )}
 
