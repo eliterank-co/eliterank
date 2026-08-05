@@ -3218,9 +3218,14 @@ a.rewards-carousel-link:hover .rewards-prize-image-wrap {
   padding: var(--spacing-lg);
 }
 
+.sponsors-card .section-label {
+  text-align: center;
+}
+
 .sponsors-list {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--spacing-sm);
 }
 
@@ -3286,6 +3291,7 @@ a.rewards-carousel-link:hover .rewards-prize-image-wrap {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
+  text-align: center;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
