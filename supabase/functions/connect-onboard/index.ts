@@ -200,11 +200,11 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-    // ── Ensure an Express account exists ───────────────────────────────────
-    // The uniform payout schedule (§9.3) is applied to NEW accounts at creation
-    // and back-filled onto EXISTING accounts on every call. The back-fill
-    // matters because accounts onboarded before this policy shipped would
-    // otherwise keep Stripe's default near-instant payout — the delay must
+    // ── Ensure the right Express account exists ────────────────────────────
+    // The uniform payout schedule (§9.3) is baked into NEW accounts at creation
+    // and back-filled onto an EXISTING account every time we reuse one. The
+    // back-fill matters because accounts onboarded before this policy shipped
+    // would otherwise keep Stripe's default near-instant payout — the delay must
     // reach current hosts, not just future ones. accounts.update is idempotent:
     // setting the same schedule again is a no-op.
     const payoutSchedule = { interval: 'daily', delay_days: PAYOUT_DELAY_DAYS }
