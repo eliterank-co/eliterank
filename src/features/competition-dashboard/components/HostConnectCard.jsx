@@ -32,9 +32,12 @@ export default function HostConnectCard({ connect, organizationId, locked = fals
   const { startOnboarding, syncStatus, starting, syncing, error } = useStripeConnect();
   const toast = useToast();
 
-  // Host's legal-entity country, chosen before the first connect. Sets the
-  // Stripe account country + payout currency (US → USD, CA → CAD) and is fixed
-  // once the account exists, so the picker only shows before onboarding starts.
+  // Host's legal-entity country. Sets the Stripe account country + payout
+  // currency (US → USD, CA → CAD). Stripe fixes an account's country at
+  // creation, but an account whose onboarding hasn't been submitted yet can be
+  // swapped for a fresh one in a different country — so the picker stays visible
+  // (see `notStarted` below) until verification is actually submitted, letting a
+  // host who picked the wrong country self-correct.
   const [country, setCountry] = useState('US');
 
   const status = connect?.kycStatus || 'not_started';
@@ -191,7 +194,7 @@ export default function HostConnectCard({ connect, organizationId, locked = fals
           </p>
         )}
 
-        {!connect?.hasAccount && (
+        {notStarted && (
           <div style={{ marginBottom: spacing.lg }}>
             <label
               style={{
@@ -243,7 +246,8 @@ export default function HostConnectCard({ connect, organizationId, locked = fals
               }}
             >
               Choose where your business is legally registered and banks. This sets your payout
-              currency (USD or CAD) and can’t be changed after you connect.
+              currency (USD or CAD). You can still change it until you finish verifying with
+              Stripe — after that it’s locked to your account’s country.
             </p>
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 
 /**
@@ -36,6 +36,11 @@ export function useStripeConnect() {
   const [starting, setStarting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState(null);
+  // Synchronous re-entrancy guard. `starting` (state) only disables the button
+  // after a re-render, so a fast double-click — or two open tabs — could fire
+  // two onboarding requests before that lands. This ref flips synchronously, so
+  // the second call bails immediately and we never create a duplicate account.
+  const inFlightRef = useRef(false);
 
   /**
    * Create (or reuse) the org's Express account and redirect the browser to
@@ -46,6 +51,8 @@ export function useStripeConnect() {
       setError('No organization to connect.');
       return;
     }
+    if (inFlightRef.current) return; // already opening — ignore the re-fire
+    inFlightRef.current = true;
     setStarting(true);
     setError(null);
     try {
@@ -69,6 +76,9 @@ export function useStripeConnect() {
       console.error('Failed to start Stripe onboarding:', err);
       setError(await extractFnError(err, 'Could not start onboarding.'));
       setStarting(false);
+      // Re-open is allowed after a failure (success navigates away, so no reset
+      // needed there — the page unloads).
+      inFlightRef.current = false;
     }
   }, []);
 

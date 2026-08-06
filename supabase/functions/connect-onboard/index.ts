@@ -47,19 +47,16 @@ const PAYOUT_DELAY_DAYS = Number(Deno.env.get('HOST_PAYOUT_DELAY_DAYS') || '14')
 // ── Country + capabilities ──────────────────────────────────────────────────
 // Direct-charge model: the connected account processes its own charges and is
 // the merchant of record; funds settle in the account's own country/currency
-// (US → USD, CA → CAD) and EliteRank never holds them. Capabilities are
-// country-aware because they differ by country: US accounts require
-// card_payments + transfers together (Stripe couples them), while Canadian
-// accounts use card_payments only (transfers is not offered for CA in our
-// Connect onboarding options). Requesting an unavailable capability would fail
-// account creation, so we must not blanket-request transfers.
+// (US → USD, CA → CAD) and EliteRank never holds them. Both supported countries
+// require card_payments AND transfers together — Stripe couples them and rejects
+// card_payments without transfers ("Accounts do not currently support
+// card_payments without transfers"), for CA the same as US. transfers is
+// requested purely to satisfy that coupling; the money path stays direct
+// charges (§2.1), so funds still never route through EliteRank's balance.
 const SUPPORTED_COUNTRIES = ['US', 'CA'] as const
 type SupportedCountry = (typeof SUPPORTED_COUNTRIES)[number]
 
-function capabilitiesFor(country: string) {
-  if (country === 'CA') {
-    return { card_payments: { requested: true } }
-  }
+function capabilitiesFor(_country: string) {
   return { card_payments: { requested: true }, transfers: { requested: true } }
 }
 
@@ -200,59 +197,138 @@ serve(async (req) => {
       httpClient: Stripe.createFetchHttpClient(),
     })
 
-    // ── Ensure an Express account exists ───────────────────────────────────
-    // The uniform payout schedule (§9.3) is applied to NEW accounts at creation
-    // and back-filled onto EXISTING accounts on every call. The back-fill
-    // matters because accounts onboarded before this policy shipped would
-    // otherwise keep Stripe's default near-instant payout — the delay must
+    // ── Ensure the right Express account exists ────────────────────────────
+    // The uniform payout schedule (§9.3) is baked into NEW accounts at creation
+    // and back-filled onto an EXISTING account every time we reuse one. The
+    // back-fill matters because accounts onboarded before this policy shipped
+    // would otherwise keep Stripe's default near-instant payout — the delay must
     // reach current hosts, not just future ones. accounts.update is idempotent:
     // setting the same schedule again is a no-op.
     const payoutSchedule = { interval: 'daily', delay_days: PAYOUT_DELAY_DAYS }
+
+    // Create a fresh Express account in `country`, persist it onto the org row
+    // (the _sync_organization_connect trigger mirrors it into
+    // organization_connect for the host UI), and return the new account id. The
+    // uniform payout schedule is baked in at creation.
+    //
+    // `replacingAccountId` is the account this creation replaces (null for the
+    // very first connect). It's folded into a Stripe idempotency key so that two
+    // concurrent requests for the SAME transition — a double-clicked "Connect"
+    // button or two open tabs — collapse to ONE account instead of creating a
+    // duplicate that gets orphaned. The key is safe to reuse only within a
+    // transition: once a switch succeeds the "from" account is no longer current,
+    // so a later, genuinely-separate attempt always carries a different key and
+    // never replays a stale (possibly deleted) account.
+    const createExpressAccount = async (
+      country: string,
+      replacingAccountId: string | null
+    ): Promise<string> => {
+      const idempotencyKey =
+        `connect:create:${organization_id}:from:${replacingAccountId ?? 'none'}:to:${country}`
+      const account = await stripe.accounts.create(
+        {
+          type: 'express',
+          country,
+          capabilities: capabilitiesFor(country),
+          business_profile: {
+            name: org.name || undefined,
+          },
+          settings: {
+            payouts: {
+              schedule: payoutSchedule,
+            },
+          },
+          metadata: {
+            organization_id: organization_id,
+            platform: 'eliterank',
+          },
+        },
+        { idempotencyKey }
+      )
+      await admin
+        .from('organizations')
+        .update({
+          stripe_connect_account_id: account.id,
+          kyc_status: 'pending',
+          country,
+          // Stripe sets the account's settlement currency from its country; store
+          // it so create-payment-intent charges in the right currency.
+          default_currency: account.default_currency || currencyForCountry(country),
+        })
+        .eq('id', organization_id)
+      return account.id
+    }
+
     // Country the connected account will be created in: the host's choice at
     // onboarding, else the org's stored country, else US.
     const accountCountry: string = requestedCountry || (org.country as string) || 'US'
     let accountId = org.stripe_connect_account_id as string | null
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        country: accountCountry,
-        capabilities: capabilitiesFor(accountCountry),
-        business_profile: {
-          name: org.name || undefined,
-        },
-        settings: {
-          payouts: {
-            schedule: payoutSchedule,
-          },
-        },
-        metadata: {
-          organization_id: organization_id,
-          platform: 'eliterank',
-        },
-      })
-      accountId = account.id
-      await admin
-        .from('organizations')
-        .update({
-          stripe_connect_account_id: accountId,
-          kyc_status: 'pending',
-          country: accountCountry,
-          // Stripe sets the account's settlement currency from its country; store
-          // it so create-payment-intent charges in the right currency.
-          default_currency: account.default_currency || currencyForCountry(accountCountry),
-        })
-        .eq('id', organization_id)
-    } else {
-      // Back-fill the uniform payout delay onto a pre-existing account. Guarded
-      // so a Stripe hiccup here never blocks onboarding/status (the schedule is
-      // re-asserted on the next call anyway).
+
+    // Re-assert the uniform payout delay (§9.3) on an existing account. Guarded
+    // so a Stripe hiccup here never blocks onboarding/status — the schedule is
+    // re-asserted on the next call anyway. accounts.update is idempotent.
+    const backfillPayoutSchedule = async (id: string) => {
       try {
-        await stripe.accounts.update(accountId, {
+        await stripe.accounts.update(id, {
           settings: { payouts: { schedule: payoutSchedule } },
         })
       } catch (err) {
-        console.warn('Could not back-fill payout schedule on', accountId, err)
+        console.warn('Could not back-fill payout schedule on', id, err)
       }
+    }
+
+    if (!accountId) {
+      accountId = await createExpressAccount(accountCountry, null)
+    } else if (requestedCountry) {
+      // An account exists AND the host explicitly declared a country. Read the
+      // account back from Stripe (source of truth for its country + how far
+      // onboarding got) to decide whether a country switch is needed/possible.
+      let account: Stripe.Account
+      try {
+        account = await stripe.accounts.retrieve(accountId)
+      } catch (err) {
+        console.error('Could not retrieve connected account', accountId, err)
+        return json({ error: 'Could not load your Stripe account', details: String(err) }, 502)
+      }
+
+      const wantsDifferentCountry = requestedCountry !== account.country
+      // Stripe fixes a connected account's country at creation and never lets it
+      // change. But an account whose onboarding was abandoned before anything was
+      // submitted carries no identity/verification, so it's safe to discard and
+      // recreate in the country the host now wants. This is the only self-serve
+      // escape from "I picked the wrong country and Stripe won't let me switch."
+      const isEmpty =
+        !account.details_submitted && !account.charges_enabled && !account.payouts_enabled
+
+      if (wantsDifferentCountry && isEmpty) {
+        const oldAccountId = accountId
+        // Create the replacement first, persist it, THEN best-effort delete the
+        // old one — so a failure at any step never leaves the org pointing at a
+        // deleted account. Orphaning an empty account is harmless.
+        accountId = await createExpressAccount(requestedCountry, oldAccountId)
+        try {
+          await stripe.accounts.del(oldAccountId)
+        } catch (err) {
+          console.warn('Could not delete abandoned account', oldAccountId, err)
+        }
+      } else if (wantsDifferentCountry && !isEmpty) {
+        // Identity has already been submitted under the old country, so the
+        // country is now truly immutable. Say so plainly instead of silently
+        // reusing the wrong-country account.
+        return json(
+          {
+            error: `This organization already has a Stripe account based in ${account.country}, and verification has already been submitted, so the country can’t be changed here. Contact support to move to a different country.`,
+          },
+          409
+        )
+      } else {
+        // Same country they already have — just reuse it.
+        await backfillPayoutSchedule(accountId)
+      }
+    } else {
+      // Existing account, no explicit country (e.g. sync_status, or re-opening
+      // onboarding): reuse it as-is.
+      await backfillPayoutSchedule(accountId)
     }
 
     // ── Action: create_account_link ────────────────────────────────────────
