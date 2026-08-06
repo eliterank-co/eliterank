@@ -7,6 +7,7 @@ import SubmitProofModal from '../../../components/modals/SubmitProofModal';
 import SubmitVideoProofModal from '../../../components/modals/SubmitVideoProofModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { BONUS_TASK_KEYS, awardNomineeActionBonuses } from '../../../lib/bonusVotes';
+import { shareProfileLink } from '../../../features/entry/utils/shareUtils';
 
 const ContestantGuide = lazy(() => import('../../../features/contestant-guide/ContestantGuide'));
 
@@ -122,29 +123,14 @@ export default function ContestantBonusVotes({ competitionId, contestantId, user
     } else if (taskKey === BONUS_TASK_KEYS.VIEW_HOW_TO_WIN) {
       setShowGuide(true);
     } else if (taskKey === BONUS_TASK_KEYS.SHARE_PROFILE) {
-      // Attempt to use Web Share API or copy link
-      const shareUrl = window.location.href;
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: 'Vote for me!', url: shareUrl });
-          const result = await markProfileShared();
-          if (result?.success) {
-            toast?.success?.(`+${result.votes_awarded} bonus votes for sharing!`);
-          }
-        } catch {
-          // User cancelled share
-        }
-      } else {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          toast?.success?.('Profile link copied to clipboard!');
-          const result = await markProfileShared();
-          if (result?.success) {
-            toast?.success?.(`+${result.votes_awarded} bonus votes for sharing!`);
-          }
-        } catch {
-          // Clipboard not available
-        }
+      // Award on engagement (sheet presented or link copied), not on OS
+      // confirmation of a completed share — see shareProfileLink docs.
+      const outcome = await shareProfileLink(window.location.href, { title: 'Vote for me!' });
+      if (outcome === 'failed') return;
+      if (outcome === 'copied') toast?.success?.('Profile link copied to clipboard!');
+      const result = await markProfileShared();
+      if (result?.success) {
+        toast?.success?.(`+${result.votes_awarded} bonus votes for sharing!`);
       }
     } else {
       // For profile-related tasks, just show a hint
