@@ -47,19 +47,16 @@ const PAYOUT_DELAY_DAYS = Number(Deno.env.get('HOST_PAYOUT_DELAY_DAYS') || '14')
 // ── Country + capabilities ──────────────────────────────────────────────────
 // Direct-charge model: the connected account processes its own charges and is
 // the merchant of record; funds settle in the account's own country/currency
-// (US → USD, CA → CAD) and EliteRank never holds them. Capabilities are
-// country-aware because they differ by country: US accounts require
-// card_payments + transfers together (Stripe couples them), while Canadian
-// accounts use card_payments only (transfers is not offered for CA in our
-// Connect onboarding options). Requesting an unavailable capability would fail
-// account creation, so we must not blanket-request transfers.
+// (US → USD, CA → CAD) and EliteRank never holds them. Both supported countries
+// require card_payments AND transfers together — Stripe couples them and rejects
+// card_payments without transfers ("Accounts do not currently support
+// card_payments without transfers"), for CA the same as US. transfers is
+// requested purely to satisfy that coupling; the money path stays direct
+// charges (§2.1), so funds still never route through EliteRank's balance.
 const SUPPORTED_COUNTRIES = ['US', 'CA'] as const
 type SupportedCountry = (typeof SUPPORTED_COUNTRIES)[number]
 
-function capabilitiesFor(country: string) {
-  if (country === 'CA') {
-    return { card_payments: { requested: true } }
-  }
+function capabilitiesFor(_country: string) {
   return { card_payments: { requested: true }, transfers: { requested: true } }
 }
 
