@@ -334,10 +334,18 @@ export function buildOfficialRules(competition, context = {}) {
 
   // ── Competition Schedule ─────────────────────────────────────────────────
   const scheduleItems = [];
-  const nominationRange =
-    formatDateRange(periods?.[0]?.start_date, periods?.[0]?.end_date) ||
-    formatDateRange(nominationStart, nominationEnd);
-  if (nominationRange) scheduleItems.push(`Nominations: ${nominationRange}`);
+  // Host-upload competitions have no public nomination/application window — the
+  // Host assembles the field of contestants directly — so any nomination dates
+  // left in the config must NOT surface here (it would contradict "How to Enter",
+  // which already states there is no nomination period). Only nomination/
+  // application entry types have an entry window, and it's labeled to match.
+  if (entryType !== 'host_upload') {
+    const entryWindowLabel = entryType === 'applications' ? 'Applications' : 'Nominations';
+    const nominationRange =
+      formatDateRange(periods?.[0]?.start_date, periods?.[0]?.end_date) ||
+      formatDateRange(nominationStart, nominationEnd);
+    if (nominationRange) scheduleItems.push(`${entryWindowLabel}: ${nominationRange}`);
+  }
 
   sortedRounds.forEach((r, i) => {
     const range = formatDateRange(r.start_date, r.end_date);
