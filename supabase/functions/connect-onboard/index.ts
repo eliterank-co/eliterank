@@ -124,10 +124,19 @@ serve(async (req) => {
     }
     const userId = userData.user.id
 
-    const { action, organization_id, return_url, refresh_url, country } = await req.json()
+    const { action, organization_id, return_url, refresh_url, country, reset } = await req.json()
     if (!action || !organization_id) {
       return json({ error: 'action and organization_id are required' }, 400)
     }
+
+    // Explicit "start over" request. A host whose onboarding stalled on the
+    // wrong path — most commonly stuck as an "individual" when they meant to
+    // onboard as a "business", or a mis-picked country — can't back out of
+    // Stripe's hosted flow because resuming the SAME account drops them right
+    // where they left off. Reset discards that empty account and mints a fresh
+    // one so they get a clean business-type/country choice. Only ever honored
+    // for an account that hasn't submitted verification (guarded below).
+    const wantsReset = reset === true
 
     // Host declares their legal-entity country at onboarding (must match the
     // Stripe account + bank they'll use). Only honored before an account exists;
@@ -279,10 +288,10 @@ serve(async (req) => {
 
     if (!accountId) {
       accountId = await createExpressAccount(accountCountry, null)
-    } else if (requestedCountry) {
-      // An account exists AND the host explicitly declared a country. Read the
-      // account back from Stripe (source of truth for its country + how far
-      // onboarding got) to decide whether a country switch is needed/possible.
+    } else if (requestedCountry || wantsReset) {
+      // An account exists AND the host either declared a country or asked to
+      // start over. Read the account back from Stripe (source of truth for its
+      // country + how far onboarding got) to decide whether we can discard it.
       let account: Stripe.Account
       try {
         account = await stripe.accounts.retrieve(accountId)
@@ -291,21 +300,26 @@ serve(async (req) => {
         return json({ error: 'Could not load your Stripe account', details: String(err) }, 502)
       }
 
-      const wantsDifferentCountry = requestedCountry !== account.country
-      // Stripe fixes a connected account's country at creation and never lets it
-      // change. But an account whose onboarding was abandoned before anything was
+      const wantsDifferentCountry = !!requestedCountry && requestedCountry !== account.country
+      // Stripe fixes a connected account's country AND business type at the
+      // point verification is submitted, and never lets either change afterward.
+      // But an account whose onboarding was abandoned before anything was
       // submitted carries no identity/verification, so it's safe to discard and
-      // recreate in the country the host now wants. This is the only self-serve
-      // escape from "I picked the wrong country and Stripe won't let me switch."
+      // recreate. This is the only self-serve escape from both "I picked the
+      // wrong country and Stripe won't let me switch" and "I'm stuck as an
+      // individual and can't get back to the business path."
       const isEmpty =
         !account.details_submitted && !account.charges_enabled && !account.payouts_enabled
 
-      if (wantsDifferentCountry && isEmpty) {
+      if ((wantsReset || wantsDifferentCountry) && isEmpty) {
+        // Recreate in the country the host now wants (their explicit choice, else
+        // the account's existing country for a plain reset).
+        const targetCountry = requestedCountry || account.country || accountCountry
         const oldAccountId = accountId
         // Create the replacement first, persist it, THEN best-effort delete the
         // old one — so a failure at any step never leaves the org pointing at a
         // deleted account. Orphaning an empty account is harmless.
-        accountId = await createExpressAccount(requestedCountry, oldAccountId)
+        accountId = await createExpressAccount(targetCountry, oldAccountId)
         try {
           await stripe.accounts.del(oldAccountId)
         } catch (err) {
@@ -321,8 +335,19 @@ serve(async (req) => {
           },
           409
         )
+      } else if (wantsReset && !isEmpty) {
+        // They asked to start over, but verification is already submitted — the
+        // account (and its business type/country) is locked. Don't silently
+        // discard a real, verified-or-in-review account.
+        return json(
+          {
+            error:
+              'This organization’s Stripe verification has already been submitted, so it can’t be reset here. Contact support if you need to change your business type or start over.',
+          },
+          409
+        )
       } else {
-        // Same country they already have — just reuse it.
+        // Same country they already have and no reset — just reuse it.
         await backfillPayoutSchedule(accountId)
       }
     } else {

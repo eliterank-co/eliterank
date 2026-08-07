@@ -45,8 +45,15 @@ export function useStripeConnect() {
   /**
    * Create (or reuse) the org's Express account and redirect the browser to
    * Stripe's hosted onboarding. Returns nothing — it navigates away on success.
+   *
+   * @param {string} organizationId
+   * @param {string} [country] - host's legal-entity country (US | CA)
+   * @param {{ reset?: boolean }} [opts] - when `reset` is true, discard an
+   *   abandoned (unsubmitted) account and mint a fresh one, so a host stuck on
+   *   the wrong business type/country gets a clean onboarding. Ignored by the
+   *   function once verification has been submitted.
    */
-  const startOnboarding = useCallback(async (organizationId, country) => {
+  const startOnboarding = useCallback(async (organizationId, country, opts = {}) => {
     if (!organizationId) {
       setError('No organization to connect.');
       return;
@@ -65,6 +72,9 @@ export function useStripeConnect() {
           // before the Stripe account exists; the account's country is fixed
           // once created. Omitted → the function defaults to the org's country.
           ...(country ? { country } : {}),
+          // Start-over: wipe an abandoned account so the host can re-pick their
+          // business type/country from scratch.
+          ...(opts.reset ? { reset: true } : {}),
           return_url: `${base}?connect=return&org=${organizationId}`,
           refresh_url: `${base}?connect=refresh&org=${organizationId}`,
         },

@@ -97,6 +97,18 @@ export default function HostConnectCard({ connect, organizationId, locked = fals
     // Callbacks/status are read via refs, so they needn't be deps.
   }, [verified, organizationId]);
 
+  // An account exists but onboarding was never submitted (still not_started).
+  // Resuming it drops the host back where they abandoned Stripe's flow — the
+  // trap behind "I'm stuck as an individual and can't get to business." Offer a
+  // clean restart that discards the empty account and mints a fresh one.
+  const canStartOver = notStarted && !!connect?.hasAccount;
+
+  const handleStartOver = () => {
+    // reset:true tells the function to wipe the abandoned account and recreate,
+    // so the host gets a fresh business-type/country choice on Stripe.
+    startOnboarding(organizationId, country, { reset: true });
+  };
+
   // Manual "Check status now" — same authoritative Stripe pull, on demand.
   const handleManualSync = async () => {
     const result = await syncStatus(organizationId);
@@ -260,6 +272,29 @@ export default function HostConnectCard({ connect, organizationId, locked = fals
         >
           {starting ? 'Opening Stripe…' : ctaLabel}
         </Button>
+
+        {canStartOver && (
+          <div style={{ marginTop: spacing.md }}>
+            <Button
+              onClick={handleStartOver}
+              disabled={starting || !organizationId || locked}
+              icon={RefreshCw}
+              variant="ghost"
+            >
+              Start over with a fresh account
+            </Button>
+            <p
+              style={{
+                color: colors.text.muted,
+                fontSize: typography.fontSize.xs,
+                marginTop: spacing.sm,
+              }}
+            >
+              Stuck on the wrong business type (e.g. individual instead of business) or country?
+              This clears your unfinished setup and starts a clean Stripe onboarding.
+            </p>
+          </div>
+        )}
 
         {pending && (
           <div style={{ marginTop: spacing.md }}>
