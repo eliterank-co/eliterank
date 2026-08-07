@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Mail } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, withFreshSession } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../hooks';
 import { useToast } from '../../contexts/ToastContext';
 import { useIsPreview } from '../../contexts/PublicCompetitionContext';
@@ -151,11 +151,13 @@ export default function FanButton({ contestantId, contestantName, onLoginRequire
     try {
       // supabase-js resolves (does not throw) on RLS/DB errors — inspect
       // `error` explicitly so a failed delete never shows a false success.
-      const { error } = await supabase
-        .from('contestant_fans')
-        .delete()
-        .eq('contestant_id', contestantId)
-        .eq('user_id', user.id);
+      const { error } = await withFreshSession(() =>
+        supabase
+          .from('contestant_fans')
+          .delete()
+          .eq('contestant_id', contestantId)
+          .eq('user_id', user.id)
+      );
       if (error) throw error;
       setIsFan(false);
       setFanCount(prev => Math.max(0, prev - 1));
@@ -182,11 +184,13 @@ export default function FanButton({ contestantId, contestantName, onLoginRequire
 
     setLoading(true);
     try {
-      const { data: inserted, error } = await supabase
-        .from('contestant_fans')
-        .insert({ contestant_id: contestantId, user_id: user.id })
-        .select('id')
-        .maybeSingle();
+      const { data: inserted, error } = await withFreshSession(() =>
+        supabase
+          .from('contestant_fans')
+          .insert({ contestant_id: contestantId, user_id: user.id })
+          .select('id')
+          .maybeSingle()
+      );
 
       // supabase-js resolves (does not throw) on RLS/DB errors — it returns
       // them here. Without this check a failed insert (e.g. an expired
