@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, withFreshSession } from './supabase';
 
 /**
  * Bonus vote task keys - must match database task_key values
@@ -83,12 +83,14 @@ export async function awardBonusVotes(competitionId, contestantId, userId, taskK
   }
 
   try {
-    const { data, error } = await supabase.rpc('award_bonus_votes', {
-      p_competition_id: competitionId,
-      p_contestant_id: contestantId,
-      p_user_id: userId || null,
-      p_task_key: taskKey,
-    });
+    const { data, error } = await withFreshSession(() =>
+      supabase.rpc('award_bonus_votes', {
+        p_competition_id: competitionId,
+        p_contestant_id: contestantId,
+        p_user_id: userId || null,
+        p_task_key: taskKey,
+      })
+    );
 
     if (error) {
       console.error('Error awarding bonus votes:', error);

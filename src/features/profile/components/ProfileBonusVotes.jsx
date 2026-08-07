@@ -9,6 +9,7 @@ import SubmitProofModal from '../../../components/modals/SubmitProofModal';
 import SubmitVideoProofModal from '../../../components/modals/SubmitVideoProofModal';
 import { useToast } from '../../../contexts/ToastContext';
 import { BONUS_TASK_KEYS, loadNomineeBonusActions, saveNomineeBonusAction, awardNomineeActionBonuses } from '../../../lib/bonusVotes';
+import { shareProfileLink } from '../../entry/utils/shareUtils';
 import { spacing, typography, colors, borderRadius } from '../../../styles/theme';
 
 const ContestantGuide = lazy(() => import('../../../features/contestant-guide/ContestantGuide'));
@@ -131,24 +132,15 @@ function CompetitionBonusVotes({ competitionId, contestantId, userId, userEmail,
     } else if (taskKey === BONUS_TASK_KEYS.VIEW_HOW_TO_WIN) {
       setShowGuide(true);
     } else if (taskKey === BONUS_TASK_KEYS.SHARE_PROFILE) {
+      // Award on engagement (sheet presented or link copied), not on OS
+      // confirmation of a completed share — see shareProfileLink docs.
       const shareUrl = `${window.location.origin}/profile/${userId}`;
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: 'Check out my profile!', url: shareUrl });
-          const result = await markProfileShared();
-          if (result?.success) {
-            toast?.success?.(`+${result.votes_awarded} bonus votes for sharing!`);
-          }
-        } catch { /* user cancelled */ }
-      } else {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          toast?.success?.('Profile link copied to clipboard!');
-          const result = await markProfileShared();
-          if (result?.success) {
-            toast?.success?.(`+${result.votes_awarded} bonus votes for sharing!`);
-          }
-        } catch { /* clipboard not available */ }
+      const outcome = await shareProfileLink(shareUrl);
+      if (outcome === 'failed') return;
+      if (outcome === 'copied') toast?.success?.('Profile link copied to clipboard!');
+      const result = await markProfileShared();
+      if (result?.success) {
+        toast?.success?.(`+${result.votes_awarded} bonus votes for sharing!`);
       }
     } else {
       const result = await awardTask(taskKey);
@@ -332,29 +324,20 @@ function NomineeBonusVotes({ competitionId, competitionName, profile, userId, us
     } else if (taskKey === BONUS_TASK_KEYS.VIEW_HOW_TO_WIN) {
       setShowGuide(true);
     } else if (taskKey === BONUS_TASK_KEYS.SHARE_PROFILE) {
+      // Award on engagement (sheet presented or link copied), not on OS
+      // confirmation of a completed share — see shareProfileLink docs.
       const shareUrl = userId ? `${window.location.origin}/profile/${userId}` : window.location.href;
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: 'Check out my profile!', url: shareUrl });
-          if (!actionCompleted[BONUS_TASK_KEYS.SHARE_PROFILE]) {
-            markActionCompleted(BONUS_TASK_KEYS.SHARE_PROFILE);
-            const task = DEFAULT_BONUS_TASKS.find(t => t.task_key === BONUS_TASK_KEYS.SHARE_PROFILE);
-            toast?.success?.(`+${task?.votes_awarded || 5} bonus votes for sharing!`);
-          } else {
-            toast?.success?.('Profile link shared!');
-          }
-        } catch { /* user cancelled */ }
+      const outcome = await shareProfileLink(shareUrl);
+      if (outcome === 'failed') return;
+      const copied = outcome === 'copied';
+      if (!actionCompleted[BONUS_TASK_KEYS.SHARE_PROFILE]) {
+        markActionCompleted(BONUS_TASK_KEYS.SHARE_PROFILE);
+        const task = DEFAULT_BONUS_TASKS.find(t => t.task_key === BONUS_TASK_KEYS.SHARE_PROFILE);
+        toast?.success?.(copied
+          ? `Link copied! +${task?.votes_awarded || 5} bonus votes for sharing!`
+          : `+${task?.votes_awarded || 5} bonus votes for sharing!`);
       } else {
-        try {
-          await navigator.clipboard.writeText(shareUrl);
-          if (!actionCompleted[BONUS_TASK_KEYS.SHARE_PROFILE]) {
-            markActionCompleted(BONUS_TASK_KEYS.SHARE_PROFILE);
-            const task = DEFAULT_BONUS_TASKS.find(t => t.task_key === BONUS_TASK_KEYS.SHARE_PROFILE);
-            toast?.success?.(`Link copied! +${task?.votes_awarded || 5} bonus votes for sharing!`);
-          } else {
-            toast?.success?.('Profile link copied to clipboard!');
-          }
-        } catch { /* clipboard not available */ }
+        toast?.success?.(copied ? 'Profile link copied to clipboard!' : 'Profile link shared!');
       }
     }
   };
