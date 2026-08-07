@@ -149,11 +149,14 @@ export default function FanButton({ contestantId, contestantName, onLoginRequire
     }
     setLoading(true);
     try {
-      await supabase
+      // supabase-js resolves (does not throw) on RLS/DB errors — inspect
+      // `error` explicitly so a failed delete never shows a false success.
+      const { error } = await supabase
         .from('contestant_fans')
         .delete()
         .eq('contestant_id', contestantId)
         .eq('user_id', user.id);
+      if (error) throw error;
       setIsFan(false);
       setFanCount(prev => Math.max(0, prev - 1));
       setDialogMode(null);
@@ -179,13 +182,23 @@ export default function FanButton({ contestantId, contestantName, onLoginRequire
 
     setLoading(true);
     try {
-      const { data: inserted } = await supabase
+      const { data: inserted, error } = await supabase
         .from('contestant_fans')
         .insert({ contestant_id: contestantId, user_id: user.id })
         .select('id')
-        .single();
+        .maybeSingle();
+
+      // supabase-js resolves (does not throw) on RLS/DB errors — it returns
+      // them here. Without this check a failed insert (e.g. an expired
+      // session, so auth.uid() is null and the RLS WITH CHECK fails) would
+      // still show a "you're a fan" toast while nothing was actually saved,
+      // and the fan status would silently reset on the next page load.
+      // 23505 = unique_violation: the row already exists, so treat as success.
+      const alreadyFan = error?.code === '23505';
+      if (error && !alreadyFan) throw error;
+
       setIsFan(true);
-      setFanCount(prev => prev + 1);
+      if (!alreadyFan) setFanCount(prev => prev + 1);
       setDialogMode(null);
 
       // Toast copy avoids promising an email that might silently fail —
