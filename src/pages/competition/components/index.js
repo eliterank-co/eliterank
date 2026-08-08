@@ -1,4 +1,3 @@
-export { PrizePool } from './PrizePool';
 export { AboutSection } from './AboutSection';
 export { WhoCompetes } from './WhoCompetes';
 export { HostSection } from './HostSection';

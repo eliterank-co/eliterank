@@ -213,6 +213,39 @@ export function buildOfficialRules(competition, context = {}) {
   // Public votes count somewhere unless the competition is pure judging.
   const publicVotes = !isJudgesOnly;
 
+  // ── Entry-method phrasing ────────────────────────────────────────────────
+  // Every reference to how someone becomes a contestant must match how the Host
+  // configured the Competition (same three cases as "How to Enter" below):
+  //   • host_upload  — the Host assembles the field directly; there is NO public
+  //                    nomination or application step, so never say "nominate".
+  //   • applications — people apply directly; say "apply" instead of "nominate".
+  //   • nominations  — (default) people are nominated / self-nominate.
+  const isHostUpload = entryType === 'host_upload';
+  const isApplications = entryType === 'applications';
+  // Gerund for the pre-contestant step, used only when a public one exists.
+  const entryStepGerund = isApplications ? 'applying' : 'nominating';
+  // "By {…}, entering, voting, or otherwise participating …" (Overview).
+  const participationClause = [
+    ...(isHostUpload ? [] : [entryStepGerund]),
+    'entering',
+    'voting',
+    'or otherwise participating',
+  ].join(', ');
+  // "…before {…}, entering, or voting." (Eligibility).
+  const confirmEligibilityClause = isHostUpload
+    ? 'entering or voting'
+    : `${entryStepGerund}, entering, or voting`;
+  // "There is no cost to {…}." (Free to Enter).
+  const noCostToEnter = isHostUpload
+    ? 'There is no cost to enter as a contestant in the Competition.'
+    : isApplications
+      ? 'There is no cost to apply or to enter as a contestant in the Competition.'
+      : 'There is no cost to be nominated or to enter as a contestant in the Competition.';
+  // Entry-window kinds listed in the schedule fallback paragraph.
+  const scheduleFallbackDates = isHostUpload
+    ? 'voting and finals dates'
+    : `${isApplications ? 'application' : 'nomination'}, voting, and finals dates`;
+
   const sections = [];
 
   // ── Overview ─────────────────────────────────────────────────────────────
@@ -222,7 +255,7 @@ export function buildOfficialRules(competition, context = {}) {
     blocks: [
       {
         kind: 'p',
-        text: `These are the Official Rules for ${name} (the "Competition"), presented by ${hostName} (the "Host") and administered on the EliteRank platform, operated by Most Eligible LLC ("EliteRank," "we," "us"). By nominating, entering, voting, or otherwise participating in the Competition, you agree to these Official Rules and to the platform-wide Contest Terms & Conditions, Terms of Use, and Privacy Policy.`,
+        text: `These are the Official Rules for ${name} (the "Competition"), presented by ${hostName} (the "Host") and administered on the EliteRank platform, operated by Most Eligible LLC ("EliteRank," "we," "us"). By ${participationClause} in the Competition, you agree to these Official Rules and to the platform-wide Contest Terms & Conditions, Terms of Use, and Privacy Policy.`,
       },
       {
         kind: 'p',
@@ -250,7 +283,7 @@ export function buildOfficialRules(competition, context = {}) {
     blocks: [
       {
         kind: 'p',
-        text: 'There is no cost to be nominated or to enter as a contestant in the Competition.',
+        text: noCostToEnter,
       },
       publicVotes
         ? {
@@ -288,7 +321,7 @@ export function buildOfficialRules(competition, context = {}) {
             ? 'Entrants and voters must be legal residents of the United States or of the province of Ontario, Canada, and not residents of any jurisdiction where the Competition is prohibited by law.'
             : 'Entrants and voters must be legal residents of the United States and not residents of any jurisdiction where the Competition is prohibited by law.',
           'Employees, officers, directors, and contractors of the Host and the other Promotion Entities, and their immediate family and household members, are not eligible to win prizes.',
-          'It is your responsibility to confirm your eligibility before nominating, entering, or voting.',
+          `It is your responsibility to confirm your eligibility before ${confirmEligibilityClause}.`,
         ],
       },
     ],
@@ -334,10 +367,18 @@ export function buildOfficialRules(competition, context = {}) {
 
   // ── Competition Schedule ─────────────────────────────────────────────────
   const scheduleItems = [];
-  const nominationRange =
-    formatDateRange(periods?.[0]?.start_date, periods?.[0]?.end_date) ||
-    formatDateRange(nominationStart, nominationEnd);
-  if (nominationRange) scheduleItems.push(`Nominations: ${nominationRange}`);
+  // Host-upload competitions have no public nomination/application window — the
+  // Host assembles the field of contestants directly — so any nomination dates
+  // left in the config must NOT surface here (it would contradict "How to Enter",
+  // which already states there is no nomination period). Only nomination/
+  // application entry types have an entry window, and it's labeled to match.
+  if (!isHostUpload) {
+    const entryWindowLabel = isApplications ? 'Applications' : 'Nominations';
+    const nominationRange =
+      formatDateRange(periods?.[0]?.start_date, periods?.[0]?.end_date) ||
+      formatDateRange(nominationStart, nominationEnd);
+    if (nominationRange) scheduleItems.push(`${entryWindowLabel}: ${nominationRange}`);
+  }
 
   sortedRounds.forEach((r, i) => {
     const range = formatDateRange(r.start_date, r.end_date);
@@ -362,7 +403,7 @@ export function buildOfficialRules(competition, context = {}) {
       : [
           {
             kind: 'p',
-            text: 'The full schedule for the Competition — including nomination, voting, and finals dates — is published on the competition page and may be adjusted by the Host.',
+            text: `The full schedule for the Competition — including ${scheduleFallbackDates} — is published on the competition page and may be adjusted by the Host.`,
           },
         ],
   });

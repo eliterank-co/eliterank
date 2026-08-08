@@ -36,6 +36,44 @@ export function HostSection({ showHosts = true } = {}) {
     return null;
   }
 
+  // Split paid sponsors (who bought a visibility tier) from in-kind partners
+  // (who contribute prizes/services, no cash tier). Paid sponsors get top
+  // billing with larger tiles; in-kind partners get their own quieter group.
+  const isInKind = (s) => (s.tier || '').toLowerCase() === 'inkind';
+  const TIER_RANK = { platinum: 0, gold: 1, silver: 2 };
+  const paidSponsors = (sponsors || [])
+    .filter((s) => !isInKind(s))
+    .sort(
+      (a, b) =>
+        (TIER_RANK[(a.tier || '').toLowerCase()] ?? 99) -
+        (TIER_RANK[(b.tier || '').toLowerCase()] ?? 99)
+    );
+  const inKindSponsors = (sponsors || []).filter(isInKind);
+
+  const renderSponsor = (sponsor) => {
+    const hasUrl = !!sponsor.website_url;
+    const Wrapper = hasUrl ? 'a' : 'div';
+    const wrapperProps = hasUrl
+      ? { href: sponsor.website_url, target: '_blank', rel: 'noopener noreferrer' }
+      : {};
+    return (
+      <Wrapper
+        key={sponsor.id}
+        {...wrapperProps}
+        className={`sponsor-item sponsor-tier-${sponsor.tier?.toLowerCase()}`}
+      >
+        {sponsor.logo_url ? (
+          <img src={transformSupabaseImage(sponsor.logo_url, { width: 200, height: 100, resize: 'contain' })} alt={sponsor.name} className="sponsor-logo" />
+        ) : (
+          <span className="sponsor-name">{sponsor.name}</span>
+        )}
+        {sponsor.tier && !isInKind(sponsor) && (
+          <span className="sponsor-tier">{sponsor.tier}</span>
+        )}
+      </Wrapper>
+    );
+  };
+
   return (
     <div className="host-section">
       {hosts.length > 0 && (
@@ -85,35 +123,26 @@ export function HostSection({ showHosts = true } = {}) {
         </div>
       )}
 
-      {/* Sponsors */}
+      {/* Sponsors — paid sponsors up top with greater presence, in-kind
+          partners in their own group below */}
       {sponsors?.length > 0 && (
         <div className="sponsors-card">
           <h4 className="section-label">Sponsors</h4>
-          <div className="sponsors-list">
-            {sponsors.map(sponsor => {
-              const hasUrl = !!sponsor.website_url;
-              const Wrapper = hasUrl ? 'a' : 'div';
-              const wrapperProps = hasUrl
-                ? { href: sponsor.website_url, target: '_blank', rel: 'noopener noreferrer' }
-                : {};
-              return (
-                <Wrapper
-                  key={sponsor.id}
-                  {...wrapperProps}
-                  className={`sponsor-item sponsor-tier-${sponsor.tier?.toLowerCase()}`}
-                >
-                  {sponsor.logo_url ? (
-                    <img src={transformSupabaseImage(sponsor.logo_url, { width: 200, height: 100, resize: 'contain' })} alt={sponsor.name} className="sponsor-logo" />
-                  ) : (
-                    <span className="sponsor-name">{sponsor.name}</span>
-                  )}
-                  {sponsor.tier && sponsor.tier.toLowerCase() !== 'inkind' && (
-                    <span className="sponsor-tier">{sponsor.tier}</span>
-                  )}
-                </Wrapper>
-              );
-            })}
-          </div>
+
+          {paidSponsors.length > 0 && (
+            <div className="sponsors-list sponsors-list-paid">
+              {paidSponsors.map(renderSponsor)}
+            </div>
+          )}
+
+          {inKindSponsors.length > 0 && (
+            <div className="sponsors-inkind">
+              <h5 className="sponsors-subheading">In-Kind Partners</h5>
+              <div className="sponsors-list sponsors-list-inkind">
+                {inKindSponsors.map(renderSponsor)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
