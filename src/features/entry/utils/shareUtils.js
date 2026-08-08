@@ -570,3 +570,39 @@ export async function copyLink(url) {
     return false;
   }
 }
+
+/**
+ * Present the OS share sheet for a profile/competition link, falling back to
+ * copying the link to the clipboard. Returns an outcome describing what the
+ * user did so callers can decide whether to award an engagement bonus.
+ *
+ * Bonus-vote note: a dismissed native share sheet ('AbortError') is treated
+ * the same as a completed share. There is no reliable way to confirm an
+ * external share — and on several iOS Safari versions even a *successful*
+ * share rejects with AbortError — so gating the reward on OS confirmation
+ * caused contestants to share yet earn nothing. This is a self-attested
+ * engagement task, consistent with "view how to win" awarding on open.
+ *
+ * @param {string} shareUrl - the link to share
+ * @param {{ title?: string }} [opts]
+ * @returns {Promise<'shared'|'copied'|'failed'>}
+ *   'shared' - native share sheet was presented (completed or dismissed)
+ *   'copied' - link copied to clipboard (no usable native share)
+ *   'failed' - could not present a share surface or copy the link
+ */
+export async function shareProfileLink(shareUrl, { title = 'Check out my profile!' } = {}) {
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url: shareUrl });
+      return 'shared';
+    } catch (err) {
+      // AbortError = the sheet opened and the user dismissed it; still counts
+      // as engaging the share. Any other error means native share genuinely
+      // failed (e.g. not allowed / unsupported), so fall through to clipboard.
+      if (err?.name === 'AbortError') return 'shared';
+    }
+  }
+
+  if (await copyLink(shareUrl)) return 'copied';
+  return 'failed';
+}
