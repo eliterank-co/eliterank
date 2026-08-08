@@ -723,6 +723,7 @@ export default function CompetitionDashboard({
       onDeleteJudge={deleteJudge}
       onSendJudgeInvite={sendJudgeInvite}
       judgingCriteria={data.judgingCriteria}
+      judgeScores={data.judgeScores}
       sponsors={data.sponsors}
       isSuperAdmin={isSuperAdmin}
       onRefresh={refresh}

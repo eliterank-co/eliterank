@@ -60,6 +60,7 @@ export default function SetupTab({
   onDeleteJudge,
   onSendJudgeInvite,
   judgingCriteria = [],
+  judgeScores = [],
   sponsors,
   isSuperAdmin = false,
   onRefresh,
@@ -130,6 +131,13 @@ export default function SetupTab({
   // These public-facing sections only actually lock once the competition is
   // published (publish-lock tier) — show the lock badge only then.
   const publishLocked = !isFieldEditable('nomination_form', competition?.status);
+  // Judging criteria are a special case: unlike other publish-locked fields they
+  // stay editable after going live UNTIL judging actually starts. A competition
+  // can go live with judges but no criteria set (or need them tweaked); the
+  // fairness concern is only changing what judges score on AFTER they've begun.
+  // So: editable until the first judge score is recorded, then locked.
+  const judgingHasStarted = (judgeScores?.length || 0) > 0;
+  const criteriaLocked = judgingHasStarted;
   // Voting dates lock later than the publish-locked sections — they stay editable
   // through the entry/nomination phase and only lock once voting opens (live).
   const votingLocked = !isFieldEditable('voting_start', competition?.status);
@@ -145,6 +153,12 @@ export default function SetupTab({
   const lockBadge = (
     <span style={{ ...badgeBase, background: 'rgba(212,175,55,0.12)', color: colors.gold.primary, border: '1px solid rgba(212,175,55,0.3)' }}>
       <Lock size={11} /> {publishLocked ? 'Locked' : 'Locks at publish'}
+    </span>
+  );
+  // Judging criteria lock on a later trigger (judging starts), so its badge differs.
+  const criteriaLockBadge = (
+    <span style={{ ...badgeBase, background: 'rgba(212,175,55,0.12)', color: colors.gold.primary, border: '1px solid rgba(212,175,55,0.3)' }}>
+      <Lock size={11} /> {criteriaLocked ? 'Locked — judging started' : 'Locks when judging starts'}
     </span>
   );
   // Voting Details lock on a later trigger (voting opens), so its badge differs.
@@ -190,10 +204,10 @@ export default function SetupTab({
         <p style={{ color: colors.text.muted, fontSize: typography.fontSize.sm, margin: `${spacing.xs} 0 0`, lineHeight: 1.6 }}>
           This is the public-facing information for your competition. Some of it{' '}
           <span style={{ color: colors.gold.primary }}>locks when you publish</span> — get the{' '}
-          nomination form, voting &amp; judging dates, judging criteria &amp; weight, and your charity
-          partner right before you go public. Your{' '}
-          <span style={{ color: colors.text.secondary }}>host, judges, and sponsors stay editable anytime</span>,
-          even after you’re live.
+          nomination form, voting &amp; judging dates, and your charity partner right before you go
+          public. Your{' '}
+          <span style={{ color: colors.text.secondary }}>host, judges, sponsors, and judging criteria stay editable</span>{' '}
+          after you’re live — judging criteria lock only once judges start scoring.
         </p>
       </div>
 
@@ -259,7 +273,8 @@ export default function SetupTab({
         />
       )}
 
-      {/* Judging criteria + weight — locks at publish. Only relevant when
+      {/* Judging criteria — stays editable after publish/live and locks only
+          once judges start scoring (see criteriaLocked). Only relevant when
           winners are decided by judges (or a hybrid); for pure public-vote
           competitions it's grayed out and inaccessible. The judge roster lives
           in its own section below (editable anytime). */}
@@ -273,8 +288,8 @@ export default function SetupTab({
             onUpdateCriterion={onUpdateCriterion}
             onDeleteCriterion={onDeleteCriterion}
             onRefresh={onRefresh}
-            locked={publishLocked}
-            badge={lockBadge}
+            locked={criteriaLocked}
+            badge={criteriaLockBadge}
           />
         </div>
       ) : (
