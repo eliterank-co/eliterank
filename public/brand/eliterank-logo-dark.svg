@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="380" viewBox="0 0 1400 380" fill="none">
+  <defs>
+  <linearGradient id="cg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#f5d485"/>
+    <stop offset="50%" stop-color="#d4af37"/>
+    <stop offset="100%" stop-color="#a8893a"/>
+  </linearGradient>
+  <linearGradient id="tg" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#f5d485"/>
+    <stop offset="50%" stop-color="#e6c558"/>
+    <stop offset="100%" stop-color="#c9a13e"/>
+  </linearGradient></defs>
+  <g transform="translate(70,79.60000000000001) scale(9.2)">
+    <g>
+      <path d="M12 2L16 9L22 6.5L19 15H5L2 6.5L8 9L12 2Z" fill="url(#cg)"/>
+      <rect x="4.5" y="16" width="15" height="3" rx="0.5" fill="url(#cg)"/>
+      <rect x="4.5" y="17.5" width="15" height="0.5" fill="rgba(255,255,255,0.25)"/>
+    </g></g>
+  <text x="345.79999999999995" y="254.60000000000002" font-family="'DejaVu Serif','Liberation Serif','Playfair Display',serif" font-size="190" font-weight="700" letter-spacing="-2">
+    <tspan fill="#ffffff">Elite</tspan><tspan fill="url(#tg)">Rank</tspan>
+  </text>
+</svg>
