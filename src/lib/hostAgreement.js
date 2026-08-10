@@ -25,9 +25,16 @@ import { supabase } from './supabase';
  * applies (HOST_PAYOUT_DELAY_DAYS, default 14) to new and existing accounts, so it
  * is no longer doc-ahead. The discretionary payout-pause + reserve model (former
  * §9.3/§13.3) was removed in 2026-07-v1.
+ *
+ * 2026-08-v1: §9.2 clarified to match the direct-charge fee mechanics in
+ * `create-payment-intent`. It now states that both the 15% Platform Fee AND
+ * Stripe's processing fees are assessed on the FULL charge amount, that the host
+ * (merchant of record) bears the Stripe fee separately from the Platform Fee, and
+ * gives a worked $100 example (~$81.80 net). The prior "(the Organizer keeps 85%)"
+ * parenthetical was removed — it overstated take-home by ignoring the Stripe fee.
  */
 
-export const HOST_AGREEMENT_VERSION = '2026-07-v1';
+export const HOST_AGREEMENT_VERSION = '2026-08-v1';
 
 export const HOST_AGREEMENT_TITLE = 'EliteRank Host Agreement';
 
@@ -100,7 +107,7 @@ D. The parties therefore agree as follows.
 
 9. Payments, Fees, Reserves & Chargebacks
 9.1 Payments are processed by Stripe under the Organizer's connected account. The Organizer is the merchant of record, and funds settle to the Organizer's account.
-9.2 EliteRank charges the Platform Fee set out in the then-current fee schedule. As of the Effective Date, the Platform Fee is fifteen percent (15%) of vote revenue (the Organizer keeps 85%). Stripe processing fees are separate. The Platform Fee that applies to a Competition is fixed when that Competition is published and will not change while it is live or in progress. EliteRank may update the fee schedule on notice, but any change applies only to Competitions the Organizer publishes after the change takes effect, and EliteRank will notify the Organizer of the change beforehand (see also clause 21.2).
+9.2 EliteRank charges the Platform Fee set out in the then-current fee schedule. As of the Effective Date, the Platform Fee is fifteen percent (15%) of vote revenue, assessed on the full amount of each paid-vote charge. Stripe's processing fees are separate from, and in addition to, the Platform Fee: as merchant of record on its connected account (clause 9.1), the Organizer bears Stripe's processing fees, which Stripe assesses on the full charge amount (currently 2.9% + US $0.30 per transaction for standard U.S. card payments, as set and updated by Stripe and varying by payment method and settlement currency). The Organizer's net proceeds on a paid vote are therefore the charge amount less both the Platform Fee and Stripe's processing fees — for example, on a $100 paid-vote purchase the Organizer receives $100 less the $15 Platform Fee and less Stripe's processing fee on the full $100 (approximately $81.80 net at the illustrative U.S. card rate above). The Platform Fee that applies to a Competition is fixed when that Competition is published and will not change while it is live or in progress. EliteRank may update the fee schedule on notice, but any change applies only to Competitions the Organizer publishes after the change takes effect, and EliteRank will notify the Organizer of the change beforehand (see also clause 21.2).
 9.3 The Organizer is responsible for all chargebacks, refunds, and disputes arising from its Competitions. All connected accounts are subject to a standard, uniform payout delay disclosed on the Platform: each charge is held in the Organizer's own Stripe balance for a fixed period after it settles before Stripe releases it to the Organizer's bank on a rolling basis. This delay is applied identically to every Organizer, is not set case-by-case, and exists so that funds remain available to cover the refunds and disputes the Organizer is responsible for under clause 13. Funds remain in the Organizer's own connected-account balance at all times; EliteRank does not take custody of, escrow, or hold Organizer funds. The Organizer remains responsible for maintaining sufficient balance to cover chargebacks, refunds, and disputes.
 9.4 EliteRank is not responsible for the Organizer's revenue or payouts, or for any reserve or hold applied by Stripe.
 
