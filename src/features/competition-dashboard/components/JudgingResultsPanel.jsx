@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { BarChart3, Crown, Lock, AlertTriangle, Clock } from 'lucide-react';
 import { Avatar, Panel } from '../../../components/ui';
 import { colors, spacing, borderRadius, typography } from '../../../styles/theme';
+import { blendedScores } from '../../../lib/judgingScore';
 
 /**
  * JudgingResultsPanel — host-side view of how contestants are doing in
@@ -9,10 +10,14 @@ import { colors, spacing, borderRadius, typography } from '../../../styles/theme
  *
  * Aggregation per round:
  *  - judgeTotal(c)        = avg across submitted judges of Σ(score × weight)
- *  - normJudges(c)        = judgeTotal(c) / max(judgeTotal)
- *  - normVotes(c)         = votes(c)      / max(votes)
+ *  - normJudges(c)        = judgeTotal(c) / max(judgeTotal in bucket)
+ *  - normVotes(c)         = votes(c)      / max(votes in bucket)
  *  - finalScore(c)        = (jw/100) · normJudges + ((100-jw)/100) · normVotes
  *  - Sort desc, top `contestants_advance` advance.
+ *
+ * When `splitByGender` is on, the max used to normalize is the per-gender
+ * maximum, mirroring finalize_voting_round(); the shared blendedScores helper
+ * keeps this preview and the server-side finalization identical.
  *
  * Only counts judge_scores rows that have `submitted_at` set, so draft scores
  * never affect the leaderboard.
@@ -23,6 +28,7 @@ export default function JudgingResultsPanel({
   judgingCriteria = [],
   judgeScores = [],
   votingRounds = [],
+  splitByGender = false,
 }) {
   // Restrict to rounds with judges enabled
   const judgingRounds = useMemo(() => (
@@ -77,36 +83,23 @@ export default function JudgingResultsPanel({
   }, [judgeScores, roundId]);
 
   const leaderboard = useMemo(() => {
-    const judgeAvg = {};
-    let maxJudge = 0;
-    let maxVotes = 0;
-    for (const c of contestants) {
+    // Build one row per contestant (maxes are taken over the whole active
+    // field, like the SQL), then keep only the judged ones for display.
+    const rows = contestants.map((c) => {
       const arr = judgeTotalsByContestant[c.id] || [];
       const avg = arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-      judgeAvg[c.id] = avg;
-      if (avg > maxJudge) maxJudge = avg;
-      const v = c.votes || 0;
-      if (v > maxVotes) maxVotes = v;
-    }
-    const jw = judgeWeight / 100;
-    const vw = (100 - judgeWeight) / 100;
-    return contestants
-      .filter((c) => (judgeTotalsByContestant[c.id] || []).length > 0)
-      .map((c) => {
-        const normJ = maxJudge > 0 ? judgeAvg[c.id] / maxJudge : 0;
-        const normV = maxVotes > 0 ? (c.votes || 0) / maxVotes : 0;
-        const final = jw * normJ + vw * normV;
-        return {
-          contestant: c,
-          judgeAvg: judgeAvg[c.id],
-          votes: c.votes || 0,
-          normJudges: normJ,
-          normVotes: normV,
-          final,
-        };
-      })
+      return {
+        contestant: c,
+        gender: c.gender ?? null,
+        judgeAvg: avg,
+        votes: c.votes || 0,
+        hasScores: arr.length > 0,
+      };
+    });
+    return blendedScores({ rows, judgeWeight, splitByGender })
+      .filter((r) => r.hasScores)
       .sort((a, b) => b.final - a.final);
-  }, [contestants, judgeTotalsByContestant, judgeWeight]);
+  }, [contestants, judgeTotalsByContestant, judgeWeight, splitByGender]);
 
   if (judgingRounds.length === 0 || !round) {
     return null;

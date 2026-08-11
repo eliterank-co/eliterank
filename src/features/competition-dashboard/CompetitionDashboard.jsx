@@ -852,6 +852,7 @@ export default function CompetitionDashboard({
                 judgingCriteria={data.judgingCriteria}
                 judgeScores={data.judgeScores}
                 votingRounds={competition?.voting_rounds || []}
+                splitByGender={!!competition?.winnersSplitByGender}
               />
             </div>
           </>
