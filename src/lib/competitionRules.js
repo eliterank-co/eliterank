@@ -49,6 +49,7 @@ export function buildAutoRules(competition) {
   const cityVal = c.city;
   const cityName = typeof cityVal === 'object' ? cityVal?.name : cityVal;
   const rounds = pick(c, 'voting_rounds', 'votingRounds', []) || [];
+  const criteria = pick(c, 'judging_criteria', 'judgingCriteria', []) || [];
 
   // ── How winners are chosen ──────────────────────────────────────────────
   const judgingRound = [...rounds]
@@ -68,6 +69,10 @@ export function buildAutoRules(competition) {
       const label = (judgingRound.title && judgingRound.title.trim())
         || (judgingRound.round_order ? `round ${judgingRound.round_order}` : 'the judging round');
       selection += ` Judging takes place in ${label}, where judges' scores count for ${w}% and public votes for ${100 - w}% of that round's result.`;
+      const catTxt = criteria.length
+        ? `${criteria.length} categor${criteria.length === 1 ? 'y' : 'ies'}`
+        : 'several categories';
+      selection += ` Judges score each finalist from 1 to 10 across ${catTxt}; those totals and public votes are ${splitByGender ? 'compared within each gender' : 'compared across the field'} to decide the winners.`;
     }
   } else {
     selection = 'Winners are determined by public vote — the contestants with the most votes advance through each round and ultimately win.';
