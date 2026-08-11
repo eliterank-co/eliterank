@@ -465,26 +465,57 @@ export function buildOfficialRules(competition, context = {}) {
       });
     }
 
-    // The criteria themselves.
+    // The criteria, how the 1–10 category scores are combined, and a worked
+    // example. Scoring is stated in points (each category is scored 1–10), not
+    // percentages, so the example's arithmetic closes on 100. When the winners
+    // are split by gender, each component is normalized within the gender
+    // division — matching finalize_voting_round().
     if (criteria.length > 0) {
       const weights = criteria.map((cr) => Number(cr.weight) || 0);
-      const totalWeight = weights.reduce((a, b) => a + b, 0);
       const allEqual = weights.every((w) => w === weights[0]);
+      // Each category is scored 1–10, multiplied by its weight; the raw maximum
+      // is 10 × the sum of the weights (50 for five equally-weighted criteria).
+      const rawMax = Math.round(weights.reduce((a, b) => a + b, 0) * 10) || criteria.length * 10;
 
       const criteriaItems = criteria.map((cr, i) => {
         const label = cr.label || `Criterion ${i + 1}`;
         const desc = cr.description ? ` — ${cr.description}` : '';
-        const sharePct =
-          !allEqual && totalWeight > 0
-            ? ` (${Math.round((weights[i] / totalWeight) * 100)}%)`
-            : '';
-        return `${label}${sharePct}${desc}`;
+        return `${label}${desc}`;
       });
 
-      judgingBlocks.push({ kind: 'p', text: 'Judges score each contestant on the following criteria:' });
+      judgingBlocks.push({
+        kind: 'p',
+        text: `Judges score each contestant from 1 to 10 on each of the following ${criteria.length} categor${criteria.length === 1 ? 'y' : 'ies'}:`,
+      });
       judgingBlocks.push({ kind: 'ul', items: criteriaItems });
-      if (allEqual && criteria.length > 1) {
-        judgingBlocks.push({ kind: 'p', text: 'Each criterion is weighted equally.' });
+
+      // The last judged round is where winners are settled; its weight drives
+      // the points split and the worked example.
+      const deciderRound = judgingRounds[judgingRounds.length - 1] || null;
+      const jw = isJudgesOnly ? 100 : deciderRound ? deciderRound.judge_weight || 0 : 0;
+      const votePct = 100 - jw;
+      const equalNote = allEqual && criteria.length > 1 ? ' Each category carries equal weight.' : '';
+      const topSameField = splitByGender ? 'the highest-scoring finalist of the same gender' : 'the highest-scoring finalist';
+      const topVotes = splitByGender ? 'the highest vote count of the same gender' : 'the highest vote count';
+
+      if (jw >= 100) {
+        judgingBlocks.push({
+          kind: 'p',
+          text: `Each contestant's category scores are combined into a total of up to ${rawMax} points.${equalNote} The contestant with the highest total${splitByGender ? ' in each gender division' : ''} wins.`,
+        });
+      } else if (jw > 0) {
+        const ex = 0.9 * jw + 0.8 * votePct;
+        const exStr = Number.isInteger(ex) ? String(ex) : ex.toFixed(1);
+        judgingBlocks.push({
+          kind: 'p',
+          text: `In the judged round, each contestant's category scores are combined into a raw total of up to ${rawMax} points.${equalNote} That total is compared to the total of ${topSameField} and scaled to a ${jw}-point judges' score; public votes are compared to ${topVotes} and scaled to a ${votePct}-point vote score. The two are added for a final score out of 100.`,
+        });
+        judgingBlocks.push({
+          kind: 'p',
+          text: `For example, a finalist who earns 90% of the top judges' total${splitByGender ? ' among finalists of their gender' : ''} and 80% of the top vote count would score (0.90 × ${jw}) + (0.80 × ${votePct}) = ${exStr} out of 100. This is an illustration only; actual scores will vary.`,
+        });
+      } else if (allEqual && criteria.length > 1) {
+        judgingBlocks.push({ kind: 'p', text: 'Each category carries equal weight.' });
       }
     } else {
       judgingBlocks.push({
@@ -687,13 +718,19 @@ export function buildOfficialRules(competition, context = {}) {
   });
 
   // ── Governing Law ────────────────────────────────────────────────────────
+  // The Competition is the Host's, so a Canadian competition's Official Rules
+  // are governed by the Host's province (Ontario). The platform-wide terms that
+  // govern use of EliteRank itself remain governed by Illinois, where the
+  // platform operator (Most Eligible LLC) sits — the two are distinct.
   sections.push({
     id: 'governing-law',
     title: 'Governing Law',
     blocks: [
       {
         kind: 'p',
-        text: 'These Official Rules are governed by the laws of the State of Illinois, without regard to conflict-of-laws principles, and any dispute is subject to the jurisdiction of the state and federal courts located in Cook County, Illinois. Any claim arising out of or relating to the Competition must be brought within one (1) year after it arose, or be permanently barred. The Competition is void where prohibited or restricted by law.',
+        text: isCanadianCompetition
+          ? 'These Official Rules and the Competition are governed by the laws of the Province of Ontario and the federal laws of Canada applicable therein, without regard to conflict-of-laws principles, and any dispute relating to the Competition is subject to the exclusive jurisdiction of the courts of the Province of Ontario. The platform-wide Contest Terms & Conditions, Terms of Use, and Privacy Policy that govern your use of the EliteRank platform remain governed by the laws of the State of Illinois, USA, as stated in those documents. Any claim arising out of or relating to the Competition must be brought within one (1) year after it arose, or be permanently barred. The Competition is void where prohibited or restricted by law.'
+          : 'These Official Rules are governed by the laws of the State of Illinois, without regard to conflict-of-laws principles, and any dispute is subject to the jurisdiction of the state and federal courts located in Cook County, Illinois. Any claim arising out of or relating to the Competition must be brought within one (1) year after it arose, or be permanently barred. The Competition is void where prohibited or restricted by law.',
       },
     ],
   });
