@@ -810,6 +810,7 @@ export default function PublicSitePage({
         currentRound={currentRound}
         votePrice={competition?.price_per_vote}
         useBundler={competition?.use_price_bundler}
+        currency={competition?.organization?.default_currency}
       />
 
       {/* Full-page Profile View */}

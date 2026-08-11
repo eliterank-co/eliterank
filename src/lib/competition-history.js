@@ -27,7 +27,7 @@ export async function getNominationsForUser(userId, userEmail) {
         season,
         status,
         city:cities(name),
-        organization:organizations(name, slug, logo_url, header_logo_url),
+        organization:organizations(name, slug, logo_url, header_logo_url, default_currency),
         demographic:demographics(*),
         category:categories(*)
       )
@@ -86,7 +86,7 @@ export async function getHostedCompetitions(userId) {
   // Include timeline rounds/periods so callers can compute the live phase
   // (voting / nominations / between) — not just the stored status.
   const COMPETITION_SELECT =
-    '*, city:cities(name), organization:organizations(name, slug, logo_url, header_logo_url), ' +
+    '*, city:cities(name), organization:organizations(name, slug, logo_url, header_logo_url, default_currency), ' +
     'voting_rounds(id, start_date, end_date, round_order, round_type), ' +
     'nomination_periods(id, start_date, end_date, period_order)';
 
@@ -172,7 +172,7 @@ export async function getContestantCompetitions(userId) {
 
     const { data: competitions, error: competitionsError } = await supabase
       .from('competitions')
-      .select('*, city:cities(name), organization:organizations(name, slug, logo_url, header_logo_url), voting_rounds(id, start_date, end_date, round_order, round_type, title, tier_label, contestants_advance)')
+      .select('*, city:cities(name), organization:organizations(name, slug, logo_url, header_logo_url, default_currency), voting_rounds(id, start_date, end_date, round_order, round_type, title, tier_label, contestants_advance)')
       .in('id', competitionIds);
 
     if (competitionsError) {

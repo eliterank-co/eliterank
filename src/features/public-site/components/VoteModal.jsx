@@ -353,6 +353,7 @@ export default function VoteModal({
         contestantId: contestant.id,
         voteCount: creditedVoteCount,
         amountPaid: displayedTotal,
+        currency: displayCurrency,
         voterEmail: user?.email,
         isDoubleVote: !!forceDoubleVoteDay,
       });

@@ -33,4 +33,4 @@ export const ORG_PUBLIC_COLS =
   'default_about_tagline, default_about_description, default_about_traits, ' +
   'default_age_range, default_requirement, default_theme_primary, ' +
   'default_theme_voting, default_theme_resurrection, header_logo_url, website_url, ' +
-  'org_type, instagram, tiktok, facebook, is_managed';
+  'org_type, instagram, tiktok, facebook, is_managed, default_currency';

@@ -466,6 +466,7 @@ export async function createVotePaymentIntent({
  * @param {string} params.contestantId - The contestant ID
  * @param {number} params.voteCount - Number of votes to credit (pre-doubled when isDoubleVote)
  * @param {number} params.amountPaid - Amount paid in dollars
+ * @param {string} [params.currency] - ISO currency the charge settled in (usd | cad); defaults to usd
  * @param {string} params.voterEmail - The voter's email
  * @param {boolean} params.isDoubleVote - True if today is a host-scheduled double-vote day
  * @returns {Promise<{success: boolean, error?: string}>}
@@ -476,6 +477,7 @@ export async function recordPaidVote({
   contestantId,
   voteCount,
   amountPaid,
+  currency,
   voterEmail,
   isDoubleVote = false,
 }) {
@@ -507,6 +509,11 @@ export async function recordPaidVote({
         contestant_id: contestantId,
         vote_count: voteCount,
         amount_paid: amountPaid,
+        // Store the currency the charge actually settled in (usd | cad) so
+        // non-USD hosts aren't mislabeled. This client write almost always wins
+        // the race against the webhook, so omitting it here would leave the
+        // column at its 'usd' default for every authenticated CAD voter.
+        currency: (currency || 'usd').toLowerCase(),
         payment_intent_id: paymentIntentId,
         is_double_vote: isDoubleVote,
       });

@@ -23,23 +23,28 @@ import VoteModal from '../../public-site/components/VoteModal';
 
 const VOTE_PRESETS = [25, 100, 250];
 
-// Show cents when a bundled total is fractional ($9.90) but keep round
-// totals tidy ($10).
-const priceFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-const formatPrice = (amount) => priceFormatter.format(amount);
-
-// Match the rest of the money on the card: "$21" for round, "$21.25" otherwise.
-const totalFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+// Build currency-aware price formatters for the card. The host's settlement
+// currency (usd | cad) drives the symbol so a Canadian host renders "CA$21"
+// instead of a bare "$21". Defaults to USD when the currency isn't known yet.
+const makeCardFormatters = (currency = 'usd') => {
+  const cur = (currency || 'usd').toUpperCase();
+  // Show cents when a bundled total is fractional ($9.90) but keep round
+  // totals tidy ($10).
+  const priceFormatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: cur,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+  // Match the rest of the money on the card: "$21" for round, "$21.25" otherwise.
+  const totalFormatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: cur,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  return { priceFormatter, totalFormatter };
+};
 
 /**
  * CompetitionCardVoting
@@ -80,6 +85,13 @@ export default function CompetitionCardVoting({
   const firstName = contestantName.split(' ')[0];
   const pricePerVote = Number(competition?.price_per_vote) || 1;
   const useBundler = !!competition?.use_price_bundler;
+  // Host settlement currency (usd | cad) drives the price symbol on the card.
+  const orgCurrency = competition?.organization?.default_currency || 'usd';
+  const { priceFormatter } = useMemo(
+    () => makeCardFormatters(orgCurrency),
+    [orgCurrency]
+  );
+  const formatPrice = (amount) => priceFormatter.format(amount);
 
   const [selectedCount, setSelectedCount] = useState('');
   const [busy, setBusy] = useState(false);
@@ -450,6 +462,7 @@ export default function CompetitionCardVoting({
               count={count}
               pricePerVote={pricePerVote}
               useBundler={useBundler}
+              currency={orgCurrency}
               isDoubleVoteDay={isDoubleVoteDay}
               active={Number(selectedCount) === count}
               onClick={handleTileClick(count)}
@@ -698,6 +711,7 @@ export default function CompetitionCardVoting({
           autoCheckout
           votePrice={competition?.price_per_vote}
           useBundler={competition?.use_price_bundler}
+          currency={orgCurrency}
           forceDoubleVoteDay={isDoubleVoteDay}
           externalCheckout
           preloadedClientSecret={preloadedCheckout.clientSecret}
@@ -722,7 +736,8 @@ export default function CompetitionCardVoting({
   );
 }
 
-function PresetTile({ count, pricePerVote, useBundler, isDoubleVoteDay, active, onClick }) {
+function PresetTile({ count, pricePerVote, useBundler, currency = 'usd', isDoubleVoteDay, active, onClick }) {
+  const { totalFormatter } = makeCardFormatters(currency);
   const total = calculateVotePrice(count, useBundler, pricePerVote);
   const save = Math.max(0, count * pricePerVote - total);
   // Only surface the savings when the delta is meaningful — hides the
