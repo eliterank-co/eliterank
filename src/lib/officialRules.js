@@ -155,6 +155,17 @@ export function buildOfficialRules(competition, context = {}) {
     c.organization?.name ||
     pick(c, 'organizationName', 'organization_name', null);
   const orgName = orgLegal || orgDisplay;
+  // Host contact details for the Contact section — the organizer's own email and
+  // registered address, so the rules point to a real contact rather than a
+  // non-existent on-platform message channel.
+  const orgEmail =
+    organization?.contact_email ||
+    c.organization?.contact_email ||
+    pick(c, 'contactEmail', 'contact_email', null);
+  const orgAddress =
+    organization?.legal_address ||
+    c.organization?.legal_address ||
+    pick(c, 'legalAddress', 'legal_address', null);
   const hostFirst = host?.first_name || c.host?.first_name || null;
   const hostLast = host?.last_name || c.host?.last_name || null;
   const hostPersonName = [hostFirst, hostLast].filter(Boolean).join(' ') || null;
@@ -790,7 +801,11 @@ export function buildOfficialRules(competition, context = {}) {
     blocks: [
       {
         kind: 'p',
-        text: `Questions about the Competition itself — entry, prizes, charity, judging, or results — are handled by the Host, ${hostName}, who is responsible for the Competition and can be reached through the competition page.`,
+        text:
+          `Questions about the Competition itself — entry, prizes, charity, judging, or results — are handled by the Host, ${hostName}, who is responsible for the Competition` +
+          (orgEmail ? `, and can be contacted at ${orgEmail}` : '') +
+          '.' +
+          (orgAddress ? ` The Host’s registered address is ${orgAddress}.` : ''),
       },
       { kind: 'p', text: 'For questions about the EliteRank platform or these Official Rules, contact:' },
       { kind: 'contact' },
