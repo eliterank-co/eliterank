@@ -56,12 +56,14 @@ export function usePerformanceDashboard(userId) {
           lifetime_free_votes,
           lifetime_paid_votes,
           lifetime_bonus_votes,
+          gender,
           competition:competitions(
             id,
             name,
             slug,
             season,
             status,
+            winners_split_by_gender,
             city:cities(name),
             organization:organizations(name, slug, logo_url, header_logo_url)
           )
@@ -95,6 +97,7 @@ export function usePerformanceDashboard(userId) {
           votes,
           lifetime_votes,
           eliminated_in_round,
+          gender,
           profile:profiles!user_id(avatar_url, first_name, last_name)
         `)
         .in('competition_id', competitionIds)
@@ -148,11 +151,19 @@ export function usePerformanceDashboard(userId) {
         // current-round votes. So a finished competition's winner lands at #1,
         // not an earlier-eliminated contestant with more lifetime votes.
         const myVotes = mine.lifetime_votes ?? 0;
-        const orderedField = sortContestantsByStanding(field);
+        // When the competition splits winners by gender, placement and the
+        // competitor list are scoped to the contestant's own gender — the
+        // pool they actually advance and win within (see finalize_voting_round
+        // and the public leaderboard).
+        const splitByGender = !!comp.winners_split_by_gender;
+        const genderField = splitByGender
+          ? field.filter((c) => c.gender === mine.gender)
+          : field;
+        const orderedField = sortContestantsByStanding(genderField);
         const placementIdx = orderedField.findIndex((c) => c.id === mine.id);
         const placement = placementIdx >= 0 ? placementIdx + 1 : 1;
 
-        const competitors = field
+        const competitors = genderField
           .filter((c) => c.id !== mine.id)
           .map((c) => ({
             id: c.id,

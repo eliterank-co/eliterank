@@ -181,7 +181,16 @@ export default function CompetitionCardVoting({
     const addedVotes = Number(selectedCount) || 0;
     if (!leaderboard?.length || !contestantId || addedVotes < 1) return null;
 
-    const active = leaderboard.filter((c) => c.status === 'active');
+    // When the competition splits winners by gender, project the rank within
+    // the contestant's own gender bucket — matching the public leaderboard and
+    // finalize_voting_round. Gender is read off the leaderboard row so we
+    // don't depend on the caller threading it through the `contestant` prop.
+    const splitByGender = !!competition?.winners_split_by_gender;
+    const me = leaderboard.find((c) => c.id === contestantId);
+    const myGender = me?.gender ?? null;
+
+    let active = leaderboard.filter((c) => c.status === 'active');
+    if (splitByGender) active = active.filter((c) => c.gender === myGender);
 
     // Current rank: sort by votes desc, find this contestant's slot.
     const byVotes = [...active].sort(
@@ -205,7 +214,7 @@ export default function CompetitionCardVoting({
       projected: projectedIndex + 1,
       delta: currentIndex - projectedIndex,
     };
-  }, [leaderboard, contestantId, selectedCount]);
+  }, [leaderboard, contestantId, selectedCount, competition?.winners_split_by_gender]);
 
   const handleTileClick = (count) => (e) => {
     e.stopPropagation();
