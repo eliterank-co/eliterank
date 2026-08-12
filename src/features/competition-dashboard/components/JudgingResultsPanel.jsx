@@ -106,6 +106,20 @@ export default function JudgingResultsPanel({
   }
 
   const advanceCount = round.contestants_advance || 0;
+  const perGenderAdvance = Math.ceil(advanceCount / 2);
+
+  // When winners are split by gender, mirror finalize_voting_round: rank
+  // WITHIN each gender and advance CEIL(contestants_advance / 2) per gender,
+  // instead of a single global top-N. Group the already-scored leaderboard by
+  // gender so each division gets its own #1 and its own crown cutoff. (Scores
+  // are already normalized per-gender by blendedScores above.)
+  const groups = splitByGender
+    ? [
+        { key: 'male', label: 'Men', rows: leaderboard.filter((r) => r.gender === 'male'), advanceCap: perGenderAdvance },
+        { key: 'female', label: 'Women', rows: leaderboard.filter((r) => r.gender === 'female'), advanceCap: perGenderAdvance },
+        { key: 'other', label: 'Unspecified gender', rows: leaderboard.filter((r) => r.gender !== 'male' && r.gender !== 'female'), advanceCap: 0 },
+      ].filter((g) => g.rows.length > 0)
+    : [{ key: 'all', label: null, rows: leaderboard, advanceCap: advanceCount }];
 
   return (
     <Panel
@@ -161,7 +175,9 @@ export default function JudgingResultsPanel({
             : `Blended: ${judgeWeight}% judges + ${100 - judgeWeight}% votes`}
           {' · '}
           {submittedJudgeCount} of {judges.length} judges have submitted
-          {advanceCount > 0 && ` · top ${advanceCount} advance (highlighted below)`}
+          {advanceCount > 0 && (splitByGender
+            ? ` · top ${perGenderAdvance} of each gender advance (highlighted below)`
+            : ` · top ${advanceCount} advance (highlighted below)`)}
         </div>
 
         {/* Finalization banner — set automatically by ensure_round_state()
@@ -248,40 +264,61 @@ export default function JudgingResultsPanel({
                   </td>
                 </tr>
               )}
-              {leaderboard.map((row, idx) => {
-                const advancing = advanceCount > 0 && idx < advanceCount;
-                return (
-                  <tr
-                    key={row.contestant.id}
-                    style={{
-                      borderTop: idx === 0 ? 'none' : `1px solid ${colors.border.secondary}`,
-                      background: advancing ? 'rgba(212,175,55,0.06)' : 'transparent',
-                    }}
-                  >
-                    <td style={{ padding: spacing.sm, textAlign: 'center', color: advancing ? colors.gold.primary : colors.text.muted, fontWeight: typography.fontWeight.semibold }}>
-                      {advancing ? <Crown size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} /> : ''}
-                      {idx + 1}
-                    </td>
-                    <td style={{ padding: spacing.sm }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
-                        <Avatar name={row.contestant.name} src={row.contestant.avatarUrl} size={28} />
-                        <span style={{ fontWeight: advancing ? typography.fontWeight.semibold : typography.fontWeight.regular }}>
-                          {row.contestant.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ padding: spacing.sm, textAlign: 'right', color: colors.text.secondary }}>
-                      {row.judgeAvg > 0 ? row.judgeAvg.toFixed(1) : '—'}
-                    </td>
-                    <td style={{ padding: spacing.sm, textAlign: 'right', color: colors.text.secondary }}>
-                      {row.votes}
-                    </td>
-                    <td style={{ padding: spacing.sm, textAlign: 'right', color: advancing ? colors.gold.primary : colors.text.primary, fontWeight: typography.fontWeight.semibold }}>
-                      {row.final > 0 ? row.final.toFixed(3) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
+              {groups.map((group) => (
+                <React.Fragment key={group.key}>
+                  {group.label && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        style={{
+                          padding: `${spacing.md} ${spacing.sm} ${spacing.xs}`,
+                          fontSize: typography.fontSize.xs,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.1em',
+                          color: colors.text.muted,
+                          fontWeight: typography.fontWeight.semibold,
+                        }}
+                      >
+                        {group.label}
+                      </td>
+                    </tr>
+                  )}
+                  {group.rows.map((row, idx) => {
+                    const advancing = group.advanceCap > 0 && idx < group.advanceCap;
+                    return (
+                      <tr
+                        key={row.contestant.id}
+                        style={{
+                          borderTop: idx === 0 ? 'none' : `1px solid ${colors.border.secondary}`,
+                          background: advancing ? 'rgba(212,175,55,0.06)' : 'transparent',
+                        }}
+                      >
+                        <td style={{ padding: spacing.sm, textAlign: 'center', color: advancing ? colors.gold.primary : colors.text.muted, fontWeight: typography.fontWeight.semibold }}>
+                          {advancing ? <Crown size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} /> : ''}
+                          {idx + 1}
+                        </td>
+                        <td style={{ padding: spacing.sm }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: spacing.sm }}>
+                            <Avatar name={row.contestant.name} src={row.contestant.avatarUrl} size={28} />
+                            <span style={{ fontWeight: advancing ? typography.fontWeight.semibold : typography.fontWeight.regular }}>
+                              {row.contestant.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: spacing.sm, textAlign: 'right', color: colors.text.secondary }}>
+                          {row.judgeAvg > 0 ? row.judgeAvg.toFixed(1) : '—'}
+                        </td>
+                        <td style={{ padding: spacing.sm, textAlign: 'right', color: colors.text.secondary }}>
+                          {row.votes}
+                        </td>
+                        <td style={{ padding: spacing.sm, textAlign: 'right', color: advancing ? colors.gold.primary : colors.text.primary, fontWeight: typography.fontWeight.semibold }}>
+                          {row.final > 0 ? row.final.toFixed(3) : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
             </tbody>
           </table>
         </div>
