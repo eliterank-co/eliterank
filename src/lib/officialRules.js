@@ -615,13 +615,20 @@ export function buildOfficialRules(competition, context = {}) {
     },
   ];
   if (prizeListItems.length) prizeBlocks.push({ kind: 'ul', items: prizeListItems });
+  // Prize taxation follows the competition's jurisdiction: a Canadian
+  // (skill-based) contest reports under the Income Tax Act via a T4A / SIN,
+  // not the U.S. IRS 1099 / W-9 regime. Prizes in a Canadian skill contest can
+  // be taxable income (unlike lottery windfalls), so the T4A reference is apt.
+  const prizeTaxLine = isCanadianCompetition
+    ? 'Taxes on prizes are the sole responsibility of the winner. Prizes awarded in this skill-based Competition may be taxable under the Income Tax Act (Canada); where required, the Host will issue a T4A slip and may require the winner’s Social Insurance Number (SIN) before the prize is released.'
+    : 'Taxes on prizes are the sole responsibility of the winner. Where required (generally $600 or more in aggregate per calendar year for U.S. recipients), the Host will issue an IRS Form 1099 and require a completed Form W-9 before the prize is released.';
   prizeBlocks.push({
     kind: 'ul',
     items: [
       'Prizes may be added, removed, or updated by the Host; the competition’s Prizes page reflects the current prize lineup at any time.',
-      'Prizes are not transferable or for resale and have no cash equivalent unless explicitly stated. The Host may substitute a prize of equal or greater value if the original becomes unavailable.',
+      'Prizes are not transferable or for resale and have no cash value and may not be exchanged or redeemed for cash unless expressly stated otherwise. The Host may substitute a prize of equal or greater value if the original becomes unavailable.',
       'Each prize provider is responsible only for the portion of the prize it supplies.',
-      'Taxes on prizes are the sole responsibility of the winner. Where required (generally $600 or more in aggregate per calendar year for U.S. recipients), the Host will issue an IRS Form 1099 and require a completed Form W-9 before the prize is released.',
+      prizeTaxLine,
       'The Promotion Entities are not liable for any injury, loss, or damages arising from acceptance or use of a prize.',
     ],
   });
