@@ -512,7 +512,7 @@ function ContestantModals() {
                 )}
                 <h2>{selectedContestant.name}</h2>
                 <p className="profile-modal-rank">
-                  #{selectedContestant.rank || selectedContestant.displayRank} ·{' '}
+                  #{selectedContestant.displayRank || selectedContestant.rank} ·{' '}
                   {(selectedContestant.votes || 0).toLocaleString()} votes
                 </p>
               </div>

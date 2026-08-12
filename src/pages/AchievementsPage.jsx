@@ -63,6 +63,7 @@ export default function AchievementsPage() {
           status,
           theme_primary,
           number_of_winners,
+          winners_split_by_gender,
           voting_start,
           organization:organizations (
             id,
@@ -275,15 +276,23 @@ export default function AchievementsPage() {
       });
     }
 
-    // Winner
-    if (status === 'winner' && rank) {
+    // Winner. Key off status, never the global contestants.rank column
+    // (host-curated and usually NULL — gating on it dropped the winner card
+    // entirely). When winners are split by gender the two champions are
+    // co-equal, so there is no "placement": only a non-split competition with
+    // a populated rank > 1 shows an ordinal placement card.
+    if (status === 'winner') {
+      const splitByGender = !!record.competition?.winners_split_by_gender;
+      const isPlacement = !splitByGender && !!rank && rank > 1;
       cards.push({
-        type: rank === 1 ? 'winner' : 'placement',
-        customTitle: rank === 1 ? undefined : getPlacementTitle(rank),
-        title: rank === 1 ? 'WINNER' : getPlacementTitle(rank),
-        description: rank === 1 ? 'You won! Share your victory!' : `You placed ${rank}${rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'}!`,
+        type: isPlacement ? 'placement' : 'winner',
+        customTitle: isPlacement ? getPlacementTitle(rank) : undefined,
+        title: isPlacement ? getPlacementTitle(rank) : 'WINNER',
+        description: isPlacement
+          ? `You placed ${rank}${rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'}!`
+          : 'You won! Share your victory!',
         icon: <Trophy size={20} />,
-        rank,
+        rank: isPlacement ? rank : undefined,
       });
     }
 
