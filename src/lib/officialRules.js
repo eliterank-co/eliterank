@@ -270,7 +270,7 @@ export function buildOfficialRules(competition, context = {}) {
       },
       {
         kind: 'p',
-        text: `${hostName} is the organizer responsible for the Competition — including selecting winners and awarding prizes. EliteRank provides the competition platform and processes payments; EliteRank is not the organizer of the Competition unless it is also named as the Host above.`,
+        text: `${hostName} is the organizer responsible for the Competition — including selecting winners and awarding prizes. EliteRank provides the competition platform and facilitates vote payments to the Host through Stripe; the Host is the seller and merchant of record for vote purchases. EliteRank is not the organizer of the Competition, and is not the seller or merchant of record, unless it is also named as the Host above.`,
       },
       {
         kind: 'callout',
@@ -592,7 +592,7 @@ export function buildOfficialRules(competition, context = {}) {
       },
       {
         kind: 'p',
-        text: 'Purchased votes are final and non-refundable once recorded, except as required by law or as expressly stated on the competition page. See the Contest Terms & Conditions for the complete voting and anti-fraud terms.',
+        text: 'Vote purchases are sold by the Host as merchant of record and processed through Stripe on the Host’s account; the Host — not EliteRank — is responsible for refunds and payment disputes relating to vote purchases. Purchased votes are final and non-refundable once recorded, except as required by law or as expressly stated on the competition page. See the Contest Terms & Conditions for the complete voting and anti-fraud terms.',
       },
     );
 

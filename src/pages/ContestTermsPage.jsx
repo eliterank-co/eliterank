@@ -278,7 +278,9 @@ export default function ContestTermsPage() {
           <p style={styles.p}>
             Where the competition includes a public-support component, voters may show support by casting votes for
             a contestant. Each voter receives at least one free vote credit per competition; voters may also
-            purchase additional vote credits through the Platform's payment processor (Stripe). Votes are recorded
+            purchase additional vote credits. Vote credits are sold by the Host of the competition, who is the merchant
+            of record for those purchases — payment is processed through Stripe on the Host's connected account,
+            funds settle to the Host, and EliteRank operates the Platform and receives only a service fee. Votes are recorded
             in the contestant's tally and, where the contest page so specifies, factor into the contestant's final
             score under the published scoring formula.
           </p>
@@ -287,7 +289,9 @@ export default function ContestTermsPage() {
             entries in any drawing. Voters do not receive any prize, reward, or chance of winning by voting, and
             purchasing votes does not entitle the voter to anything other than additional voting capacity. Votes
             purchased through the Platform are final and non-refundable once recorded, except as required by law or
-            as expressly provided on the contest page.
+            as expressly provided on the contest page. Because the Host is the merchant of record for vote
+            purchases, refunds and payment disputes relating to those purchases are the responsibility of the Host,
+            not EliteRank.
           </p>
 
           <h3 style={styles.h3}>5.5 Prohibited Voting and Fraud</h3>
