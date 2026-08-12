@@ -47,7 +47,6 @@ function CompetitionLayoutInner() {
     showVoteModal,
     showProfileModal,
     votingRounds,
-    prizePool,
     about,
     organization,
     isPreview,
@@ -287,7 +286,6 @@ function CompetitionLayoutInner() {
           <ContestantGuide
             competition={competition}
             votingRounds={votingRounds}
-            prizePool={prizePool}
             about={about}
             phase={phase}
             mode="page"

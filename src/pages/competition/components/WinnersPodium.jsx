@@ -20,7 +20,7 @@ function ordinal(n) {
  * Multi-winner / legacy competitions: premium card grid of ranked winners
  */
 export function WinnersPodium() {
-  const { competition, contestants, topThree, prizePool, openContestantProfile } = usePublicCompetition();
+  const { competition, contestants, topThree, openContestantProfile } = usePublicCompetition();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -107,9 +107,6 @@ export function WinnersPodium() {
 
           <div className="winner-stats">
             <span className="winner-votes">{winner.votes?.toLocaleString()} votes</span>
-            {prizePool && (
-              <span className="winner-prize">{prizePool.formatted.firstPrize}</span>
-            )}
           </div>
         </div>
       </div>

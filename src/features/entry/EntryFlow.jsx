@@ -39,7 +39,6 @@ export default function EntryFlow() {
     orgSlug,
     competitionSlug,
     votingRounds,
-    prizePool,
     about,
     isPreview,
   } = usePublicCompetition();
@@ -209,7 +208,6 @@ export default function EntryFlow() {
       <div className="entry-content" key={flow.currentStep}>
         {renderStep(flow, competition, competitionTitle, handleDone, flow.resetForNewNomination, handleDetailsNext, {
           votingRounds,
-          prizePool,
           about,
           phase,
           organizationLogoUrl: organization?.logo_url,
@@ -395,7 +393,6 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           onNominateAnother={handleNominateAnother}
           organizationLogoUrl={guideContext.organizationLogoUrl}
           votingRounds={guideContext.votingRounds}
-          prizePool={guideContext.prizePool}
           about={guideContext.about}
           phase={guideContext.phase}
         />

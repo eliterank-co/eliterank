@@ -1,10 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { getCompetitionPhase } from '../utils/getCompetitionPhase';
-import {
-  calculatePrizePool,
-  calculateVoteRevenue,
-} from '../utils/calculatePrizePool';
 import { getCompetitionDefaults } from '../utils/competitionDefaults';
 import { ORG_PUBLIC_COLS } from '../constants/safeColumns';
 
@@ -70,7 +66,6 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
   const [nominationPeriods, setNominationPeriods] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [prizes, setPrizes] = useState([]);
-  const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -252,14 +247,6 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
             return new Date(b.published_at) - new Date(a.published_at);
           })
       );
-
-      // Fetch vote revenue separately (aggregate)
-      const { data: voteData } = await supabase
-        .from('votes')
-        .select('amount_paid, tax_amount')
-        .eq('competition_id', compData.id);
-
-      setVotes(voteData || []);
     } catch (err) {
       console.error('Error fetching competition:', err);
       setError(err);
@@ -278,26 +265,6 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
   const phase = useMemo(() => {
     return getCompetitionPhase(competition, votingRounds, nominationPeriods);
   }, [competition, votingRounds, nominationPeriods]);
-
-  // Compute prize pool. Only surface a pool when a minimum is explicitly
-  // configured on the competition or its organization — without a real
-  // value, competitions would otherwise advertise a phantom default prize.
-  const prizePool = useMemo(() => {
-    // Self-serve competitions (created via the host wizard — they carry a
-    // category_template) control the cash prize explicitly: no cash prize
-    // selected means no prize pool, regardless of any legacy default. Older
-    // admin-created competitions fall back to prize_pool_minimum.
-    const isSelfServe = competition?.category_template != null;
-    const minimum = isSelfServe
-      ? (competition?.cash_prize_amount != null ? Number(competition.cash_prize_amount) : null)
-      : (competition?.prize_pool_minimum ?? organization?.default_prize_minimum ?? null);
-    if (minimum == null || Number(minimum) <= 0) return null;
-    const voteRevenue =
-      phase.isVoting || phase.phase === 'results'
-        ? calculateVoteRevenue(votes)
-        : 0;
-    return calculatePrizePool(minimum, voteRevenue);
-  }, [competition, organization, votes, phase]);
 
   // Merge organization defaults with competition overrides
   const about = useMemo(() => {
@@ -348,7 +315,6 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
           filter: `competition_id=eq.${competition.id}`,
         },
         (payload) => {
-          setVotes((prev) => [...prev, payload.new]);
           setContestants((prev) =>
             prev.map((c) => {
               if (c.id === payload.new.contestant_id) {
@@ -410,7 +376,6 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
     nominationPeriods,
     announcements,
     phase,
-    prizePool,
     about,
     theme,
     host,

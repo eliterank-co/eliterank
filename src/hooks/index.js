@@ -9,7 +9,6 @@ export { default as useCompetition } from './useCompetition';
 
 // Public competition hooks
 export { default as useCompetitionPublic } from './useCompetitionPublic';
-export { default as usePrizePool } from './usePrizePool';
 export { default as useActivityFeed } from './useActivityFeed';
 export { default as useLeaderboard } from './useLeaderboard';
 

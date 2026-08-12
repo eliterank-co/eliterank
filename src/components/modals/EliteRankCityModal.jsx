@@ -1219,7 +1219,7 @@ export default function EliteRankCityModal({
             id: 'compete',
             icon: Trophy,
             title: 'Compete',
-            desc: "You've got what it takes. Enter a competition, rally your network, and let the crowd decide who rises to the top. Winners take home cash prizes, the title, and bragging rights.",
+            desc: "You've got what it takes. Enter a competition, rally your network, and let the crowd decide who rises to the top. Winners take home the title, sponsored prizes, and bragging rights.",
             color: colors.gold.primary,
             hoverBg: `${colors.gold.primary}08`,
             cta: 'Apply to compete',
@@ -1419,7 +1419,7 @@ export default function EliteRankCityModal({
                 {[
                   { step: '1', title: 'Enter', desc: 'Apply directly or accept a nomination to compete' },
                   { step: '2', title: 'Compete', desc: 'Rally your network, promote your profile, and gather votes each round' },
-                  { step: '3', title: 'Win', desc: 'Winners take home a piece of the cash prize pool, the title, sponsored prizes, exposure and more' },
+                  { step: '3', title: 'Win', desc: 'Winners take home the title, sponsored prizes, exposure and more' },
                 ].map(item => (
                   <div key={item.step} style={{
                     background: colors.background.card,

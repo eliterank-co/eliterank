@@ -45,7 +45,6 @@ export function PublicCompetitionProvider({
     competition,
     organization,
     phase: realPhase,
-    prizePool,
     about,
     theme,
     sponsors,
@@ -257,7 +256,6 @@ export function PublicCompetitionProvider({
 
       // Computed/merged values
       phase,
-      prizePool,
       about,
       theme,
       countdown,
@@ -320,7 +318,6 @@ export function PublicCompetitionProvider({
       competition,
       organization,
       phase,
-      prizePool,
       about,
       theme,
       countdown,

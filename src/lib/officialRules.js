@@ -133,7 +133,6 @@ export function buildOfficialRules(competition, context = {}) {
     organization = null,
     host = null,
     prizes = [],
-    prizePool = null,
     judges = [],
     judgingCriteria = [],
     bonusTasks = [],
@@ -600,12 +599,7 @@ export function buildOfficialRules(competition, context = {}) {
     })
     .filter(Boolean);
 
-  const poolValue = prizePool ? formatMoney(prizePool.totalPrizePool ?? prizePool.hostMinimum) : null;
-  const cashLine = poolValue
-    ? `A cash prize pool (currently ${poolValue}), as shown on the competition’s Prizes page.`
-    : null;
-
-  const prizeListItems = [...(cashLine ? [cashLine] : []), ...prizeItems];
+  const prizeListItems = [...prizeItems];
   const prizeBlocks = [
     {
       kind: 'p',
