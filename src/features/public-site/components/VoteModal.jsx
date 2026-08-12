@@ -1029,17 +1029,9 @@ function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', co
   }, [currency]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
-  // First-time paid voters must explicitly acknowledge, at the point of sale,
-  // that vote purchases are non-refundable and do not guarantee their
-  // contestant wins — a far stronger disclosure than the same words in the
-  // rules. Tracked per browser; once a purchase completes we stop re-prompting.
-  const [firstTimePurchase] = useState(() => {
-    try {
-      return !localStorage.getItem('eliterank-vote-purchase-ack-v1');
-    } catch {
-      return true;
-    }
-  });
+  // Every paid vote purchase requires an explicit point-of-sale acknowledgment
+  // that the purchase is non-refundable and does not guarantee a win. Asked on
+  // each purchase — no per-browser tracking, cookies, or stored flags.
   const [acknowledged, setAcknowledged] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -1049,7 +1041,7 @@ function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', co
       return;
     }
 
-    if (firstTimePurchase && !acknowledged) {
+    if (!acknowledged) {
       setErrorMessage('Please confirm you understand that vote purchases are non-refundable.');
       return;
     }
@@ -1088,9 +1080,7 @@ function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', co
 
       if (error) {
         setErrorMessage(error.message);
-      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-        try { localStorage.setItem('eliterank-vote-purchase-ack-v1', '1'); } catch { /* storage disabled */ }
-        onSuccess();
+      } else if (paymentIntent && paymentIntent.status === 'succeeded') {        onSuccess();
       } else if (paymentIntent && paymentIntent.status === 'processing') {
         // Payment is processing, show appropriate message
         setErrorMessage('Payment is processing. Please wait...');
@@ -1133,62 +1123,47 @@ function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', co
         </div>
       )}
 
-      {firstTimePurchase ? (
-        <label
-          style={{
-            display: 'flex',
-            gap: spacing.sm,
-            alignItems: 'flex-start',
-            marginTop: spacing.md,
-            padding: spacing.md,
-            background: 'rgba(212,175,55,0.06)',
-            border: '1px solid rgba(212,175,55,0.3)',
-            borderRadius: borderRadius.md,
-            cursor: 'pointer',
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={acknowledged}
-            onChange={(e) => setAcknowledged(e.target.checked)}
-            aria-label="Acknowledge that vote purchases are non-refundable and do not guarantee a win"
-            style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#d4af37', flex: 'none', cursor: 'pointer' }}
-          />
-          <span style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, lineHeight: 1.45 }}>
-            I understand this purchase is <strong style={{ color: colors.text.primary }}>final and non-refundable</strong>, and that
-            buying votes <strong style={{ color: colors.text.primary }}>does not guarantee</strong> that{' '}
-            {contestantName || 'my contestant'} will win, place, or advance in the competition.
-          </span>
-        </label>
-      ) : (
-        <p
-          style={{
-            marginTop: spacing.md,
-            marginBottom: 0,
-            textAlign: 'center',
-            fontSize: typography.fontSize.xs,
-            color: colors.text.muted,
-            lineHeight: 1.45,
-          }}
-        >
-          Vote purchases are final and non-refundable and do not guarantee that {contestantName || 'your contestant'} will win.
-        </p>
-      )}
+      <label
+        style={{
+          display: 'flex',
+          gap: spacing.sm,
+          alignItems: 'flex-start',
+          marginTop: spacing.md,
+          padding: spacing.md,
+          background: 'rgba(212,175,55,0.06)',
+          border: '1px solid rgba(212,175,55,0.3)',
+          borderRadius: borderRadius.md,
+          cursor: 'pointer',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(e) => setAcknowledged(e.target.checked)}
+          aria-label="Acknowledge that vote purchases are non-refundable and do not guarantee a win"
+          style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: '#d4af37', flex: 'none', cursor: 'pointer' }}
+        />
+        <span style={{ fontSize: typography.fontSize.xs, color: colors.text.secondary, lineHeight: 1.45 }}>
+          I understand this purchase is <strong style={{ color: colors.text.primary }}>final and non-refundable</strong>, and that
+          buying votes <strong style={{ color: colors.text.primary }}>does not guarantee</strong> that{' '}
+          {contestantName || 'my contestant'} will win, place, or advance in the competition.
+        </span>
+      </label>
 
       <button
         type="submit"
-        disabled={!stripe || isProcessing || (firstTimePurchase && !acknowledged)}
+        disabled={!stripe || isProcessing || (!acknowledged)}
         style={{
           width: '100%',
           marginTop: spacing.md,
           padding: spacing.sm,
-          background: isProcessing || (firstTimePurchase && !acknowledged) ? 'rgba(212,175,55,0.5)' : gradients.gold,
+          background: isProcessing || (!acknowledged) ? 'rgba(212,175,55,0.5)' : gradients.gold,
           border: 'none',
           borderRadius: borderRadius.md,
           color: '#0a0a0f',
           fontSize: typography.fontSize.sm,
           fontWeight: typography.fontWeight.semibold,
-          cursor: isProcessing || (firstTimePurchase && !acknowledged) ? 'not-allowed' : 'pointer',
+          cursor: isProcessing || (!acknowledged) ? 'not-allowed' : 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
