@@ -10,6 +10,10 @@ const corsHeaders = {
 /**
  * Send a vote receipt email to the paid voter.
  * Fetches contestant/competition details and current rank, then fires the email.
+ *
+ * When tax was collected (taxAmount > 0) the receipt is a COMPLIANT tax receipt:
+ * it itemizes subtotal + tax, and prints the host's legal name, tax registration
+ * number, and address (fetched fresh from the host org) as the vendor of record.
  */
 async function sendVoteReceiptEmail(
   supabase: ReturnType<typeof createClient>,
@@ -24,19 +28,31 @@ async function sendVoteReceiptEmail(
     wasDoubled: boolean
     amountPaid: number
     hasAccount: boolean
+    // Tax receipt fields (present only for taxed purchases)
+    subtotalAmount?: number
+    taxAmount?: number
+    taxRatePct?: number
+    taxLabel?: string
+    currency?: string
+    receiptNumber?: string
   }
 ) {
-  const { voterEmail, contestantId, competitionId, voteCount, purchasedVoteCount, wasDoubled, amountPaid, hasAccount } = params
+  const {
+    voterEmail, contestantId, competitionId, voteCount, purchasedVoteCount, wasDoubled, amountPaid, hasAccount,
+    subtotalAmount, taxAmount, taxRatePct, taxLabel, currency, receiptNumber,
+  } = params
   const appUrl = Deno.env.get('APP_URL') || 'https://eliterank.co'
 
-  // Fetch contestant with competition details
+  // Fetch contestant with competition + host org details. The org's legal name,
+  // tax registration number and address are the vendor identity printed on a
+  // compliant tax receipt.
   const { data: contestant, error: contestantError } = await supabase
     .from('contestants')
     .select(`
       id, name, user_id, rank,
       competition:competitions(
         id, name, slug,
-        organization:organizations(slug)
+        organization:organizations(slug, name, legal_entity_name, tax_registration_number, tax_address, default_currency)
       )
     `)
     .eq('id', contestantId)
@@ -51,7 +67,14 @@ async function sendVoteReceiptEmail(
     id: string
     name: string | null
     slug: string | null
-    organization: { slug: string | null } | null
+    organization: {
+      slug: string | null
+      name: string | null
+      legal_entity_name: string | null
+      tax_registration_number: string | null
+      tax_address: string | null
+      default_currency: string | null
+    } | null
   } | null
 
   // Get current voting round end date
@@ -77,6 +100,9 @@ async function sendVoteReceiptEmail(
     : competitionUrl
   const signupUrl = `${appUrl}/signup?returnTo=${encodeURIComponent(profileUrl)}`
 
+  const org = competition?.organization
+  const hasTax = typeof taxAmount === 'number' && taxAmount > 0
+
   // Send the email
   const emailPayload = {
     type: 'vote_receipt',
@@ -94,6 +120,17 @@ async function sendVoteReceiptEmail(
     voting_round_end: currentRound?.end_date || null,
     signup_url: signupUrl,
     is_anonymous: !hasAccount,
+    // Tax receipt fields — the email template renders an itemized tax block +
+    // vendor identity when tax_amount > 0.
+    currency: currency || org?.default_currency || 'usd',
+    subtotal_amount: hasTax ? subtotalAmount : undefined,
+    tax_amount: hasTax ? taxAmount : undefined,
+    tax_rate_pct: hasTax ? taxRatePct : undefined,
+    tax_label: hasTax ? (taxLabel || 'Tax') : undefined,
+    receipt_number: hasTax ? receiptNumber : undefined,
+    vendor_legal_name: hasTax ? (org?.legal_entity_name || org?.name || undefined) : undefined,
+    vendor_tax_number: hasTax ? (org?.tax_registration_number || undefined) : undefined,
+    vendor_address: hasTax ? (org?.tax_address || undefined) : undefined,
   }
 
   const res = await fetch(`${supabaseUrl}/functions/v1/send-onesignal-email`, {
@@ -111,6 +148,55 @@ async function sendVoteReceiptEmail(
   }
 
   console.log(`Vote receipt email sent to ${voterEmail} for ${voteCount} votes`)
+}
+
+/**
+ * Human-facing receipt number, e.g. HST-20260812-9F3A21. Unique + traceable
+ * (the last segment is derived from the PaymentIntent id). Not a strict per-host
+ * sequence — see follow-up if the host's bookkeeping needs gap-free numbering.
+ */
+function makeReceiptNumber(prefix: string, paymentIntentId: string): string {
+  const d = new Date()
+  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`
+  const tail = paymentIntentId.replace(/[^a-zA-Z0-9]/g, '').slice(-6).toUpperCase()
+  return `${(prefix || 'RCPT').toUpperCase()}-${ymd}-${tail}`
+}
+
+/**
+ * Emit exactly one tax receipt per paid vote, even across the client-side +
+ * webhook insert race and Stripe webhook retries. We ATOMICALLY claim the row
+ * (set receipt_sent_at where it is still null) and only send if we won the
+ * claim; if the send fails we release the claim so a later retry can resend.
+ */
+async function claimAndSendTaxReceipt(
+  supabase: ReturnType<typeof createClient>,
+  supabaseUrl: string,
+  serviceKey: string,
+  voteId: string,
+  paymentIntentId: string,
+  emailParams: Parameters<typeof sendVoteReceiptEmail>[3],
+) {
+  const receiptNumber = makeReceiptNumber(emailParams.taxLabel || 'RCPT', paymentIntentId)
+  const { data: claimed } = await supabase
+    .from('votes')
+    .update({ receipt_sent_at: new Date().toISOString(), receipt_number: receiptNumber })
+    .eq('id', voteId)
+    .is('receipt_sent_at', null)
+    .select('id')
+    .maybeSingle()
+
+  // Another delivery (or the concurrent client/webhook peer) already claimed it.
+  if (!claimed) return
+
+  try {
+    await sendVoteReceiptEmail(supabase, supabaseUrl, serviceKey, { ...emailParams, receiptNumber })
+  } catch (err) {
+    // Release the claim so a subsequent webhook retry can resend the receipt.
+    await supabase.from('votes')
+      .update({ receipt_sent_at: null, receipt_number: null })
+      .eq('id', voteId)
+    throw err
+  }
 }
 
 serve(async (req) => {
@@ -250,15 +336,50 @@ serve(async (req) => {
         const purchasedVoteCount = parseInt(vote_count, 10)
         const amountPaid = paymentIntent.amount / 100 // Convert from cents to dollars
 
-        // Check if this payment has already been processed (idempotency)
+        // Tax accounting from metadata (cents → dollars). subtotal falls back to
+        // (total - tax) for older PaymentIntents created before tax metadata.
+        const taxAmount = (parseInt(paymentIntent.metadata.tax_amount || '0', 10) || 0) / 100
+        const subtotalAmount = paymentIntent.metadata.subtotal_amount
+          ? (parseInt(paymentIntent.metadata.subtotal_amount, 10) || 0) / 100
+          : Math.max(0, amountPaid - taxAmount)
+        const taxRatePct = parseFloat(paymentIntent.metadata.tax_rate_pct || '0') || 0
+        const taxLabel = paymentIntent.metadata.tax_label || (taxAmount > 0 ? 'Tax' : '')
+        const isTaxed = taxAmount > 0
+
+        // Check if this payment has already been processed (idempotency). We also
+        // read receipt_sent_at so that if the client-side insert won the race, the
+        // webhook can still guarantee the (compliant) tax receipt goes out once.
         const { data: existingVote } = await supabase
           .from('votes')
-          .select('id')
+          .select('id, receipt_sent_at')
           .eq('payment_intent_id', paymentIntent.id)
-          .single()
+          .maybeSingle()
 
         if (existingVote) {
           console.log('Payment already processed:', paymentIntent.id)
+          // The vote is recorded (likely by the client), but for taxed purchases
+          // the compliant receipt is only ever sent from here — send it once.
+          if (isTaxed && !existingVote.receipt_sent_at && resolvedVoterEmail) {
+            const isDoubled = paymentIntent.metadata.is_double_vote_day === 'true'
+            const creditedCount = isDoubled ? purchasedVoteCount * 2 : purchasedVoteCount
+            claimAndSendTaxReceipt(supabase, supabaseUrl, supabaseServiceKey, existingVote.id, paymentIntent.id, {
+              voterEmail: resolvedVoterEmail,
+              contestantId: contestant_id,
+              competitionId: competition_id,
+              voteCount: creditedCount,
+              purchasedVoteCount,
+              wasDoubled: isDoubled,
+              amountPaid,
+              hasAccount: !!voter_email,
+              subtotalAmount,
+              taxAmount,
+              taxRatePct,
+              taxLabel,
+              currency: paymentIntent.currency,
+            }).catch(err => {
+              console.warn('Tax receipt (already-processed path) failed (non-fatal):', err?.message || err)
+            })
+          }
           return new Response(
             JSON.stringify({ received: true, status: 'already_processed' }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -276,7 +397,7 @@ serve(async (req) => {
         const voteCount = isDoubleVoteDay ? purchasedVoteCount * 2 : purchasedVoteCount
 
         // Record the paid votes
-        const { error: voteError } = await supabase
+        const { data: insertedVote, error: voteError } = await supabase
           .from('votes')
           .insert({
             competition_id,
@@ -284,10 +405,13 @@ serve(async (req) => {
             voter_email: resolvedVoterEmail || null,
             vote_count: voteCount,
             amount_paid: amountPaid,
+            tax_amount: taxAmount,
             currency: paymentIntent.currency,
             payment_intent_id: paymentIntent.id,
             is_double_vote: isDoubleVoteDay,
           })
+          .select('id')
+          .single()
 
         if (voteError) {
           console.error('Failed to record vote:', voteError)
@@ -302,8 +426,29 @@ serve(async (req) => {
 
         console.log(`Recorded ${voteCount} paid votes for contestant ${contestant_id}`)
 
-        // Send vote receipt email (fire-and-forget — don't block the webhook response)
-        if (resolvedVoterEmail) {
+        // Send vote receipt email (fire-and-forget — don't block the webhook response).
+        // Taxed purchases get the compliant, itemized tax receipt via the
+        // claim-once path (so it's sent exactly once regardless of who inserted
+        // the row); untaxed purchases keep the existing plain receipt behavior.
+        if (resolvedVoterEmail && isTaxed) {
+          claimAndSendTaxReceipt(supabase, supabaseUrl, supabaseServiceKey, insertedVote.id, paymentIntent.id, {
+            voterEmail: resolvedVoterEmail,
+            contestantId: contestant_id,
+            competitionId: competition_id,
+            voteCount,
+            purchasedVoteCount,
+            wasDoubled: isDoubleVoteDay,
+            amountPaid,
+            hasAccount: !!voter_email,
+            subtotalAmount,
+            taxAmount,
+            taxRatePct,
+            taxLabel,
+            currency: paymentIntent.currency,
+          }).catch(err => {
+            console.warn('Tax receipt email failed (non-fatal):', err?.message || err)
+          })
+        } else if (resolvedVoterEmail) {
           sendVoteReceiptEmail(supabase, supabaseUrl, supabaseServiceKey, {
             voterEmail: resolvedVoterEmail,
             contestantId: contestant_id,

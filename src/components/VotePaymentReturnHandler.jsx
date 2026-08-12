@@ -136,6 +136,7 @@ export default function VotePaymentReturnHandler() {
             contestantId,
             voteCount: creditedVoteCount,
             amountPaid: (paymentIntent.amount || 0) / 100,
+            taxAmount: (parseInt(metadata.tax_amount, 10) || 0) / 100,
             voterEmail: user?.email,
             isDoubleVote: isDoubleVoteDay,
           });

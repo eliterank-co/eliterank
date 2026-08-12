@@ -436,6 +436,11 @@ export async function createVotePaymentIntent({
       clientSecret: data.clientSecret,
       paymentIntentId: data.paymentIntentId,
       amount: data.amount,
+      // Tax breakdown (cents) so the checkout UI can itemize e.g. HST.
+      subtotal: data.subtotal,
+      taxAmount: data.taxAmount,
+      taxRatePct: data.taxRatePct,
+      taxLabel: data.taxLabel,
       currency: data.currency,
       voteCount: data.voteCount,
       contestantName: data.contestantName,
@@ -476,6 +481,7 @@ export async function recordPaidVote({
   contestantId,
   voteCount,
   amountPaid,
+  taxAmount = 0,
   voterEmail,
   isDoubleVote = false,
 }) {
@@ -507,6 +513,7 @@ export async function recordPaidVote({
         contestant_id: contestantId,
         vote_count: voteCount,
         amount_paid: amountPaid,
+        tax_amount: taxAmount || 0,
         payment_intent_id: paymentIntentId,
         is_double_vote: isDoubleVote,
       });
