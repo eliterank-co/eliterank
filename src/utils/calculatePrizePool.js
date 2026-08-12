@@ -44,8 +44,13 @@ export function calculatePrizePool(prizePoolMinimum = 1000, voteRevenue = 0) {
 
 /**
  * Calculate vote revenue from votes array or sum
- * @param {Array|number} votes - Array of vote objects with amount_paid, or pre-calculated sum
+ * @param {Array|number} votes - Array of vote objects with amount_paid (+ optional
+ *   tax_amount), or a pre-calculated sum
  * @returns {number} Total vote revenue (the portion that goes to prizes)
+ *
+ * Collected sales tax (e.g. HST) is NOT vote revenue — it's a pass-through the
+ * host remits to the tax authority — so it is excluded from the prize base.
+ * tax_amount defaults to 0, so untaxed competitions are unaffected.
  */
 export function calculateVoteRevenue(votes) {
   if (typeof votes === 'number') {
@@ -54,7 +59,9 @@ export function calculateVoteRevenue(votes) {
 
   if (Array.isArray(votes)) {
     const totalPaid = votes.reduce((sum, vote) => {
-      return sum + (Number(vote.amount_paid) || 0);
+      const paid = Number(vote.amount_paid) || 0;
+      const tax = Number(vote.tax_amount) || 0;
+      return sum + (paid - tax);
     }, 0);
     // 50% of purchases go to prize pool
     return totalPaid * 0.5;

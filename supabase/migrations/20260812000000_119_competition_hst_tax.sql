@@ -79,3 +79,31 @@ UPDATE public.organizations
    SET tax_registration_number = '77420 0570 RT0001',
        tax_address             = '21 Wolf Creek Cres, Maple, ON L6A 4C6'
  WHERE id = '113ff1e1-f6d2-466a-94d5-c481a6fd8d64';
+
+-- ── Keep total_revenue = NET vote revenue (exclude collected tax) ────────────
+-- The process_vote trigger accumulates each paid vote's amount_paid into
+-- competitions.total_revenue. Now that amount_paid is tax-INCLUSIVE for taxed
+-- competitions, the collected tax would inflate total_revenue — but tax is a
+-- pass-through the host remits to the CRA, not competition revenue (and any
+-- prize/earnings figure derived from it must not include tax). Subtract the tax
+-- portion so total_revenue stays "vote revenue, excl. tax". COALESCE(tax,0)
+-- makes this a no-op for every existing/untaxed vote.
+CREATE OR REPLACE FUNCTION public.process_vote()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+BEGIN
+  UPDATE public.contestants
+    SET votes = votes + NEW.vote_count
+    WHERE id = NEW.contestant_id;
+
+  UPDATE public.competitions
+    SET total_votes = total_votes + NEW.vote_count,
+        total_revenue = total_revenue + COALESCE(NEW.amount_paid, 0) - COALESCE(NEW.tax_amount, 0)
+    WHERE id = NEW.competition_id;
+
+  RETURN NEW;
+END;
+$function$;

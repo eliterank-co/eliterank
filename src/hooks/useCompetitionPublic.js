@@ -256,7 +256,7 @@ export function useCompetitionPublic(orgSlug, competitionSlug, competitionId) {
       // Fetch vote revenue separately (aggregate)
       const { data: voteData } = await supabase
         .from('votes')
-        .select('amount_paid')
+        .select('amount_paid, tax_amount')
         .eq('competition_id', compData.id);
 
       setVotes(voteData || []);

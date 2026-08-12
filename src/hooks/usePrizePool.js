@@ -36,7 +36,7 @@ export function usePrizePool(
 
       const { data, error } = await supabase
         .from('votes')
-        .select('amount_paid')
+        .select('amount_paid, tax_amount')
         .eq('competition_id', competitionId);
 
       if (!error && data) {
@@ -65,7 +65,11 @@ export function usePrizePool(
           filter: `competition_id=eq.${competitionId}`,
         },
         (payload) => {
-          const newAmount = (Number(payload.new.amount_paid) || 0) * 0.5;
+          // Exclude collected tax (e.g. HST) from the prize base — it's a
+          // pass-through remittance, not vote revenue.
+          const paid = Number(payload.new.amount_paid) || 0;
+          const tax = Number(payload.new.tax_amount) || 0;
+          const newAmount = (paid - tax) * 0.5;
           setVoteRevenue((prev) => prev + newAmount);
         }
       )
