@@ -278,7 +278,9 @@ export default function ContestTermsPage() {
           <p style={styles.p}>
             Where the competition includes a public-support component, voters may show support by casting votes for
             a contestant. Each voter receives at least one free vote credit per competition; voters may also
-            purchase additional vote credits through the Platform's payment processor (Stripe). Votes are recorded
+            purchase additional vote credits. Vote credits are sold by the Host of the competition, who is the merchant
+            of record for those purchases — payment is processed through Stripe on the Host's connected account,
+            funds settle to the Host, and EliteRank operates the Platform and receives only a service fee. Votes are recorded
             in the contestant's tally and, where the contest page so specifies, factor into the contestant's final
             score under the published scoring formula.
           </p>
@@ -286,8 +288,11 @@ export default function ContestTermsPage() {
             Votes are a measure of public support for a contestant and are <span style={styles.strong}>not</span>{' '}
             entries in any drawing. Voters do not receive any prize, reward, or chance of winning by voting, and
             purchasing votes does not entitle the voter to anything other than additional voting capacity. Votes
-            purchased through the Platform are final and non-refundable once recorded, except as required by law or
-            as expressly provided on the contest page.
+            purchased through the Platform are final and non-refundable once recorded — regardless of whether the
+            contestant the voter supported advances, places, or wins — except as required by law or as expressly
+            provided on the contest page. Because the Host is the merchant of record for vote
+            purchases, refunds and payment disputes relating to those purchases are the responsibility of the Host,
+            not EliteRank.
           </p>
 
           <h3 style={styles.h3}>5.5 Prohibited Voting and Fraud</h3>
@@ -318,7 +323,7 @@ export default function ContestTermsPage() {
             <li style={styles.li}>Prizes are not transferable, assignable, or for resale, and have no cash equivalent unless explicitly stated. The Host reserves the right, in its sole discretion, to substitute a prize or any component of a prize with one of equal or greater retail value (or with a cash equivalent) without liability if the original prize becomes unavailable.</li>
             <li style={styles.li}>Prizes will be distributed to winners as soon as practical after winner verification (typically within two to six months). Delays may occur where scheduling with celebrities, sponsors, or third parties is required.</li>
             <li style={styles.li}>The Host is responsible only for its portion of any prize and is not liable for any portion of a prize provided (or not provided) by a third party.</li>
-            <li style={styles.li}><span style={styles.strong}>Taxes:</span> All federal, state, and local taxes, withholdings, and other charges associated with the receipt or use of a prize are the sole responsibility of the winner. Where the retail value of a prize requires it (currently $600 or more in aggregate per calendar year for U.S. recipients), the Host will issue an IRS Form 1099-MISC or 1099-NEC to the winner and will require the winner to provide a completed IRS Form W-9 (or equivalent) before the prize is released.</li>
+            <li style={styles.li}><span style={styles.strong}>Taxes:</span> All taxes, withholdings, and other charges associated with the receipt or use of a prize are the sole responsibility of the winner. Where tax reporting is required, the Host will issue the tax documentation and require the identifying information applicable to the winner's jurisdiction — for example, an IRS Form 1099 and a completed Form W-9 for U.S. winners, or a T4A slip and Social Insurance Number (SIN) for Canadian winners — before the prize is released. The tax treatment for a specific competition is set out in its Official Rules.</li>
             <li style={styles.li}>The Promotion Entities are not liable for any injury, loss, or damages that may result from acceptance or use of a prize, and are not liable for any shipping delays.</li>
           </ul>
         </section>
@@ -327,10 +332,10 @@ export default function ContestTermsPage() {
           <h2 style={styles.h2}>7. Charity Allocation (When Applicable)</h2>
           <p style={styles.p}>
             Some competitions designate a charitable beneficiary on the contest page. Where a charitable allocation
-            is designated, up to twenty percent (20%) of net proceeds from purchased votes for that competition will
-            typically be donated to the designated charity (or such other percentage as stated on the contest page).
-            If the designated charity is unable or unwilling to accept the donation, the Host may donate the
-            charity portion to an alternate charity of similar mission in its reasonable discretion.
+            is designated, the percentage of the Host's net proceeds from purchased votes (after EliteRank's
+            platform and payment-processing fees) stated on that competition's page will be donated to the
+            designated charity. If the designated charity is unable or unwilling to accept the donation, the Host
+            may donate the charity portion to an alternate charity of similar mission in its reasonable discretion.
           </p>
           <p style={styles.p}>
             Purchased votes are not tax-deductible charitable contributions and you will not receive a
@@ -343,8 +348,9 @@ export default function ContestTermsPage() {
           <p style={styles.p}>
             All potential winners are subject to verification of eligibility and compliance with these Contest
             Terms. Winners may be required to execute and return an Affidavit of Eligibility, Liability Release, and
-            (where lawful) Publicity Release ("Prize Claim Documents"), and to provide a completed IRS Form W-9 (or
-            other tax forms required by law). A potential winner may be disqualified and an alternate winner
+            (where lawful) Publicity Release ("Prize Claim Documents"), and to provide the tax forms and identifying
+            information required by law (for example, a Form W-9 for U.S. winners, or a Social Insurance Number for
+            Canadian winners). A potential winner may be disqualified and an alternate winner
             selected if:
           </p>
           <ul style={styles.ul}>

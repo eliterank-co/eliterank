@@ -155,6 +155,17 @@ export function buildOfficialRules(competition, context = {}) {
     c.organization?.name ||
     pick(c, 'organizationName', 'organization_name', null);
   const orgName = orgLegal || orgDisplay;
+  // Host contact details for the Contact section — the organizer's own email and
+  // registered address, so the rules point to a real contact rather than a
+  // non-existent on-platform message channel.
+  const orgEmail =
+    organization?.contact_email ||
+    c.organization?.contact_email ||
+    pick(c, 'contactEmail', 'contact_email', null);
+  const orgAddress =
+    organization?.legal_address ||
+    c.organization?.legal_address ||
+    pick(c, 'legalAddress', 'legal_address', null);
   const hostFirst = host?.first_name || c.host?.first_name || null;
   const hostLast = host?.last_name || c.host?.last_name || null;
   const hostPersonName = [hostFirst, hostLast].filter(Boolean).join(' ') || null;
@@ -259,7 +270,7 @@ export function buildOfficialRules(competition, context = {}) {
       },
       {
         kind: 'p',
-        text: `${hostName} is the organizer responsible for the Competition — including selecting winners and awarding prizes. EliteRank provides the competition platform and processes payments; EliteRank is not the organizer of the Competition unless it is also named as the Host above.`,
+        text: `${hostName} is the organizer responsible for the Competition — including selecting winners and awarding prizes. EliteRank provides the competition platform and facilitates vote payments to the Host through Stripe; the Host is the seller and merchant of record for vote purchases. EliteRank is not the organizer of the Competition, and is not the seller or merchant of record, unless it is also named as the Host above.`,
       },
       {
         kind: 'callout',
@@ -288,7 +299,7 @@ export function buildOfficialRules(competition, context = {}) {
       publicVotes
         ? {
             kind: 'p',
-            text: 'Where the Competition includes public voting, everyone receives free votes. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
+            text: 'Where the Competition includes public voting, everyone receives free votes: every registered voter may cast at least one free vote each day, renewed every 24 hours — no purchase is ever necessary. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
           }
         : {
             kind: 'p',
@@ -307,8 +318,12 @@ export function buildOfficialRules(competition, context = {}) {
   } else {
     where = `in and around ${cityName || 'the host city'}${radiusMiles ? ` (within ${radiusMiles} miles)` : ''}`;
   }
-  let eligibilityIntro = `Entry is open to ${genderTxt} ${where}. All entrants must be at least ${ageMin} years old`;
-  eligibilityIntro += ageMax ? ` and no older than ${ageMax}.` : ' at the time of entry.';
+  // Floor the minimum age to the age of majority for a Canadian competition
+  // (19 in Ontario) so the rules never publish a below-majority minimum, and
+  // state the majority uplift explicitly.
+  const effectiveAgeMin = isCanadianCompetition ? Math.max(ageMin, 19) : ageMin;
+  let eligibilityIntro = `Entry is open to ${genderTxt} ${where}. All entrants and voters must be at least ${effectiveAgeMin} years old, or the age of majority in their province or state of residence (19 in Ontario), whichever is greater`;
+  eligibilityIntro += ageMax ? `, and no older than ${ageMax}.` : ', at the time of entry.';
   sections.push({
     id: 'eligibility',
     title: 'Eligibility',
@@ -340,7 +355,7 @@ export function buildOfficialRules(competition, context = {}) {
       blocks: [
         {
           kind: 'p',
-          text: 'To comply with Canadian law, any potential winner who is a resident of Canada must, before any prize is awarded, correctly answer without mechanical or other aid a time-limited mathematical skill-testing question administered by the Host. Failure to correctly answer the skill-testing question within the time allowed will result in disqualification, and an alternate winner may be selected.',
+          text: 'To comply with Canadian law, any potential winner who is a resident of Canada must, before any prize is awarded, correctly answer — unaided, in a single attempt, and within the time allowed — a time-limited mathematical skill-testing question requiring at least three arithmetic operations, administered by the Host. Failure to correctly answer the skill-testing question within the time allowed will result in disqualification, and an alternate winner may be selected.',
         },
       ],
     });
@@ -581,7 +596,7 @@ export function buildOfficialRules(competition, context = {}) {
       },
       {
         kind: 'p',
-        text: 'Purchased votes are final and non-refundable once recorded, except as required by law or as expressly stated on the competition page. See the Contest Terms & Conditions for the complete voting and anti-fraud terms.',
+        text: 'Vote purchases are sold by the Host as merchant of record and processed through Stripe on the Host’s account; the Host — not EliteRank — is responsible for refunds and payment disputes relating to vote purchases. Purchased votes are final and non-refundable once recorded — regardless of whether the contestant you supported advances, places, or wins — except as required by law or as expressly stated on the competition page. See the Contest Terms & Conditions for the complete voting and anti-fraud terms.',
       },
     );
 
@@ -606,22 +621,42 @@ export function buildOfficialRules(competition, context = {}) {
     : null;
 
   const prizeListItems = [...(cashLine ? [cashLine] : []), ...prizeItems];
+  // Approximate total retail value across all listed prizes + any cash pool —
+  // a Competition Act §74.06 disclosure item.
+  const prizeArvTotal =
+    (prizes || []).reduce((sum, p) => {
+      const n = Number(p.value);
+      return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+    }, 0) + (prizePool ? Number(prizePool.totalPrizePool ?? prizePool.hostMinimum) || 0 : 0);
+  const arvTotalLine =
+    prizeArvTotal > 0
+      ? `The approximate total retail value of all prizes is ${formatMoney(prizeArvTotal)}. Individual values shown are approximate retail values (ARV) and may vary.`
+      : null;
   const prizeBlocks = [
     {
       kind: 'p',
       text: prizeListItems.length
-        ? 'The prizes currently set for the Competition are listed below. Prizes may change — the competition’s Prizes page always shows the current prizes:'
+        ? 'The prizes currently set for the Competition are listed below, each with its approximate retail value (ARV). Prizes may change — the competition’s Prizes page always shows the current prizes:'
         : 'The prizes for the Competition are shown on the competition’s Prizes page and may be updated by the Host.',
     },
   ];
   if (prizeListItems.length) prizeBlocks.push({ kind: 'ul', items: prizeListItems });
+  if (arvTotalLine) prizeBlocks.push({ kind: 'p', text: arvTotalLine });
+  // Prize taxation follows the competition's jurisdiction: a Canadian
+  // (skill-based) contest reports under the Income Tax Act via a T4A / SIN,
+  // not the U.S. IRS 1099 / W-9 regime. Prizes in a Canadian skill contest can
+  // be taxable income (unlike lottery windfalls), so the T4A reference is apt.
+  const prizeTaxLine = isCanadianCompetition
+    ? 'Taxes on prizes are the sole responsibility of the winner. Prizes awarded in this skill-based Competition may be taxable under the Income Tax Act (Canada); where required, the Host will issue a T4A slip and may require the winner’s Social Insurance Number (SIN) before the prize is released.'
+    : 'Taxes on prizes are the sole responsibility of the winner. Where required (generally $600 or more in aggregate per calendar year for U.S. recipients), the Host will issue an IRS Form 1099 and require a completed Form W-9 before the prize is released.';
   prizeBlocks.push({
     kind: 'ul',
     items: [
+      'Chances of winning depend on the skill and judging scores of the contestants and the number of eligible entrants and votes cast — winners are determined by the published criteria, not by random chance.',
       'Prizes may be added, removed, or updated by the Host; the competition’s Prizes page reflects the current prize lineup at any time.',
-      'Prizes are not transferable or for resale and have no cash equivalent unless explicitly stated. The Host may substitute a prize of equal or greater value if the original becomes unavailable.',
+      'Prizes are not transferable or for resale and have no cash value and may not be exchanged or redeemed for cash unless expressly stated otherwise. The Host may substitute a prize of equal or greater value if the original becomes unavailable.',
       'Each prize provider is responsible only for the portion of the prize it supplies.',
-      'Taxes on prizes are the sole responsibility of the winner. Where required (generally $600 or more in aggregate per calendar year for U.S. recipients), the Host will issue an IRS Form 1099 and require a completed Form W-9 before the prize is released.',
+      prizeTaxLine,
       'The Promotion Entities are not liable for any injury, loss, or damages arising from acceptance or use of a prize.',
     ],
   });
@@ -776,6 +811,20 @@ export function buildOfficialRules(competition, context = {}) {
     ],
   });
 
+  // ── Winners List & Requesting the Rules ──────────────────────────────────
+  // Standard prize-contest section (and part of adequate disclosure): a way to
+  // obtain the winner names and a copy of the rules after the Competition ends.
+  sections.push({
+    id: 'winners-list',
+    title: 'Winners List & Requesting These Rules',
+    blocks: [
+      {
+        kind: 'p',
+        text: `The name(s) of the winner(s) and a copy of these Official Rules are available on request after the Competition concludes. To request them, contact the Host, ${hostName}${orgEmail ? `, at ${orgEmail}` : ''}${orgAddress ? `, or by mail at ${orgAddress}` : ''}. Requests must be made within ninety (90) days after the winners are announced.`,
+      },
+    ],
+  });
+
   // ── Contact ──────────────────────────────────────────────────────────────
   sections.push({
     id: 'contact',
@@ -783,7 +832,11 @@ export function buildOfficialRules(competition, context = {}) {
     blocks: [
       {
         kind: 'p',
-        text: `Questions about the Competition itself — entry, prizes, charity, judging, or results — are handled by the Host, ${hostName}, who is responsible for the Competition and can be reached through the competition page.`,
+        text:
+          `Questions about the Competition itself — entry, prizes, charity, judging, or results — are handled by the Host, ${hostName}, who is responsible for the Competition` +
+          (orgEmail ? `, and can be contacted at ${orgEmail}` : '') +
+          '.' +
+          (orgAddress ? ` The Host’s registered address is ${orgAddress}.` : ''),
       },
       { kind: 'p', text: 'For questions about the EliteRank platform or these Official Rules, contact:' },
       { kind: 'contact' },
