@@ -1020,7 +1020,7 @@ export default function VoteModal({
 /**
  * Payment checkout form using Stripe Elements
  */
-function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', contestantName, collectEmail = false, userEmail = null, connectedAccountId = null }) {
+export function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'USD', contestantName, collectEmail = false, userEmail = null, connectedAccountId = null }) {
   const stripe = useStripe();
   const elements = useElements();
   const formatPrice = useMemo(() => {
