@@ -299,7 +299,7 @@ export function buildOfficialRules(competition, context = {}) {
       publicVotes
         ? {
             kind: 'p',
-            text: 'Where the Competition includes public voting, everyone receives free votes. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
+            text: 'Where the Competition includes public voting, everyone receives free votes: every registered voter may cast at least one free vote each day, renewed every 24 hours — no purchase is ever necessary. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
           }
         : {
             kind: 'p',
@@ -318,8 +318,12 @@ export function buildOfficialRules(competition, context = {}) {
   } else {
     where = `in and around ${cityName || 'the host city'}${radiusMiles ? ` (within ${radiusMiles} miles)` : ''}`;
   }
-  let eligibilityIntro = `Entry is open to ${genderTxt} ${where}. All entrants must be at least ${ageMin} years old`;
-  eligibilityIntro += ageMax ? ` and no older than ${ageMax}.` : ' at the time of entry.';
+  // Floor the minimum age to the age of majority for a Canadian competition
+  // (19 in Ontario) so the rules never publish a below-majority minimum, and
+  // state the majority uplift explicitly.
+  const effectiveAgeMin = isCanadianCompetition ? Math.max(ageMin, 19) : ageMin;
+  let eligibilityIntro = `Entry is open to ${genderTxt} ${where}. All entrants and voters must be at least ${effectiveAgeMin} years old, or the age of majority in their province or state of residence (19 in Ontario), whichever is greater`;
+  eligibilityIntro += ageMax ? `, and no older than ${ageMax}.` : ', at the time of entry.';
   sections.push({
     id: 'eligibility',
     title: 'Eligibility',
@@ -351,7 +355,7 @@ export function buildOfficialRules(competition, context = {}) {
       blocks: [
         {
           kind: 'p',
-          text: 'To comply with Canadian law, any potential winner who is a resident of Canada must, before any prize is awarded, correctly answer without mechanical or other aid a time-limited mathematical skill-testing question administered by the Host. Failure to correctly answer the skill-testing question within the time allowed will result in disqualification, and an alternate winner may be selected.',
+          text: 'To comply with Canadian law, any potential winner who is a resident of Canada must, before any prize is awarded, correctly answer — unaided, in a single attempt, and within the time allowed — a time-limited mathematical skill-testing question requiring at least three arithmetic operations, administered by the Host. Failure to correctly answer the skill-testing question within the time allowed will result in disqualification, and an alternate winner may be selected.',
         },
       ],
     });
@@ -617,15 +621,27 @@ export function buildOfficialRules(competition, context = {}) {
     : null;
 
   const prizeListItems = [...(cashLine ? [cashLine] : []), ...prizeItems];
+  // Approximate total retail value across all listed prizes + any cash pool —
+  // a Competition Act §74.06 disclosure item.
+  const prizeArvTotal =
+    (prizes || []).reduce((sum, p) => {
+      const n = Number(p.value);
+      return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+    }, 0) + (prizePool ? Number(prizePool.totalPrizePool ?? prizePool.hostMinimum) || 0 : 0);
+  const arvTotalLine =
+    prizeArvTotal > 0
+      ? `The approximate total retail value of all prizes is ${formatMoney(prizeArvTotal)}. Individual values shown are approximate retail values (ARV) and may vary.`
+      : null;
   const prizeBlocks = [
     {
       kind: 'p',
       text: prizeListItems.length
-        ? 'The prizes currently set for the Competition are listed below. Prizes may change — the competition’s Prizes page always shows the current prizes:'
+        ? 'The prizes currently set for the Competition are listed below, each with its approximate retail value (ARV). Prizes may change — the competition’s Prizes page always shows the current prizes:'
         : 'The prizes for the Competition are shown on the competition’s Prizes page and may be updated by the Host.',
     },
   ];
   if (prizeListItems.length) prizeBlocks.push({ kind: 'ul', items: prizeListItems });
+  if (arvTotalLine) prizeBlocks.push({ kind: 'p', text: arvTotalLine });
   // Prize taxation follows the competition's jurisdiction: a Canadian
   // (skill-based) contest reports under the Income Tax Act via a T4A / SIN,
   // not the U.S. IRS 1099 / W-9 regime. Prizes in a Canadian skill contest can
@@ -636,6 +652,7 @@ export function buildOfficialRules(competition, context = {}) {
   prizeBlocks.push({
     kind: 'ul',
     items: [
+      'Chances of winning depend on the skill and judging scores of the contestants and the number of eligible entrants and votes cast — winners are determined by the published criteria, not by random chance.',
       'Prizes may be added, removed, or updated by the Host; the competition’s Prizes page reflects the current prize lineup at any time.',
       'Prizes are not transferable or for resale and have no cash value and may not be exchanged or redeemed for cash unless expressly stated otherwise. The Host may substitute a prize of equal or greater value if the original becomes unavailable.',
       'Each prize provider is responsible only for the portion of the prize it supplies.',
@@ -791,6 +808,20 @@ export function buildOfficialRules(competition, context = {}) {
         text: 'If any provision of these Official Rules is held invalid or unenforceable, that provision will be limited or removed to the minimum extent necessary, and the remaining provisions will remain in full force and effect.',
       },
       { kind: 'policyLinks' },
+    ],
+  });
+
+  // ── Winners List & Requesting the Rules ──────────────────────────────────
+  // Standard prize-contest section (and part of adequate disclosure): a way to
+  // obtain the winner names and a copy of the rules after the Competition ends.
+  sections.push({
+    id: 'winners-list',
+    title: 'Winners List & Requesting These Rules',
+    blocks: [
+      {
+        kind: 'p',
+        text: `The name(s) of the winner(s) and a copy of these Official Rules are available on request after the Competition concludes. To request them, contact the Host, ${hostName}${orgEmail ? `, at ${orgEmail}` : ''}${orgAddress ? `, or by mail at ${orgAddress}` : ''}. Requests must be made within ninety (90) days after the winners are announced.`,
+      },
     ],
   });
 
