@@ -251,8 +251,8 @@ export default function TermsPage() {
             Vote credits are sold by the Host (organizer) of the relevant competition, who is the merchant of
             record; payment is processed through Stripe on the Host's connected account and funds settle to the
             Host, while EliteRank operates the Service and receives only a service fee. All purchases are final and
-            non-refundable once the vote has been recorded, except as required by law or expressly stated on the
-            contest page. Refunds and payment disputes relating to vote purchases are handled by the Host, not
+            non-refundable once the vote has been recorded — regardless of whether the contestant the voter
+            supported advances, places, or wins — except as required by law or expressly stated on the contest page. Refunds and payment disputes relating to vote purchases are handled by the Host, not
             EliteRank. You are responsible for any taxes associated with purchases.
           </p>
           <p style={styles.p}>

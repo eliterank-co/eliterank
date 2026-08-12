@@ -596,7 +596,7 @@ export function buildOfficialRules(competition, context = {}) {
       },
       {
         kind: 'p',
-        text: 'Vote purchases are sold by the Host as merchant of record and processed through Stripe on the Host’s account; the Host — not EliteRank — is responsible for refunds and payment disputes relating to vote purchases. Purchased votes are final and non-refundable once recorded, except as required by law or as expressly stated on the competition page. See the Contest Terms & Conditions for the complete voting and anti-fraud terms.',
+        text: 'Vote purchases are sold by the Host as merchant of record and processed through Stripe on the Host’s account; the Host — not EliteRank — is responsible for refunds and payment disputes relating to vote purchases. Purchased votes are final and non-refundable once recorded — regardless of whether the contestant you supported advances, places, or wins — except as required by law or as expressly stated on the competition page. See the Contest Terms & Conditions for the complete voting and anti-fraud terms.',
       },
     );
 

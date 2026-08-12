@@ -288,8 +288,9 @@ export default function ContestTermsPage() {
             Votes are a measure of public support for a contestant and are <span style={styles.strong}>not</span>{' '}
             entries in any drawing. Voters do not receive any prize, reward, or chance of winning by voting, and
             purchasing votes does not entitle the voter to anything other than additional voting capacity. Votes
-            purchased through the Platform are final and non-refundable once recorded, except as required by law or
-            as expressly provided on the contest page. Because the Host is the merchant of record for vote
+            purchased through the Platform are final and non-refundable once recorded — regardless of whether the
+            contestant the voter supported advances, places, or wins — except as required by law or as expressly
+            provided on the contest page. Because the Host is the merchant of record for vote
             purchases, refunds and payment disputes relating to those purchases are the responsibility of the Host,
             not EliteRank.
           </p>
