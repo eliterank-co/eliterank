@@ -409,9 +409,17 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
   // in the stats bar updates live when process_vote() bumps
   // contestants.votes — useLeaderboard subscribes to postgres_changes
   // on `contestants` (see hooks/useLeaderboard.js).
+  // When the competition splits winners by gender, ask useLeaderboard for the
+  // per-gender ranking so the stat card's "Rank #X" matches the public
+  // leaderboard and finalize_voting_round (which rank within each gender).
+  const splitByGender = !!competition?.winners_split_by_gender;
   const { contestants: leaderboard, refetch: refetchLeaderboard } = useLeaderboard(
     showInlineVoting ? competition.id : null,
-    { realtime: true },
+    {
+      realtime: true,
+      splitByGender,
+      advancingCount: activeRound?.contestants_advance,
+    },
   );
 
   // Countdown to the active round's end_date — drives the ROUND ENDS stat.
@@ -440,12 +448,24 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
   // the round doesn't expose a cap.
   const rankStats = useMemo(() => {
     if (!showInlineVoting || !leaderboard?.length || !entry.contestant?.id) return null;
-    const active = leaderboard.filter((c) => c.status === 'active');
-    const byVotes = [...active].sort((a, b) => (b.votes || 0) - (a.votes || 0));
-    const idx = byVotes.findIndex((c) => c.id === entry.contestant.id);
-    if (idx === -1) return null;
-    return { current: idx + 1, total: tierCount || byVotes.length };
-  }, [showInlineVoting, leaderboard, entry.contestant?.id, tierCount]);
+    const me = leaderboard.find((c) => c.id === entry.contestant.id);
+    if (!me || me.status !== 'active') return null;
+    // `displayRank` from useLeaderboard is the contestant's position within
+    // their gender when splitByGender is on (overall otherwise). The
+    // denominator is the round's advance cap — halved per gender when split —
+    // falling back to the count of still-active peers in the same pool.
+    let total;
+    if (splitByGender) {
+      const poolCount = leaderboard.filter(
+        (c) => c.status === 'active' && c.gender === me.gender,
+      ).length;
+      total = tierCount ? Math.ceil(tierCount / 2) : poolCount;
+    } else {
+      const activeCount = leaderboard.filter((c) => c.status === 'active').length;
+      total = tierCount || activeCount;
+    }
+    return { current: me.displayRank, total };
+  }, [showInlineVoting, leaderboard, entry.contestant?.id, tierCount, splitByGender]);
 
   // When the voting panel is visible, the outer <a> causes button clicks
   // to bubble and trigger navigation. Split the card into a clickable

@@ -14,6 +14,14 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// Gender-split winners are co-equal division champions, labeled by division
+// rather than ranked. Matches the "Men" / "Women" columns on the leaderboard.
+function divisionLabel(gender) {
+  if (gender === 'male') return "Men's Winner";
+  if (gender === 'female') return "Women's Winner";
+  return null;
+}
+
 /**
  * Winners podium for results phase
  * Single-winner competitions: large spotlight on the champion
@@ -61,16 +69,45 @@ export function WinnersPodium() {
   // the top-ranked contestants when that array isn't populated yet (e.g. a host
   // previewing the results phase before the finale closes).
   const numberOfWinners = competition?.number_of_winners || 1;
+  // When winners are split by gender the crowned set is one champion per
+  // gender (CEIL(number_of_winners / 2) each) — co-equal division winners,
+  // not a 1st/2nd ranking. finalize_voting_round writes both at within-gender
+  // rank 1, so competitions.winners has no meaningful order between them; we
+  // impose a stable men-then-women order and label by division instead of
+  // stamping ordinals.
+  const splitByGender = !!competition?.winners_split_by_gender;
+  const genderOrder = (g) => (g === 'male' ? 0 : g === 'female' ? 1 : 2);
   const byId = new Map((contestants || []).map((c) => [c.id, c]));
   const winnerIds = Array.isArray(competition?.winners) ? competition.winners : [];
   let winners = winnerIds.map((id) => byId.get(id)).filter(Boolean);
   if (!winners.length) {
+    // Preview fallback before the decider closes: mirror the per-gender split
+    // so the podium previews one leader per gender, matching the leaderboard.
     const crowned = (contestants || []).filter((c) => c.status === 'winner');
-    winners = (crowned.length ? crowned : (contestants || [])).slice(0, numberOfWinners);
+    const pool = crowned.length ? crowned : (contestants || []);
+    if (splitByGender) {
+      const perGender = Math.ceil(numberOfWinners / 2);
+      const take = (g) => pool.filter((c) => c.gender === g).slice(0, perGender);
+      winners = [...take('male'), ...take('female')];
+      if (!winners.length) winners = pool.slice(0, numberOfWinners);
+    } else {
+      winners = pool.slice(0, numberOfWinners);
+    }
+  }
+  if (splitByGender && winners.length > 1) {
+    winners = [...winners].sort((a, b) => genderOrder(a.gender) - genderOrder(b.gender));
   }
 
   if (numberOfWinners > 1 && winners.length > 1) {
-    return <WinnersGrid winners={winners} onSelect={handleContestantClick} year={competition?.season} city={competition?.city} />;
+    return (
+      <WinnersGrid
+        winners={winners}
+        onSelect={handleContestantClick}
+        year={competition?.season}
+        city={competition?.city}
+        splitByGender={splitByGender}
+      />
+    );
   }
 
   // Winner takes all — show only 1st place
@@ -119,7 +156,7 @@ export function WinnersPodium() {
  * Mirrors the Hall of Winners showcase: full-bleed photo cards with a gold
  * ordinal rank badge (1st–5th) and the winner's name over a gradient.
  */
-function WinnersGrid({ winners, onSelect, year, city }) {
+function WinnersGrid({ winners, onSelect, year, city, splitByGender = false }) {
   const { isMobile } = useResponsive();
   const subtitle = [city, year].filter(Boolean).join(' • ');
 
@@ -163,13 +200,22 @@ function WinnersGrid({ winners, onSelect, year, city }) {
               </div>
             )}
 
-            {/* Ordinal rank badge */}
+            {/* Badge: a crown for gender-split winners (co-equal division
+                champions), an ordinal rank badge otherwise. */}
             <div style={styles.rankBadge}>
-              <span style={styles.rankText}>{ordinal(index + 1)}</span>
+              {splitByGender ? (
+                <EliteRankCrown size={18} />
+              ) : (
+                <span style={styles.rankText}>{ordinal(index + 1)}</span>
+              )}
             </div>
 
-            {/* Name on a gradient background for legibility */}
+            {/* Name on a gradient background for legibility. Split winners get
+                a gold division label above the name in place of a rank. */}
             <div style={styles.nameOverlay}>
+              {splitByGender && divisionLabel(contestant.gender) && (
+                <p style={styles.division}>{divisionLabel(contestant.gender)}</p>
+              )}
               <p style={styles.name}>{contestant.name}</p>
             </div>
           </div>
@@ -273,6 +319,14 @@ const styles = {
     color: colors.text.primary,
     margin: 0,
     lineHeight: 1.2,
+  },
+  division: {
+    fontSize: typography.fontSize.xs,
+    fontWeight: typography.fontWeight.bold,
+    color: colors.gold.primary,
+    margin: '0 0 2px',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
   },
 };
 

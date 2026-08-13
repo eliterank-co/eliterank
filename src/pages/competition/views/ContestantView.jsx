@@ -107,7 +107,7 @@ export function ContestantView() {
             <div className="contestant-view-stat">
               <Trophy size={16} color={colors.gold.primary} />
               <span className="contestant-view-stat-value">
-                #{contestant.rank || contestant.displayRank || '—'}
+                #{contestant.displayRank || contestant.rank || '—'}
               </span>
               <span className="contestant-view-stat-label">Rank</span>
             </div>

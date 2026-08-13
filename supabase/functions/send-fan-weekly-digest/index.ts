@@ -36,6 +36,7 @@ interface Competition {
   name: string | null
   slug: string | null
   status: string
+  winners_split_by_gender: boolean | null
   organization: { slug: string | null } | null
 }
 
@@ -62,6 +63,7 @@ interface Contestant {
   trend: 'up' | 'down' | 'same' | null
   votes: number | null
   status: string
+  gender: string | null
 }
 
 interface FanRow {
@@ -130,7 +132,7 @@ serve(async (req) => {
     // 1. Active competitions (exclude draft, archive, completed).
     const { data: competitions, error: compErr } = await supabase
       .from('competitions')
-      .select('id, name, slug, status, organization:organizations(slug)')
+      .select('id, name, slug, status, winners_split_by_gender, organization:organizations(slug)')
       .not('status', 'in', '(draft,archive,completed)')
 
     if (compErr) throw new Error(`competitions fetch: ${compErr.message}`)
@@ -180,7 +182,7 @@ serve(async (req) => {
     // 4. Active contestants in those competitions.
     const { data: contestants, error: contestantsErr } = await supabase
       .from('contestants')
-      .select('id, name, email, user_id, competition_id, rank, trend, votes, status')
+      .select('id, name, email, user_id, competition_id, rank, trend, votes, status, gender')
       .in('competition_id', compIds)
       .eq('status', 'active')
 
@@ -194,6 +196,30 @@ serve(async (req) => {
     }
 
     const contestantIds = (contestants as Contestant[]).map(c => c.id)
+
+    // Live standing rank per contestant: position by votes WITHIN their gender
+    // when the competition splits winners by gender, or overall otherwise.
+    // Mirrors the public leaderboard / finalize_voting_round and replaces the
+    // global, host-curated contestants.rank column.
+    const rankById = new Map<string, number>()
+    const rosterByComp = new Map<string, Contestant[]>()
+    for (const c of contestants as Contestant[]) {
+      if (!rosterByComp.has(c.competition_id)) rosterByComp.set(c.competition_id, [])
+      rosterByComp.get(c.competition_id)!.push(c)
+    }
+    const assignRanks = (list: Contestant[]) => {
+      list.sort((a, b) => (b.votes || 0) - (a.votes || 0))
+      list.forEach((c, i) => rankById.set(c.id, i + 1))
+    }
+    for (const [compId, roster] of rosterByComp) {
+      if (compById.get(compId)?.winners_split_by_gender) {
+        assignRanks(roster.filter(c => c.gender === 'male'))
+        assignRanks(roster.filter(c => c.gender === 'female'))
+        assignRanks(roster.filter(c => c.gender !== 'male' && c.gender !== 'female'))
+      } else {
+        assignRanks(roster)
+      }
+    }
 
     // 5. Fans for those contestants with opt-in still on. contestant_fans.user_id
     // references auth.users (not profiles), so PostgREST cannot embed the
@@ -288,7 +314,7 @@ serve(async (req) => {
         competition_id: contestant.competition_id,
         competition_url: competitionUrl,
         profile_url: profileUrl,
-        rank: contestant.rank,
+        rank: rankById.get(contestant.id) ?? null,
         trend: contestant.trend,
         total_votes: contestant.votes,
         voting_round_end: votingRoundEnd,

@@ -8,6 +8,34 @@ const corsHeaders = {
 }
 
 /**
+ * Live standing rank for a contestant: their position by votes WITHIN their
+ * gender when the competition splits winners by gender, or overall otherwise.
+ * Mirrors the public leaderboard and finalize_voting_round's per-gender
+ * partition, and replaces the global, host-curated `contestants.rank` column
+ * (which is NULL unless a host manually reordered the roster, and never
+ * per-gender).
+ */
+async function computeLiveGenderRank(
+  supabase: ReturnType<typeof createClient>,
+  competitionId: string,
+  contestantId: string,
+  splitByGender: boolean,
+  gender: string | null,
+): Promise<number | null> {
+  const { data: roster } = await supabase
+    .from('contestants')
+    .select('id, votes, gender')
+    .eq('competition_id', competitionId)
+    .eq('status', 'active')
+  if (!roster) return null
+  const rows = roster as Array<{ id: string; votes: number | null; gender: string | null }>
+  const pool = splitByGender ? rows.filter((c) => c.gender === gender) : rows
+  pool.sort((a, b) => (b.votes || 0) - (a.votes || 0))
+  const idx = pool.findIndex((c) => c.id === contestantId)
+  return idx >= 0 ? idx + 1 : null
+}
+
+/**
  * Send a vote receipt email to the paid voter.
  * Fetches contestant/competition details and current rank, then fires the email.
  *
@@ -49,9 +77,9 @@ async function sendVoteReceiptEmail(
   const { data: contestant, error: contestantError } = await supabase
     .from('contestants')
     .select(`
-      id, name, user_id, rank,
+      id, name, user_id, rank, gender,
       competition:competitions(
-        id, name, slug,
+        id, name, slug, winners_split_by_gender,
         organization:organizations(slug, name, legal_entity_name, tax_registration_number, tax_address, default_currency)
       )
     `)
@@ -67,6 +95,7 @@ async function sendVoteReceiptEmail(
     id: string
     name: string | null
     slug: string | null
+    winners_split_by_gender: boolean | null
     organization: {
       slug: string | null
       name: string | null
@@ -76,6 +105,17 @@ async function sendVoteReceiptEmail(
       default_currency: string | null
     } | null
   } | null
+
+  // Standing shown in the receipt: live position by votes, per-gender when the
+  // competition splits winners by gender (consistent with the public
+  // leaderboard) rather than the global host-curated contestants.rank column.
+  const liveRank = await computeLiveGenderRank(
+    supabase,
+    competitionId,
+    contestant.id as string,
+    !!competition?.winners_split_by_gender,
+    (contestant as { gender: string | null }).gender ?? null,
+  )
 
   // Get current voting round end date
   const nowIso = new Date().toISOString()
@@ -112,7 +152,7 @@ async function sendVoteReceiptEmail(
     competition_id: competition?.id,
     competition_url: competitionUrl,
     profile_url: profileUrl,
-    rank: contestant.rank,
+    rank: liveRank,
     vote_count: voteCount,
     purchased_vote_count: purchasedVoteCount,
     was_doubled: wasDoubled,
