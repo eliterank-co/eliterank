@@ -1112,26 +1112,19 @@ export function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'U
         return u.toString();
       })();
 
-      // Stripe requires that any billing field we told the PaymentElement NOT
-      // to collect (via fields.billingDetails) is instead supplied here at
-      // confirmation, or it throws an IntegrationError:
-      //  - email: suppressed for authenticated buyers (we already have it).
-      //  - address: suppressed entirely for CAD checkout (to hide the Country
-      //    dropdown and match the US checkout), so we must supply the billing
-      //    country here. Card charges don't validate this against the card, and
-      //    defaulting to CA is correct for a Canadian competition.
-      const isCad = (currency || '').toUpperCase() === 'CAD';
-      const billingDetails = {};
-      if (!collectEmail && userEmail) billingDetails.email = userEmail;
-      if (isCad) billingDetails.address = { country: 'CA' };
-
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: returnUrl, // Fallback, but we handle redirect: 'if_required'
-          ...(Object.keys(billingDetails).length
-            ? { payment_method_data: { billing_details: billingDetails } }
-            : {}),
+          // When collectEmail is false (authenticated user), we told Stripe not to collect
+          // email in the form, so we must provide it here
+          ...(!collectEmail && userEmail ? {
+            payment_method_data: {
+              billing_details: {
+                email: userEmail,
+              },
+            },
+          } : {}),
         },
         redirect: 'if_required',
       });
@@ -1158,18 +1151,18 @@ export function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'U
       <PaymentElement
         options={{
           layout: 'tabs',
-          // For anonymous buyers, force email collection so the webhook can
-          // attribute the paid vote without prompting separately on the card.
-          //
-          // CAD checkout parity: on a Canadian connected account (Ontario/CAD),
-          // Stripe otherwise renders a billing Country dropdown (defaulting to
-          // the buyer's geo, e.g. "Netherlands") that the US checkout never
-          // shows. Suppress the billing address entirely for CAD so the CAD
-          // checkout matches the US one — card + CVC only (+ email for anon).
-          // US competitions keep their existing behavior untouched.
-          fields: (currency || '').toUpperCase() === 'CAD'
-            ? { billingDetails: { email: collectEmail ? 'auto' : 'never', address: 'never' } }
-            : (collectEmail ? { billingDetails: 'auto' } : { billingDetails: { email: 'never' } }),
+          // For anonymous buyers, force email collection so the webhook
+          // can attribute the paid vote without us prompting for it
+          // separately on the card.
+          fields: collectEmail ? { billingDetails: 'auto' } : { billingDetails: { email: 'never' } },
+          // For CAD (Canadian host account) Stripe shows a billing Country
+          // field; default it to Canada so it doesn't geo-default to the
+          // buyer's location (e.g. "Netherlands"). This is just a pre-filled
+          // default the buyer can change — it doesn't require supplying the
+          // address at confirmation the way `address: 'never'` did.
+          ...((currency || '').toUpperCase() === 'CAD'
+            ? { defaultValues: { billingDetails: { address: { country: 'CA' } } } }
+            : {}),
         }}
       />
 
