@@ -199,7 +199,7 @@ serve(async (req) => {
     // IMPORTANT: the fee base is the PRE-TAX subtotal, never the tax-inclusive
     // total. Collected HST belongs to the host's CRA remittance; skimming a
     // platform cut off the tax would leave the host short at remittance time
-    // and is not the platform's money. See migration 119.
+    // and is not the platform's money. See migration 122.
     const platformFeePct = parseFloat(competition.platform_fee_pct) || 0
     const applicationFeeAmount = Math.round((subtotalAmount * platformFeePct) / 100)
 

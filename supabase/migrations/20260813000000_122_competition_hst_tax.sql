@@ -1,5 +1,5 @@
 -- =============================================================================
--- Migration 119: per-competition sales tax (Canada HST) on paid votes
+-- Migration 122: per-competition sales tax (Canada HST) on paid votes
 -- =============================================================================
 -- Adds an OPTIONAL, per-competition tax rate charged ON TOP of the vote subtotal
 -- for hosts that are the merchant of record and are tax-registered. First use:
