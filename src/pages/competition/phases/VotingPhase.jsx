@@ -7,6 +7,7 @@ import { CompetitionHeader } from '../components/CompetitionHeader';
 import { HostSection } from '../components/HostSection';
 import { CharityHighlight } from '../components/CharityHighlight';
 import { JudgesSection } from '../components/JudgesSection';
+import { Timeline } from '../components/Timeline';
 import ContestantBonusVotes from '../components/ContestantBonusVotes';
 
 /**
@@ -93,6 +94,13 @@ export function VotingPhase() {
       {/* Judges */}
       <section className="phase-section">
         <JudgesSection />
+      </section>
+
+      {/* Rounds timeline — shown at the bottom of every phase so voters can
+          always see the schedule (mirrors the nominations view). Self-hides
+          when the host hasn't set any dates. */}
+      <section className="phase-section">
+        <Timeline />
       </section>
     </div>
   );

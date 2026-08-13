@@ -7,6 +7,7 @@ import { Rewards } from '../components/Rewards';
 import { HostSection } from '../components/HostSection';
 import { CharityHighlight } from '../components/CharityHighlight';
 import { JudgesSection } from '../components/JudgesSection';
+import { Timeline } from '../components/Timeline';
 import { CompetitionHeader } from '../components/CompetitionHeader';
 import { InterestModal } from '../components/InterestModal';
 import { formatNumber } from '../../../utils/formatters';
@@ -232,6 +233,14 @@ export function ResultsPhase() {
       {/* Host & Sponsors */}
       <section className="phase-section">
         <HostSection />
+      </section>
+
+      {/* Rounds timeline — shown at the bottom of every phase so fans can see
+          the full schedule (mirrors the nominations view). Every phase reads
+          'complete', which is the correct final state. Self-hides when the
+          host never set any dates. */}
+      <section className="phase-section">
+        <Timeline />
       </section>
 
       {/* Notify-me interest capture (shown only when no upcoming competition) */}

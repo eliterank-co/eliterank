@@ -31,11 +31,6 @@ export function HostSection({ showHosts = true } = {}) {
   const hosts = showHosts ? buildHostList(competition) : [];
   const isPlural = hosts.length > 1;
 
-  // Don't render anything if no hosts AND no sponsors
-  if (hosts.length === 0 && (!sponsors || sponsors.length === 0)) {
-    return null;
-  }
-
   // Split paid sponsors (who bought a visibility tier) from in-kind partners
   // (who contribute prizes/services, no cash tier). Paid sponsors get top
   // billing with larger tiles; in-kind partners get their own quieter group.
@@ -49,6 +44,12 @@ export function HostSection({ showHosts = true } = {}) {
         (TIER_RANK[(b.tier || '').toLowerCase()] ?? 99)
     );
   const inKindSponsors = (sponsors || []).filter(isInKind);
+
+  // Don't render anything if there are no hosts AND no PAID sponsors. In-kind
+  // partners never surface the section on their own, so they don't count here.
+  if (hosts.length === 0 && paidSponsors.length === 0) {
+    return null;
+  }
 
   const renderSponsor = (sponsor) => {
     const hasUrl = !!sponsor.website_url;
@@ -123,17 +124,16 @@ export function HostSection({ showHosts = true } = {}) {
         </div>
       )}
 
-      {/* Sponsors — paid sponsors up top with greater presence, in-kind
-          partners in their own group below */}
-      {sponsors?.length > 0 && (
+      {/* Sponsors — only shown when at least one PAID sponsor exists. In-kind
+          partners never trigger the section on their own; they ride along
+          under a paid sponsor as a quieter group below. */}
+      {paidSponsors.length > 0 && (
         <div className="sponsors-card">
           <h4 className="section-label">Sponsors</h4>
 
-          {paidSponsors.length > 0 && (
-            <div className="sponsors-list sponsors-list-paid">
-              {paidSponsors.map(renderSponsor)}
-            </div>
-          )}
+          <div className="sponsors-list sponsors-list-paid">
+            {paidSponsors.map(renderSponsor)}
+          </div>
 
           {inKindSponsors.length > 0 && (
             <div className="sponsors-inkind">
