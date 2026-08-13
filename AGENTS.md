@@ -1,12 +1,18 @@
 # EliteRank Legacy — Agent Operating Rules
 
 This is the **legacy** EliteRank app, also known as "Most Eligible" (origin
-`mosteligibleapp/eliterank`). **It is live in production**: real users, real
+`eliterank-co/eliterank`). **It is live in production**: real users, real
 money, active competitions. It is still actively shipping.
 
-It is **not** the v2 rebuild. See `CLAUDE.md` for the full legacy-vs-current
-table; the short version is that the GitHub org is the only discriminator and
-you should run `git remote -v` rather than trust a directory name.
+It is **not** the v2 rebuild (`eliterank-co/eliterank-infra`). **Do not use the
+GitHub org to tell them apart** — this repo was transferred out of the personal
+`mosteligibleapp` account on 2026-08-13, so both projects now sit under
+`eliterank-co` along with five more repos sharing the `eliterank` prefix.
+
+Identify by the Supabase project ref, which is unambiguous: legacy is
+`jioblcflgpqcfdmzjnto`, v2 is `dhiipdxsspmvaifvfffb`. The old
+`mosteligibleapp/eliterank` URL still redirects, so a stale remote keeps
+working without warning you it is stale.
 
 ## Project isolation (highest priority)
 

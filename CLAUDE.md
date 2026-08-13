@@ -3,11 +3,26 @@
 > **This is the LEGACY app, and it is LIVE IN PRODUCTION.** It serves real
 > users, real money, and active competitions, and it is still shipping.
 >
-> - **This repo:** origin `mosteligibleapp/eliterank` — Vite + React SPA.
+> - **This repo:** origin `eliterank-co/eliterank` — Vite + React SPA.
 > - **Not to be confused with:** the v2 rebuild in
->   `~/development/eliterank-workplace/` (org `eliterank-co`, Next.js 16 App
->   Router). Both projects are named "eliterank"; the GitHub org is the only
->   discriminator. Run `git remote -v` if you are unsure which one you are in.
+>   `~/development/eliterank-workplace/` (`eliterank-co/eliterank-infra`,
+>   Next.js 16 App Router).
+> - **The GitHub org no longer tells them apart.** This repo was transferred
+>   out of the personal `mosteligibleapp` account on 2026-08-13, so legacy and
+>   v2 now both live under `eliterank-co` — alongside `eliterank-shared`,
+>   `-registry`, `-admin`, `-marketing`, `-app` and `-infra`. Seven repos share
+>   the `eliterank` prefix; the org is worthless as a discriminator and
+>   `git remote -v` alone will not save you.
+>
+>   **Identify by the Supabase project ref instead — that is unambiguous:**
+>
+>   | | ref | |
+>   | --- | --- | --- |
+>   | **legacy (here)** | `jioblcflgpqcfdmzjnto` | `eliterank-co/eliterank` |
+>   | v2 | `dhiipdxsspmvaifvfffb` | `eliterank-co/eliterank-infra` |
+>
+>   Note the old `mosteligibleapp/eliterank` URL still redirects, so a stale
+>   remote keeps working and will not warn you that it is stale.
 > - Changes here reach production users. Do not treat this as a scratch or
 >   reference checkout, and do not port v2 patterns in wholesale — the two
 >   stacks are deliberately different.

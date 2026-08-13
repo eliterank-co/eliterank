@@ -6,9 +6,15 @@
 # Why this exists: two separate projects are both named "eliterank", and the
 # directory names differ by a single suffix.
 #
-#   /development/eliterank            legacy "Most Eligible" — org mosteligibleapp
+#   /development/eliterank            legacy — eliterank-co/eliterank
 #                                     LIVE PRODUCTION, real users, real money
-#   /development/eliterank-workplace  v2 rebuild — org eliterank-co
+#                                     Supabase jioblcflgpqcfdmzjnto
+#   /development/eliterank-workplace  v2 rebuild — eliterank-co/eliterank-infra
+#                                     Supabase dhiipdxsspmvaifvfffb
+#
+# Both repos moved under the same GitHub org on 2026-08-13, so the org no
+# longer separates them. This guard never relied on it — it discriminates on
+# filesystem path and Supabase project ref, both of which are still exact.
 #
 # `eliterank` is a strict prefix of `eliterank-workplace`, so a careless glob
 # or a half-remembered path lands in the wrong tree. Sessions have already
