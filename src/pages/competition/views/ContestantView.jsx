@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
 import { ArrowLeft, Instagram, Trophy, Heart } from 'lucide-react';
 import { colors, spacing, typography, borderRadius } from '../../../styles/theme';
+import { transformSupabaseImage } from '../../../lib/storageImage';
 
 /**
  * Contestant profile page — rendered inline when the URL contains /e/:slug.
@@ -83,9 +84,10 @@ export function ContestantView() {
         {/* Avatar */}
         {contestant.avatar_url ? (
           <img
-            src={contestant.avatar_url}
+            src={transformSupabaseImage(contestant.avatar_url, { width: 320, height: 320 })}
             alt={contestant.name}
             className="contestant-view-avatar"
+            decoding="async"
           />
         ) : (
           <div className="contestant-view-avatar contestant-view-avatar-fallback">

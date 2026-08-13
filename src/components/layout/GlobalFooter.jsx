@@ -2,8 +2,10 @@
  * GlobalFooter - Site-wide footer with legal links and copyright.
  *
  * Suppressed on competition routes (those render their own CompetitionFooter
- * with org branding) and on the photo-booth route. Everywhere else it surfaces
- * the four legal documents so they're discoverable from any page.
+ * with org branding), on profile pages (a person's profile is a focused,
+ * shareable surface — the site chrome doesn't belong there), and on the
+ * photo-booth route. Everywhere else it surfaces the four legal documents so
+ * they're discoverable from any page.
  */
 
 import React, { useCallback, useState, useEffect } from 'react';
@@ -22,9 +24,15 @@ function isCompetitionPath(pathname) {
   return isIdRoute(parts[1]) || isCompetitionSlug(parts[1]);
 }
 
+// A person's profile — own (`/profile`) or public (`/profile/:profileId`).
+function isProfilePath(pathname) {
+  return pathname === '/profile' || pathname.startsWith('/profile/');
+}
+
 function shouldSuppress(pathname) {
   if (SUPPRESSED_EXACT.has(pathname)) return true;
   if (pathname.startsWith('/admin')) return true;
+  if (isProfilePath(pathname)) return true;
   return isCompetitionPath(pathname);
 }
 
