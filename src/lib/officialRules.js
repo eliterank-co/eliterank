@@ -133,7 +133,6 @@ export function buildOfficialRules(competition, context = {}) {
     organization = null,
     host = null,
     prizes = [],
-    prizePool = null,
     judges = [],
     judgingCriteria = [],
     bonusTasks = [],
@@ -615,19 +614,14 @@ export function buildOfficialRules(competition, context = {}) {
     })
     .filter(Boolean);
 
-  const poolValue = prizePool ? formatMoney(prizePool.totalPrizePool ?? prizePool.hostMinimum) : null;
-  const cashLine = poolValue
-    ? `A cash prize pool (currently ${poolValue}), as shown on the competition’s Prizes page.`
-    : null;
-
-  const prizeListItems = [...(cashLine ? [cashLine] : []), ...prizeItems];
-  // Approximate total retail value across all listed prizes + any cash pool —
-  // a Competition Act §74.06 disclosure item.
-  const prizeArvTotal =
-    (prizes || []).reduce((sum, p) => {
-      const n = Number(p.value);
-      return sum + (Number.isFinite(n) && n > 0 ? n : 0);
-    }, 0) + (prizePool ? Number(prizePool.totalPrizePool ?? prizePool.hostMinimum) || 0 : 0);
+  const prizeListItems = [...prizeItems];
+  // Approximate total retail value across all listed prizes —
+  // a Competition Act §74.06 disclosure item. (Cash prize pool removed — the
+  // competition's prizes are the sponsor prize package only.)
+  const prizeArvTotal = (prizes || []).reduce((sum, p) => {
+    const n = Number(p.value);
+    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
+  }, 0);
   const arvTotalLine =
     prizeArvTotal > 0
       ? `The approximate total retail value of all prizes is ${formatMoney(prizeArvTotal)}. Individual values shown are approximate retail values (ARV) and may vary.`

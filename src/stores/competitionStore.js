@@ -28,7 +28,6 @@ export const useCompetitionStore = create((set, get) => ({
 
   // ========== Phase/Status ==========
   phase: null,
-  prizePool: null,
   about: null,
   theme: null,
 
@@ -163,7 +162,6 @@ export const useCompetitionStore = create((set, get) => ({
   setVotingRounds: (votingRounds) => set({ votingRounds }),
   setNominationPeriods: (nominationPeriods) => set({ nominationPeriods }),
   setRules: (rules) => set({ rules }),
-  setPrizePool: (prizePool) => set({ prizePool }),
   setAbout: (about) => set({ about }),
   setTheme: (theme) => set({ theme }),
 
@@ -259,7 +257,6 @@ export const useCompetitionStore = create((set, get) => ({
     nominationPeriods: data.nominationPeriods ?? get().nominationPeriods,
     rules: data.rules ?? get().rules,
     phase: data.phase ?? get().phase,
-    prizePool: data.prizePool ?? get().prizePool,
     about: data.about ?? get().about,
     theme: data.theme ?? get().theme,
   }),
@@ -276,7 +273,6 @@ export const useCompetitionStore = create((set, get) => ({
     nominationPeriods: [],
     rules: null,
     phase: null,
-    prizePool: null,
     about: null,
     theme: null,
     isLoading: false,
@@ -296,7 +292,6 @@ export const useCompetitionStore = create((set, get) => ({
     nominationPeriods: [],
     rules: null,
     phase: null,
-    prizePool: null,
     about: null,
     theme: null,
     isLoading: false,

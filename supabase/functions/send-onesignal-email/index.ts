@@ -77,6 +77,16 @@ interface EmailRequest {
   was_doubled?: boolean
   signup_url?: string
   is_anonymous?: boolean
+  // vote_receipt tax fields (compliant tax receipt — present only when tax was charged)
+  currency?: string
+  subtotal_amount?: number | null
+  tax_amount?: number | null
+  tax_rate_pct?: number | null
+  tax_label?: string
+  receipt_number?: string
+  vendor_legal_name?: string
+  vendor_tax_number?: string
+  vendor_address?: string
 }
 
 /**
@@ -531,7 +541,51 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
       }
 
       const voteText = voteCount === 1 ? '1 vote' : `${voteCount.toLocaleString()} votes`
-      const amountText = amountPaid > 0 ? `$${amountPaid.toFixed(2)}` : ''
+
+      // Currency-aware money formatting (US hosts charge USD, CA hosts CAD).
+      const currencyCode = (req.currency || 'usd').toUpperCase()
+      const fmtMoney = (n: number) => {
+        try {
+          return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(n)
+        } catch {
+          return `$${n.toFixed(2)}`
+        }
+      }
+
+      // Compliant tax-receipt itemization. Present only when tax was charged
+      // (e.g. Ontario HST). Otherwise the receipt shows a single plain total.
+      const taxAmount = typeof req.tax_amount === 'number' ? req.tax_amount : 0
+      const hasTax = taxAmount > 0
+      const subtotal = typeof req.subtotal_amount === 'number'
+        ? req.subtotal_amount
+        : Math.max(0, amountPaid - taxAmount)
+      const taxLabel = req.tax_label || 'Tax'
+      const taxLabelWithRate = req.tax_rate_pct ? `${taxLabel} (${req.tax_rate_pct}%)` : taxLabel
+
+      const amountBlock = amountPaid > 0
+        ? (hasTax
+            ? `<div style="max-width:320px;margin:16px auto;padding:16px;background:#1a1a1a;border:1px solid #333;border-radius:8px;">
+                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,sans-serif;">
+                   <tr><td style="color:#999;font-size:13px;padding:3px 0;text-align:left;">Subtotal</td><td style="color:#ccc;font-size:13px;padding:3px 0;text-align:right;">${fmtMoney(subtotal)}</td></tr>
+                   <tr><td style="color:#999;font-size:13px;padding:3px 0;text-align:left;">${taxLabelWithRate}</td><td style="color:#ccc;font-size:13px;padding:3px 0;text-align:right;">${fmtMoney(taxAmount)}</td></tr>
+                   <tr><td style="border-top:1px solid #333;color:#fff;font-size:14px;font-weight:bold;padding:8px 0 2px;text-align:left;">Total</td><td style="border-top:1px solid #333;color:#fff;font-size:14px;font-weight:bold;padding:8px 0 2px;text-align:right;">${fmtMoney(amountPaid)} ${currencyCode}</td></tr>
+                 </table>
+               </div>`
+            : `<p style="color:#666;font-size:13px;margin:8px 0;">Total: ${fmtMoney(amountPaid)}</p>`)
+        : ''
+
+      // Vendor of record for a compliant tax receipt (host legal name + tax reg
+      // number + address). The host is merchant of record on the direct charge.
+      const vendorBlock = hasTax && req.vendor_legal_name
+        ? `<div style="text-align:center;margin-top:20px;padding-top:14px;border-top:1px solid #222;">
+             <p style="color:#777;font-size:11px;line-height:1.7;margin:0;font-family:Arial,sans-serif;">
+               Sold by <strong style="color:#999;">${req.vendor_legal_name}</strong><br>
+               ${req.vendor_tax_number ? `${taxLabel} Reg. No. ${req.vendor_tax_number}<br>` : ''}
+               ${req.vendor_address ? `${req.vendor_address}<br>` : ''}
+               ${req.receipt_number ? `Receipt No. ${req.receipt_number}` : ''}
+             </p>
+           </div>`
+        : ''
 
       const rankBlock = req.rank
         ? `<div style="display:inline-block;padding:16px 24px;background:#1a1a1a;border:1px solid #333;border-radius:12px;margin:16px 0;">
@@ -580,12 +634,13 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             </p>
             <p style="color:#fff;font-size:22px;font-weight:bold;margin:8px 0;">${contestantName}</p>
             <p style="color:#999;font-size:14px;margin:4px 0;">in ${competitionName}</p>
-            ${amountText ? `<p style="color:#666;font-size:13px;margin:8px 0;">Total: ${amountText}</p>` : ''}
+            ${amountBlock}
             ${doubledLine}
             ${rankBlock}
             ${roundEndLine}
             ${ctaUrl ? goldButton(`View ${firstName}'s Profile`, ctaUrl) : ''}
             ${fanPrompt}
+            ${vendorBlock}
           </div>
         `),
       }

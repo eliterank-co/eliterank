@@ -4,13 +4,6 @@ export * from './dataTransformers';
 export * from './validators/competitionValidators';
 export * from './competitionPhase';
 
-// Prize pool calculations
-export {
-  calculatePrizePool,
-  calculateVoteRevenue,
-  getPrizePosition,
-} from './calculatePrizePool';
-
 // Public-facing competition phase detection
 export {
   getCompetitionPhase,

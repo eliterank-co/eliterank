@@ -18,7 +18,6 @@ export default function CardReveal({
   organizationLogoUrl,
   // Optional: pass these for richer guide content
   votingRounds = [],
-  prizePool,
   about,
   phase,
 }) {
@@ -119,7 +118,6 @@ export default function CardReveal({
       <ContestantGuide
         competition={competition}
         votingRounds={votingRounds}
-        prizePool={prizePool}
         about={about}
         phase={phase}
         mode="splash"

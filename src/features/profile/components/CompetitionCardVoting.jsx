@@ -248,6 +248,10 @@ export default function CompetitionCardVoting({
         connectedAccountId: result.connectedAccountId ?? null,
         voteCount,
         amount: result.amount ?? null,
+        subtotal: result.subtotal ?? null,
+        taxAmount: result.taxAmount ?? null,
+        taxRatePct: result.taxRatePct ?? null,
+        taxLabel: result.taxLabel ?? null,
       });
     } else {
       setShowVoteModal(false);
@@ -704,6 +708,10 @@ export default function CompetitionCardVoting({
           preloadedPaymentIntentId={preloadedCheckout.paymentIntentId}
           preloadedConnectedAccountId={preloadedCheckout.connectedAccountId}
           serverAmount={preloadedCheckout.amount}
+          serverSubtotal={preloadedCheckout.subtotal}
+          serverTax={preloadedCheckout.taxAmount}
+          serverTaxRatePct={preloadedCheckout.taxRatePct}
+          serverTaxLabel={preloadedCheckout.taxLabel}
         />
       )}
 

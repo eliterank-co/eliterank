@@ -83,7 +83,7 @@ serve(async (req) => {
     // Fetch competition to get vote price + the host org (merchant of record).
     const { data: competition, error: compError } = await supabase
       .from('competitions')
-      .select('id, name, season, price_per_vote, use_price_bundler, status, platform_fee_pct, organization_id')
+      .select('id, name, season, price_per_vote, use_price_bundler, status, platform_fee_pct, organization_id, tax_rate_pct, tax_label')
       .eq('id', competitionId)
       .single()
 
@@ -110,7 +110,7 @@ serve(async (req) => {
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, stripe_connect_account_id, kyc_status, charges_enabled, default_currency')
+      .select('id, stripe_connect_account_id, kyc_status, charges_enabled, default_currency, country')
       .eq('id', competition.organization_id)
       .single()
 
@@ -152,7 +152,20 @@ serve(async (req) => {
     const perVotePrice = competition.use_price_bundler
       ? bundledPricePerVote(voteCount, basePrice)
       : basePrice
-    const totalAmount = Math.round(perVotePrice * voteCount * 100) // cents
+    const subtotalAmount = Math.round(perVotePrice * voteCount * 100) // cents, pre-tax
+
+    // Additive sales tax (e.g. Ontario HST 13%). Gated on the host org being
+    // Canada AND the competition carrying a non-zero rate, so US competitions
+    // and any untaxed competition are unaffected. The host is the merchant of
+    // record on this direct charge, so the collected tax settles into their own
+    // connected account for THEM to remit — EliteRank never holds or remits it.
+    const taxRatePct =
+      org.country === 'CA' ? (parseFloat(competition.tax_rate_pct) || 0) : 0
+    const taxAmount = Math.round((subtotalAmount * taxRatePct) / 100) // cents
+    const taxLabel = (competition.tax_label as string) || (taxRatePct > 0 ? 'Tax' : '')
+
+    // Buyer pays subtotal + tax.
+    const totalAmount = subtotalAmount + taxAmount
 
     // Resolve double-vote-day status so the Stripe description and receipt
     // reflect what the contestant actually gets credited (e.g. "200 votes
@@ -182,8 +195,13 @@ serve(async (req) => {
 
     // EliteRank's platform fee (§2, §6.14), taken as a Stripe application fee
     // on the direct charge. The host's connected account keeps the rest.
+    //
+    // IMPORTANT: the fee base is the PRE-TAX subtotal, never the tax-inclusive
+    // total. Collected HST belongs to the host's CRA remittance; skimming a
+    // platform cut off the tax would leave the host short at remittance time
+    // and is not the platform's money. See migration 122.
     const platformFeePct = parseFloat(competition.platform_fee_pct) || 0
-    const applicationFeeAmount = Math.round((totalAmount * platformFeePct) / 100)
+    const applicationFeeAmount = Math.round((subtotalAmount * platformFeePct) / 100)
 
     // Charge in the host's settlement currency. Direct charges settle in the
     // connected account's own country/currency (US → usd, Ontario/CA → cad), so
@@ -217,6 +235,12 @@ serve(async (req) => {
           connected_account_id: connectedAccountId,
           platform_fee_amount: applicationFeeAmount.toString(),
           currency,
+          // Tax accounting (cents). The webhook records tax_amount on the vote
+          // row and itemizes it on the receipt. subtotal = amount - tax.
+          subtotal_amount: subtotalAmount.toString(),
+          tax_amount: taxAmount.toString(),
+          tax_rate_pct: taxRatePct.toString(),
+          tax_label: taxLabel,
         },
         description,
       },
@@ -228,6 +252,10 @@ serve(async (req) => {
         clientSecret: paymentIntent.client_secret,
         paymentIntentId: paymentIntent.id,
         amount: totalAmount,
+        subtotal: subtotalAmount,
+        taxAmount,
+        taxRatePct,
+        taxLabel,
         currency,
         voteCount,
         contestantName: contestant.name,

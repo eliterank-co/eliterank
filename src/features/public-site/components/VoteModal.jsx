@@ -63,6 +63,12 @@ export default function VoteModal({
   // PaymentIntent resolves so the user never sees a number that disagrees
   // with what Stripe will charge.
   serverAmount = null,
+  // Server-authoritative tax breakdown (cents) for the pre-created PaymentIntent
+  // flow, so the checkout can itemize e.g. HST alongside the preloaded total.
+  serverSubtotal = null,
+  serverTax = null,
+  serverTaxRatePct = null,
+  serverTaxLabel = null,
 }) {
   const userId = user?.id;
   const toast = useToast();
@@ -88,6 +94,13 @@ export default function VoteModal({
   // Cents. Once set, replaces the client-side calculateVotePrice estimate
   // everywhere downstream. Null = no PaymentIntent has resolved yet.
   const [confirmedAmount, setConfirmedAmount] = useState(serverAmount);
+  // Server-authoritative tax breakdown (cents) — populated alongside the
+  // confirmed amount so the total can be itemized (e.g. HST). The base price is
+  // tiered (price bundler), so the tax is always on the actual bundled subtotal.
+  const [confirmedSubtotal, setConfirmedSubtotal] = useState(serverSubtotal);
+  const [confirmedTax, setConfirmedTax] = useState(serverTax);
+  const [taxRatePct, setTaxRatePct] = useState(serverTaxRatePct);
+  const [taxLabel, setTaxLabel] = useState(serverTaxLabel);
   // Currency the price is displayed in. Starts from the competition prop and is
   // overwritten by the authoritative currency create-payment-intent returns.
   const [displayCurrency, setDisplayCurrency] = useState(currency);
@@ -96,7 +109,11 @@ export default function VoteModal({
   // (externalCheckout flow — the parent's createVotePaymentIntent landed).
   useEffect(() => {
     if (serverAmount != null) setConfirmedAmount(serverAmount);
-  }, [serverAmount]);
+    if (serverSubtotal != null) setConfirmedSubtotal(serverSubtotal);
+    if (serverTax != null) setConfirmedTax(serverTax);
+    if (serverTaxRatePct != null) setTaxRatePct(serverTaxRatePct);
+    if (serverTaxLabel != null) setTaxLabel(serverTaxLabel);
+  }, [serverAmount, serverSubtotal, serverTax, serverTaxRatePct, serverTaxLabel]);
 
   // Keep display currency in sync if the opener passes a new competition.
   useEffect(() => {
@@ -114,6 +131,14 @@ export default function VoteModal({
     confirmedAmount != null
       ? confirmedAmount / 100
       : calculateVotePrice(selectedVoteCount, useBundler, votePrice);
+
+  // Tax itemization (e.g. HST). Only known once the PaymentIntent resolves —
+  // the base price is tiered, so the tax is always on the actual bundled
+  // subtotal the server computed, never a flat estimate.
+  const hasTaxBreakdown = confirmedTax != null && confirmedTax > 0;
+  const displayedSubtotal = confirmedSubtotal != null ? confirmedSubtotal / 100 : null;
+  const displayedTax = confirmedTax != null ? confirmedTax / 100 : null;
+  const taxLineLabel = taxRatePct ? `${taxLabel || 'Tax'} (${taxRatePct}%)` : (taxLabel || 'Tax');
 
   // Sync when parent passes a new preset (e.g., opening modal with a chip selected)
   useEffect(() => {
@@ -139,6 +164,8 @@ export default function VoteModal({
       setConnectedAccountId(null);
       setSelectedVoteCount(10);
       setConfirmedAmount(null);
+      setConfirmedSubtotal(null);
+      setConfirmedTax(null);
       setStripeLoadFailed(false);
     }
   }, [isOpen]);
@@ -313,6 +340,10 @@ export default function VoteModal({
         setPaymentIntentId(result.paymentIntentId);
         setConnectedAccountId(result.connectedAccountId);
         if (result.amount != null) setConfirmedAmount(result.amount);
+        if (result.subtotal != null) setConfirmedSubtotal(result.subtotal);
+        if (result.taxAmount != null) setConfirmedTax(result.taxAmount);
+        if (result.taxRatePct != null) setTaxRatePct(result.taxRatePct);
+        if (result.taxLabel != null) setTaxLabel(result.taxLabel);
         if (result.currency) setDisplayCurrency(result.currency);
         setShowPaymentForm(true);
       } else {
@@ -353,6 +384,7 @@ export default function VoteModal({
         contestantId: contestant.id,
         voteCount: creditedVoteCount,
         amountPaid: displayedTotal,
+        taxAmount: confirmedTax != null ? confirmedTax / 100 : 0,
         voterEmail: user?.email,
         isDoubleVote: !!forceDoubleVoteDay,
       });
@@ -948,31 +980,45 @@ export default function VoteModal({
           ))}
         </div>
 
-        {/* Total Display - Compact */}
+        {/* Total Display - Compact (itemized when tax applies, e.g. HST) */}
         <div
           style={{
             display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            flexDirection: 'column',
+            gap: '4px',
             padding: `${spacing.sm} ${spacing.md}`,
             background: forceDoubleVoteDay ? 'linear-gradient(135deg, rgba(212,175,55,0.2), rgba(34,197,94,0.1))' : 'rgba(212,175,55,0.15)',
             borderRadius: borderRadius.md,
             border: `1px solid ${forceDoubleVoteDay ? 'rgba(34,197,94,0.3)' : 'rgba(212,175,55,0.2)'}`,
           }}
         >
-          <span style={{ color: colors.text.light, fontSize: typography.fontSize.sm }}>
-            Total{forceDoubleVoteDay && <span style={{ color: colors.status.success, marginLeft: '4px' }}>(2x)</span>}
-          </span>
-          <span style={{ fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.gold.primary }}>
-            {isCreatingPayment && confirmedAmount == null
-              ? 'Verifying price…'
-              : formatPrice(displayedTotal)}
-            {forceDoubleVoteDay && (
-              <span style={{ color: colors.status.success, fontSize: typography.fontSize.xs, marginLeft: '4px' }}>
-                = {formatNumber(selectedVoteCount * 2)}
-              </span>
-            )}
-          </span>
+          {hasTaxBreakdown && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: colors.text.muted, fontSize: typography.fontSize.xs }}>Subtotal</span>
+                <span style={{ color: colors.text.light, fontSize: typography.fontSize.sm }}>{formatPrice(displayedSubtotal)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: colors.text.muted, fontSize: typography.fontSize.xs }}>{taxLineLabel}</span>
+                <span style={{ color: colors.text.light, fontSize: typography.fontSize.sm }}>{formatPrice(displayedTax)}</span>
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: colors.text.light, fontSize: typography.fontSize.sm }}>
+              Total{forceDoubleVoteDay && <span style={{ color: colors.status.success, marginLeft: '4px' }}>(2x)</span>}
+            </span>
+            <span style={{ fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.gold.primary }}>
+              {isCreatingPayment && confirmedAmount == null
+                ? 'Verifying price…'
+                : formatPrice(displayedTotal)}
+              {forceDoubleVoteDay && (
+                <span style={{ color: colors.status.success, fontSize: typography.fontSize.xs, marginLeft: '4px' }}>
+                  = {formatNumber(selectedVoteCount * 2)}
+                </span>
+              )}
+            </span>
+          </div>
         </div>
       </div>
 

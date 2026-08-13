@@ -34,7 +34,6 @@ import './ContestantGuide.css';
 export default function ContestantGuide({
   competition,
   votingRounds = [],
-  prizePool,
   about,
   phase,
   mode = 'splash', // 'splash' | 'page'
@@ -48,11 +47,10 @@ export default function ContestantGuide({
     return generateGuideContent({
       competition,
       votingRounds,
-      prizePool,
       about,
       phase,
     });
-  }, [competition, votingRounds, prizePool, about, phase]);
+  }, [competition, votingRounds, about, phase]);
 
   const totalSteps = content.sections.length;
 
@@ -263,7 +261,7 @@ function deriveCrownTitle(competition, cityName) {
 /**
  * Generate dynamic guide content based on competition configuration
  */
-function generateGuideContent({ competition, votingRounds = [], prizePool, about, phase }) {
+function generateGuideContent({ competition, votingRounds = [], about, phase }) {
   const competitionName = competition?.name || 'the competition';
   const cityName = (competition?.city?.name || competition?.city || 'your city');
   const pricePerVote = competition?.price_per_vote || 1;
@@ -271,17 +269,11 @@ function generateGuideContent({ competition, votingRounds = [], prizePool, about
   // defaults to one) so an under-configured competition can't show "Top 5"
   // here while the rules say "one winner".
   const numWinners = competition?.number_of_winners || 1;
-  const prizeMinimum = competition?.prize_pool_minimum ?? prizePool?.hostMinimum ?? 1000;
   const splitByGender = competition?.winners_split_by_gender;
   const selectionCriteria = competition?.selection_criteria || 'votes';
   const isJudgesOnly = selectionCriteria === 'judges';
   const crownTitle = deriveCrownTitle(competition, cityName);
-  // Only show a cash prize when the host actually guarantees one — a
-  // competition can run on sponsor prizes alone (prize_pool_minimum = 0).
-  const configuredMinimum = Number(competition?.prize_pool_minimum ?? prizePool?.hostMinimum ?? 0);
-  const hasCashPrize = configuredMinimum > 0;
-  const currentPrize = Number(prizePool?.totalPrizePool ?? prizePool?.total ?? configuredMinimum);
-  
+
   // Count rounds from actual data
   const rounds = votingRounds || [];
   const votingOnlyRounds = rounds.filter(r => r.round_type === 'voting');
@@ -351,23 +343,13 @@ function generateGuideContent({ competition, votingRounds = [], prizePool, about
     `The ${crownWinnerLabel} will be crowned ${crownTitle}, hold the title for one year and receive the prize package`
   );
 
-  // Prize pool bullets — title + sponsor package always; cash prize only when guaranteed.
+  // Prize bullets — year-long title + the sponsor prize package.
   const prizeWinnersLabel = splitByGender && numWinners === 2 ? '2 winners (1 male, 1 female)' : `${numWinners} winners`;
   const prizeWinnersCount = splitByGender && numWinners === 2 ? '2' : `${numWinners}`;
   const prizePoolPoints = [
     `${prizeWinnersLabel} earn the year-long title of ${crownTitle}`,
     `The ${prizeWinnersCount} winners receive a prize package from competition sponsors`,
   ];
-  if (hasCashPrize) {
-    prizePoolPoints.push({
-      text: `1st place receives a cash prize (min $${configuredMinimum.toLocaleString()})`,
-      subpoints: [
-        // Paid votes only exist when the public votes.
-        ...(isJudgesOnly ? [] : ['Paid votes are available but not required to advance.']),
-        'Winner may keep the prize or donate to a verified 501(c)(3) of their choice',
-      ],
-    });
-  }
 
   // Tips are audience-specific: a judges-only competition has no voters to
   // rally, so the vote-centric tips would mislead.
@@ -446,13 +428,12 @@ function generateGuideContent({ competition, votingRounds = [], prizePool, about
         : "Don't wait until the last day — steady daily votes beat last-minute pushes!",
     },
 
-    // Prize Pool
+    // Prizes
     {
       icon: <Gift size={48} className="guide-icon guide-icon--green" />,
-      title: 'Prize Pool',
+      title: 'Prizes',
       subtitle: 'Real prizes. Real bragging rights.',
       points: prizePoolPoints,
-      tip: hasCashPrize ? `Current cash prize: $${currentPrize.toLocaleString()}+` : undefined,
     },
   ];
 
@@ -483,13 +464,6 @@ function generateGuideContent({ competition, votingRounds = [], prizePool, about
       label: 'Winners',
       value: `Top ${numWinners}`,
     },
-    ...(hasCashPrize
-      ? [{
-          icon: <Gift size={20} />,
-          label: 'Min Prize',
-          value: `$${prizeMinimum.toLocaleString()}`,
-        }]
-      : []),
     {
       icon: <Target size={20} />,
       label: 'Goal',
