@@ -4,7 +4,13 @@ import { useSupabaseAuth } from '../hooks';
 
 const NotificationContext = createContext(null);
 
-const POLL_INTERVAL = 15_000; // 15 seconds
+// Every signed-in tab runs this poll for as long as it stays open, so the
+// interval sets a floor on API traffic that is independent of real usage:
+// at 15s a single idle tab issued ~5.8k requests/day (~11.5k with OPTIONS
+// preflights), and open tabs — not activity — accounted for most of the
+// ~267k requests/day seen on 2026-08-13. A badge that settles within a
+// minute is not a regression; 4x the load to shave 45s off it is.
+const POLL_INTERVAL = 60_000; // 60 seconds
 
 const NOTIFICATION_ICONS = {
   nominated: { emoji: '\u{1F3C6}', label: 'Nominated' },
