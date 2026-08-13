@@ -616,6 +616,11 @@ export default function VoteModal({
                 stripe={stripePromise}
                 options={{
                   clientSecret,
+                  // Force en (US-style) formatting for CAD so Stripe's Pay
+                  // button renders the amount as "CA$1.13" rather than a bare
+                  // "$1.13", matching how the app labels CAD elsewhere. US
+                  // competitions keep automatic (browser) locale.
+                  locale: (displayCurrency || '').toUpperCase() === 'CAD' ? 'en' : 'auto',
                   appearance: {
                     theme: 'night',
                     variables: {
@@ -1146,10 +1151,18 @@ export function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'U
       <PaymentElement
         options={{
           layout: 'tabs',
-          // For anonymous buyers, force email collection so the webhook
-          // can attribute the paid vote without us prompting for it
-          // separately on the card.
-          fields: collectEmail ? { billingDetails: 'auto' } : { billingDetails: { email: 'never' } },
+          // For anonymous buyers, force email collection so the webhook can
+          // attribute the paid vote without prompting separately on the card.
+          //
+          // CAD checkout parity: on a Canadian connected account (Ontario/CAD),
+          // Stripe otherwise renders a billing Country dropdown (defaulting to
+          // the buyer's geo, e.g. "Netherlands") that the US checkout never
+          // shows. Suppress the billing address entirely for CAD so the CAD
+          // checkout matches the US one — card + CVC only (+ email for anon).
+          // US competitions keep their existing behavior untouched.
+          fields: (currency || '').toUpperCase() === 'CAD'
+            ? { billingDetails: { email: collectEmail ? 'auto' : 'never', address: 'never' } }
+            : (collectEmail ? { billingDetails: 'auto' } : { billingDetails: { email: 'never' } }),
         }}
       />
 
