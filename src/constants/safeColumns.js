@@ -17,8 +17,10 @@
  *   onesignal_external_id, notification_preferences, bonus_actions, is_super_admin
  * Excluded from ORG_PUBLIC_COLS: stripe_connect_account_id, kyc_status,
  *   charges_enabled, payouts_enabled, connect_details_submitted,
- *   connect_onboarded_at, owner_id, legal_entity_name, master_agreement_version,
+ *   connect_onboarded_at, owner_id, master_agreement_version,
  *   master_agreement_accepted_at, master_agreement_accepted_by
+ * (legal_entity_name, contact_email and legal_address ARE public — they appear
+ *  in the Official Rules Contact section as the organizer's identity/contact.)
  */
 
 export const PROFILE_PUBLIC_COLS =
@@ -33,4 +35,6 @@ export const ORG_PUBLIC_COLS =
   'default_about_tagline, default_about_description, default_about_traits, ' +
   'default_age_range, default_requirement, default_theme_primary, ' +
   'default_theme_voting, default_theme_resurrection, header_logo_url, website_url, ' +
-  'org_type, instagram, tiktok, facebook, is_managed';
+  'org_type, instagram, tiktok, facebook, is_managed, ' +
+  // Organizer identity + contact for the public Official Rules Contact section.
+  'legal_entity_name, contact_email, legal_address';

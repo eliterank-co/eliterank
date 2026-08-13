@@ -48,6 +48,8 @@ export function buildAutoRules(competition) {
   const charityName = pick(c, 'charityName', 'charity_name', null);
   const cityVal = c.city;
   const cityName = typeof cityVal === 'object' ? cityVal?.name : cityVal;
+  const cityObj = cityVal && typeof cityVal === 'object' ? cityVal : pick(c, 'cityData', 'city_data', null);
+  const isCanadianCompetition = (cityObj && typeof cityObj === 'object' ? cityObj.state : null) === 'ON';
   const rounds = pick(c, 'voting_rounds', 'votingRounds', []) || [];
   const criteria = pick(c, 'judging_criteria', 'judgingCriteria', []) || [];
 
@@ -92,8 +94,10 @@ export function buildAutoRules(competition) {
   } else {
     where = `in and around ${cityName || 'the host city'}${radiusMiles ? ` (within ${radiusMiles} miles)` : ''}`;
   }
-  let eligibility = `Entry is open to ${genderTxt} ${where}. All entrants must be at least ${ageMin} years old`;
-  eligibility += ageMax ? ` and no older than ${ageMax}.` : '.';
+  const effectiveAgeMin = isCanadianCompetition ? Math.max(ageMin, 19) : ageMin;
+  let eligibility = `Entry is open to ${genderTxt} ${where}. Entrants and voters must be at least ${effectiveAgeMin} (or the age of majority in their province/state, whichever is greater) and legal residents of ${isCanadianCompetition ? 'the United States or the province of Ontario, Canada' : 'the United States'}`;
+  eligibility += ageMax ? `, and no older than ${ageMax}.` : '.';
+  eligibility += ' Void where prohibited.';
   sections.push({ title: 'Who can enter', content: eligibility });
 
   // ── How to enter ────────────────────────────────────────────────────────
@@ -116,7 +120,9 @@ export function buildAutoRules(competition) {
   if (selectionCriteria !== 'judges') {
     sections.push({
       title: 'Voting',
-      content: 'Anyone can vote on the public competition page. Free votes are available to everyone, and additional votes may be purchased to support a contestant. Voting opens and closes on the dates shown on the competition timeline.',
+      content: `Anyone eligible can vote on the public competition page. No purchase is necessary — every registered voter gets a free vote each day; additional votes may be purchased to show extra support, but buying votes wins the purchaser nothing. Voting opens and closes on the dates shown on the competition timeline.${
+        isCanadianCompetition ? ' Canadian winners must correctly answer a skill-testing question before receiving a prize.' : ''
+      }`,
     });
   }
 
@@ -131,6 +137,11 @@ export function buildAutoRules(competition) {
       content: `The host will donate ${share} to ${toWhom}. Vote purchases are not tax-deductible for voters.`,
     });
   }
+
+  sections.push({
+    title: 'Full Official Rules',
+    content: 'This is a summary. The complete Official Rules — including prizes and approximate retail value, eligibility, judging, governing law, taxes, and how to request the winners list — are published on the competition’s Official Rules page.',
+  });
 
   return sections;
 }
