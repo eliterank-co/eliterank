@@ -252,6 +252,11 @@ export default function CompetitionCardVoting({
         taxAmount: result.taxAmount ?? null,
         taxRatePct: result.taxRatePct ?? null,
         taxLabel: result.taxLabel ?? null,
+        // Settlement currency (usd | cad) so the modal formats + adapts the
+        // checkout (CA$ display, no billing-country field) for CAD even in this
+        // pre-created-PaymentIntent flow, where the modal doesn't run its own
+        // create-payment-intent call.
+        currency: result.currency ?? null,
       });
     } else {
       setShowVoteModal(false);
@@ -712,6 +717,7 @@ export default function CompetitionCardVoting({
           serverTax={preloadedCheckout.taxAmount}
           serverTaxRatePct={preloadedCheckout.taxRatePct}
           serverTaxLabel={preloadedCheckout.taxLabel}
+          currency={preloadedCheckout.currency || undefined}
         />
       )}
 
