@@ -1112,19 +1112,26 @@ export function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'U
         return u.toString();
       })();
 
+      // Stripe requires that any billing field we told the PaymentElement NOT
+      // to collect (via fields.billingDetails) is instead supplied here at
+      // confirmation, or it throws an IntegrationError:
+      //  - email: suppressed for authenticated buyers (we already have it).
+      //  - address: suppressed entirely for CAD checkout (to hide the Country
+      //    dropdown and match the US checkout), so we must supply the billing
+      //    country here. Card charges don't validate this against the card, and
+      //    defaulting to CA is correct for a Canadian competition.
+      const isCad = (currency || '').toUpperCase() === 'CAD';
+      const billingDetails = {};
+      if (!collectEmail && userEmail) billingDetails.email = userEmail;
+      if (isCad) billingDetails.address = { country: 'CA' };
+
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: returnUrl, // Fallback, but we handle redirect: 'if_required'
-          // When collectEmail is false (authenticated user), we told Stripe not to collect
-          // email in the form, so we must provide it here
-          ...(!collectEmail && userEmail ? {
-            payment_method_data: {
-              billing_details: {
-                email: userEmail,
-              },
-            },
-          } : {}),
+          ...(Object.keys(billingDetails).length
+            ? { payment_method_data: { billing_details: billingDetails } }
+            : {}),
         },
         redirect: 'if_required',
       });
