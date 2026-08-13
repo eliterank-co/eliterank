@@ -17,6 +17,19 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-cross-project.sh",
+            "timeout": 10,
+            "statusMessage": "Checking project boundary..."
+          }
+        ]
+      }
     ]
   }
 }

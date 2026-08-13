@@ -29,3 +29,11 @@ npm-debug.log*
 .env.*.local
 supabase/.temp/
 .vercel
+
+# Agent / tooling scratch — regenerated per run, never committed.
+.aider*
+.playwright-mcp/
+.claude/*
+# ...but the safety guards are team-wide, not personal config.
+!.claude/settings.json
+!.claude/hooks/

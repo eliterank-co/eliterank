@@ -1,5 +1,37 @@
 # Supabase Setup for EliteRank
 
+> ## ⚠️ Database binding — read first
+>
+> This repo owns **exactly one** Supabase project:
+>
+> | Project | Ref | |
+> | --- | --- | --- |
+> | **EliteRank** | `jioblcflgpqcfdmzjnto` | **this repo — LIVE PRODUCTION** |
+> | eliterank-v2 | `dhiipdxsspmvaifvfffb` | the v2 rebuild. Not ours. |
+>
+> Both are in the same Vercel-managed org, so the org does not tell them apart.
+> Only the ref does.
+>
+> **The CLI here is intentionally unlinked.** `config.toml` anchors the CLI's
+> project root to this repo (without it, the CLI climbed to `$HOME` and adopted
+> an unrelated project's link state). Its `project_id` is a *local* identifier
+> and does not pin the remote — so `--linked` commands fail closed with
+> "Cannot find project ref". That is correct. Do not run `supabase link` to
+> clear it.
+>
+> **Migrations are not deployed by CI** and require human review with an
+> explicitly named target. Edge functions deploy automatically via
+> `.github/workflows/deploy-edge-functions.yml`, which passes `--project-ref`.
+>
+> **Three migration directories exist** — `migrations/` (136, the sequence that
+> tracks recent commits), `migrations_archive/` (42), `migrations_new/` (4, a
+> consolidated-schema experiment). Which is authoritative is **not settled**;
+> confirm with the owner before applying anything from the latter two. See
+> issue #611.
+>
+> The "Quick Start" below describes standing up a *fresh* project from scratch.
+> It is not the procedure for this production database.
+
 ## Quick Start
 
 ### 1. Create a Supabase Project
@@ -67,21 +99,33 @@ The AI-powered news post generation uses Supabase Edge Functions.
 - Login: `supabase login`
 
 #### Set Up Secrets
+
+Name the project explicitly. Do **not** `supabase link` — this repo stays
+unlinked on purpose so that an un-targeted command fails instead of guessing
+(see the binding note at the top of this file).
+
 ```bash
 # Set your Anthropic API key
-supabase secrets set ANTHROPIC_API_KEY=your-anthropic-api-key
-
-# Link to your project
-supabase link --project-ref your-project-id
+supabase secrets set ANTHROPIC_API_KEY=your-anthropic-api-key \
+  --project-ref jioblcflgpqcfdmzjnto
 ```
 
 #### Deploy Functions
+
+Normally you don't do this by hand: every push to `main` that touches
+`supabase/functions/**` deploys all functions via
+`.github/workflows/deploy-edge-functions.yml`. That workflow also knows which
+functions need `--no-verify-jwt`. Deploy manually only to hotfix ahead of CI,
+and pass the ref explicitly:
+
 ```bash
 # Deploy the AI post generation function
-supabase functions deploy generate-ai-post
+supabase functions deploy generate-ai-post \
+  --project-ref jioblcflgpqcfdmzjnto
 
 # Deploy the scheduled event checker
-supabase functions deploy check-competition-events
+supabase functions deploy check-competition-events \
+  --project-ref jioblcflgpqcfdmzjnto
 ```
 
 #### Set Up 24-Hour Cron Job
