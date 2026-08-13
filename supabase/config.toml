@@ -1,0 +1,42 @@
+# Supabase CLI project anchor for the LEGACY EliteRank app.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS FILE EXISTS — read before deleting it.
+# ---------------------------------------------------------------------------
+# The Supabase CLI finds its project root by walking UP the directory tree
+# looking for `supabase/config.toml`. Without this file, a CLI command run
+# from anywhere in this repo climbed all the way to $HOME, found
+# ~/supabase/config.toml, and silently adopted THAT project's link state:
+#
+#     $ supabase projects list          # run from ~/development/eliterank
+#     Using workdir /Users/guillermovillegas
+#
+# ~/supabase/.temp/project-ref pointed at an unrelated project in a different
+# org. So `supabase db push` from this repo targeted a third-party production
+# database. This file stops that climb.
+#
+# ---------------------------------------------------------------------------
+# WHICH DATABASE THIS REPO OWNS
+# ---------------------------------------------------------------------------
+#   jioblcflgpqcfdmzjnto   EliteRank      <- THIS REPO (legacy, LIVE PROD)
+#   dhiipdxsspmvaifvfffb   eliterank-v2   <- the v2 rebuild. NOT OURS.
+#
+# Both live in org `vercel_icfg_lyg3FulioaO6x0mK5H4MDBD9`, so the org is not a
+# safe discriminator. The ref is. See CLAUDE.md → "Database binding".
+#
+# ---------------------------------------------------------------------------
+# THIS REPO IS DELIBERATELY NOT LINKED — that is the safety property.
+# ---------------------------------------------------------------------------
+# `project_id` below is only a LOCAL identifier ("a string used to distinguish
+# different Supabase projects on the same host"). It does NOT pin the remote.
+# The remote target lives in supabase/.temp/project-ref, which is gitignored
+# and intentionally absent here.
+#
+# Consequence: `supabase db push` (which defaults to --linked) fails closed
+# with "project not linked" instead of hitting whatever was linked last.
+# Keep it that way. Do not run `supabase link` to make an error go away.
+#
+# Migrations are applied by a human with an explicit target, never by ambient
+# link state. Edge functions deploy via .github/workflows/deploy-edge-functions.yml,
+# which passes `--project-ref "$SUPABASE_PROJECT_REF"` explicitly.
+project_id = "eliterank"
