@@ -3508,6 +3508,13 @@ a.rewards-carousel-link:hover .rewards-prize-image-wrap {
   color: var(--color-text-secondary);
 }
 
+/* Host-event location line — icon + text on one baseline */
+.timeline-event-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   .timeline-step {
