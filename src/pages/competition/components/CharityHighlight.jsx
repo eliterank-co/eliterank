@@ -1,4 +1,5 @@
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
+import { transformSupabaseImage } from '../../../lib/storageImage';
 
 /**
  * Charity proceeds highlight section
@@ -25,9 +26,11 @@ export function CharityHighlight() {
       <span className="charity-highlight-label">{label}</span>
       {charityLogoUrl ? (
         <img
-          src={charityLogoUrl}
+          src={transformSupabaseImage(charityLogoUrl, { width: 400, resize: 'contain' })}
           alt={charityName}
           className="charity-highlight-logo"
+          loading="lazy"
+          decoding="async"
         />
       ) : (
         <span className="charity-highlight-name">{charityName}</span>

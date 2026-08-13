@@ -12,6 +12,7 @@ import ProfileBonusVotes from './ProfileBonusVotes';
 import FanButton from '../../../components/ui/FanButton';
 import ProfileFans from './ProfileFans';
 import IntroVideoModal from '../../../components/modals/IntroVideoModal';
+import { transformSupabaseImage, avatarUrl } from '../../../lib/storageImage';
 
 /**
  * Click-through photo gallery. One image at a time with prev/next arrows and
@@ -81,9 +82,10 @@ function GalleryCarousel({ images, isMobile }) {
         )}
 
         <img
-          src={images[currentIndex]}
+          src={transformSupabaseImage(images[currentIndex], { width: 1080, resize: 'contain' })}
           alt={`Gallery ${currentIndex + 1}`}
           loading="lazy"
+          decoding="async"
           style={{
             display: 'block',
             width: '100%',
@@ -354,7 +356,7 @@ export default function ProfileView({ hostProfile, onEdit, contestantId, isPrevi
                 height: isMobile ? '140px' : '150px',
                 borderRadius: borderRadius.xxl,
                 background: hostProfile.avatarUrl
-                  ? `url(${hostProfile.avatarUrl}) center/cover`
+                  ? `url(${avatarUrl(hostProfile.avatarUrl, 150)}) center/cover`
                   : 'linear-gradient(135deg, rgba(212,175,55,0.4), rgba(212,175,55,0.1))',
                 border: `3px solid rgba(212,175,55,0.3)`,
                 display: 'flex',

@@ -3,6 +3,7 @@ import { Users, Crown, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
 import { formatPrizeRecipient, interleaveByGender } from '../../../utils/formatters';
 import { PrizeGenderBadge } from '../../../components/ui/PrizeGenderBadge';
+import { transformSupabaseImage } from '../../../lib/storageImage';
 
 // Default rewards when no prizes are uploaded by the host
 const DEFAULT_REWARDS = [
@@ -98,9 +99,11 @@ function PrizeCarousel({ prizes, title, splitByGender }) {
               {currentPrize.image_url ? (
                 <div className="rewards-prize-image-wrap">
                   <img
-                    src={currentPrize.image_url}
+                    src={transformSupabaseImage(currentPrize.image_url, { width: 280, height: 280 })}
                     alt={currentPrize.title}
                     className="rewards-prize-image"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
               ) : (

@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores';
 import { ProfileIcon, NotificationBell } from '../../components/ui';
 import { useIsJudge, useMyPerformance } from '../../hooks';
 import { colors, spacing, borderRadius, typography } from '../../styles/theme';
+import { transformSupabaseImage } from '../../lib/storageImage';
 
 // Phase view components (lazy-loaded — only the active phase is needed)
 const ComingSoonPhase = lazy(() => import('./phases/ComingSoonPhase'));
@@ -501,9 +502,10 @@ function ContestantModals() {
               <div className="profile-modal-header">
                 {selectedContestant.avatar_url ? (
                   <img
-                    src={selectedContestant.avatar_url}
+                    src={transformSupabaseImage(selectedContestant.avatar_url, { width: 200, height: 200 })}
                     alt={selectedContestant.name}
                     className="profile-modal-avatar"
+                    decoding="async"
                   />
                 ) : (
                   <div className="profile-modal-avatar-placeholder">

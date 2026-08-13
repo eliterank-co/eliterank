@@ -5,6 +5,7 @@ import { colors, spacing, borderRadius, typography } from '../../../styles/theme
 import { useResponsive } from '../../../hooks/useResponsive';
 import { formatPrizeRecipient, formatPrizeGender, interleaveByGender } from '../../../utils/formatters';
 import { PrizeGenderBadge } from '../../../components/ui/PrizeGenderBadge';
+import { transformSupabaseImage } from '../../../lib/storageImage';
 
 const styles = {
   container: {
@@ -180,7 +181,7 @@ function PrizeCard({ prize, isMobile, splitByGender }) {
           overflow: 'hidden',
           position: 'relative',
           background: prize.image_url
-            ? `url(${prize.image_url}) center/cover no-repeat`
+            ? `url(${transformSupabaseImage(prize.image_url, { width: 600, height: 400 })}) center/cover no-repeat`
             : `linear-gradient(135deg, rgba(212,175,55,0.15) 0%, rgba(212,175,55,0.05) 100%)`,
           display: 'flex',
           alignItems: 'center',
