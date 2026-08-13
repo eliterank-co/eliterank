@@ -137,8 +137,14 @@ describe('submitFreeVote', () => {
       return makeChain({ data: null, error: null });
     });
 
-    // Default rpc behavior; overridden per test.
+    // Default rpc behavior; overridden per test. checkActiveVotingRound reads
+    // the active round through the ensure_round_state RPC (it lazily finalizes
+    // rounds server-side), so that RPC must report an active round for the
+    // happy path.
     supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') {
+        return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
+      }
       if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
       if (name === 'is_double_vote_day') return Promise.resolve({ data: false, error: null });
       if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });
@@ -151,11 +157,13 @@ describe('submitFreeVote', () => {
   });
 
   it('errors out when no voting round is active', async () => {
-    supabaseMock.from.mockImplementation((table) => {
-      if (table === 'voting_rounds') {
-        return makeChain({ data: [], error: null });
+    supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') {
+        return Promise.resolve({ data: { active: false }, error: null });
       }
-      return makeChain({ data: null, error: null });
+      if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
+      if (name === 'is_double_vote_day') return Promise.resolve({ data: false, error: null });
+      return Promise.resolve({ data: null, error: null });
     });
 
     const result = await submitFreeVote({
@@ -172,6 +180,9 @@ describe('submitFreeVote', () => {
 
   it('inserts vote_count = 2 when is_double_vote_day RPC returns true', async () => {
     supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') {
+        return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
+      }
       if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
       if (name === 'is_double_vote_day') return Promise.resolve({ data: true, error: null });
       if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });
@@ -213,6 +224,9 @@ describe('submitFreeVote', () => {
   it('ignores a caller-supplied isDoubleVoteDay hint and trusts the RPC', async () => {
     // Caller claims it's a double day; RPC says no. Server-side decides.
     supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') {
+        return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
+      }
       if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
       if (name === 'is_double_vote_day') return Promise.resolve({ data: false, error: null });
       if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });

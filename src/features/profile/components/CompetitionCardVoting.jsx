@@ -303,13 +303,14 @@ export default function CompetitionCardVoting({
 
     setBusy(true);
     setError('');
-    const isDoubleVoteDay = await isDoubleVoteDayForCompetition(competitionId);
+    // No need to pre-fetch double-vote-day here — submitFreeVote re-verifies it
+    // server-side against the source of truth and ignores any hint, so fetching
+    // it first only added a wasted round-trip to the critical path.
     const result = await submitFreeVote({
       userId: user.id,
       voterEmail: user.email,
       competitionId,
       contestantId,
-      isDoubleVoteDay,
     });
     setBusy(false);
 

@@ -232,50 +232,66 @@ export default async function handler(request, response) {
   const webview = isInAppWebview(request);
   const ua = request.headers['user-agent'] || '';
 
-  // ─── Device dedup: fingerprint + IP combined ────────────────────────
-  // Skip for in-app webviews (Instagram, FB, TikTok, …) — FP collides there
-  // and on cellular CGNAT the IP collides too, falsely locking real voters.
-  // The email-based dedup below is the actual "you already voted" check.
-  if (!webview) {
-    const fpCheck = await checkFingerprintLimit(supabase, fingerprint, ipHash, competitionId);
-    if (!fpCheck.allowed) {
-      // Server-side log only (Vercel function logs, not visible to voter).
-      // Lets us confirm post-deploy whether the FP+IP block is still firing
-      // for UAs the webview detector missed.
-      console.warn('[cast-anonymous-vote] 429 ALREADY_VOTED (FP+IP)', { ua, webview });
-      return response.status(429).json({ error: fpCheck.reason, code: 'ALREADY_VOTED' });
-    }
+  // ─── Pre-flight checks (run concurrently) ───────────────────────────────
+  // Device dedup (fingerprint+IP), the per-IP email cap, and the active-round
+  // lookup are all independent reads. Running them in parallel rather than in
+  // series trims the latency the voter actually waits on. They're still
+  // evaluated in the same priority order below, so response codes/messages are
+  // unchanged. Fingerprint dedup is skipped for in-app webviews (Instagram,
+  // FB, TikTok, …) where the FP collides — and on cellular CGNAT the IP
+  // collides too — falsely locking real voters; the email-based dedup below is
+  // the actual "you already voted" check there.
+  const nowIso = new Date().toISOString();
+  let fpCheck, rateCheck, roundResult;
+  try {
+    [fpCheck, rateCheck, roundResult] = await Promise.all([
+      webview
+        ? Promise.resolve({ allowed: true, skipped: true })
+        : checkFingerprintLimit(supabase, fingerprint, ipHash, competitionId),
+      checkIpRateLimit(supabase, ipHash, normalizedEmail, ipLimit),
+      // Finale rounds collect public votes too (the winner is ranked by votes),
+      // so they must accept votes alongside regular voting rounds. Judging /
+      // resurrection rounds are not publicly votable.
+      supabase
+        .from('voting_rounds')
+        .select('id, start_date, end_date, round_type')
+        .eq('competition_id', competitionId)
+        .in('round_type', ['voting', 'finale'])
+        .lte('start_date', nowIso)
+        .gt('end_date', nowIso)
+        .limit(1),
+    ]);
+  } catch (err) {
+    console.error('Anonymous vote pre-flight failed:', err);
+    return response.status(500).json({ error: 'An unexpected error occurred.' });
   }
 
-  // ─── IP rate limit (backup) ────────────────────────────────────────────
-  const rateCheck = await checkIpRateLimit(supabase, ipHash, normalizedEmail, ipLimit);
+  // Device dedup (fingerprint + IP combined).
+  if (!fpCheck.allowed) {
+    // Server-side log only (Vercel function logs, not visible to voter).
+    // Lets us confirm post-deploy whether the FP+IP block is still firing
+    // for UAs the webview detector missed.
+    console.warn('[cast-anonymous-vote] 429 ALREADY_VOTED (FP+IP)', { ua, webview });
+    return response.status(429).json({ error: fpCheck.reason, code: 'ALREADY_VOTED' });
+  }
+
+  // Per-IP email cap (backup).
   if (!rateCheck.allowed) {
     console.warn('[cast-anonymous-vote] 429 IP_EMAIL_CAP', { ua, webview });
     return response.status(429).json({ error: rateCheck.reason, code: 'IP_EMAIL_CAP' });
   }
 
-  try {
-    // ─── Verify active voting round ─────────────────────────────────────
-    const nowIso = new Date().toISOString();
-    // Finale rounds collect public votes too (the winner is ranked by votes),
-    // so they must accept votes alongside regular voting rounds. Judging /
-    // resurrection rounds are not publicly votable.
-    const { data: rounds, error: roundErr } = await supabase
-      .from('voting_rounds')
-      .select('id, start_date, end_date, round_type')
-      .eq('competition_id', competitionId)
-      .in('round_type', ['voting', 'finale'])
-      .lte('start_date', nowIso)
-      .gt('end_date', nowIso)
-      .limit(1);
+  // Active voting round.
+  const { data: rounds, error: roundErr } = roundResult;
+  if (roundErr) {
+    console.error('Round lookup failed:', roundErr);
+    return response.status(500).json({ error: 'Could not verify voting round.' });
+  }
+  if (!rounds || rounds.length === 0) {
+    return response.status(400).json({ error: 'Voting is not currently open.' });
+  }
 
-    if (roundErr) {
-      console.error('Round lookup failed:', roundErr);
-      return response.status(500).json({ error: 'Could not verify voting round.' });
-    }
-    if (!rounds || rounds.length === 0) {
-      return response.status(400).json({ error: 'Voting is not currently open.' });
-    }
+  try {
 
     // ─── Find or create the auth user ────────────────────────────────────
     let voterId = null;

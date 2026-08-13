@@ -157,29 +157,33 @@ export async function submitFreeVote({
   }
 
   try {
-    // 1. Check if there's an active voting round (server-side validation)
-    const roundCheck = await checkActiveVotingRound(competitionId);
+    // Steps 1–3 are independent reads, so run them concurrently rather than
+    // stacking three sequential browser→DB round-trips onto the critical path
+    // (that serial chain was the main reason casting a free vote felt slow):
+    //   1. active-voting-round validation
+    //   2. already-voted-today guard (prevents a double free vote)
+    //   3. double-vote-day multiplier, re-verified against the source of truth
+    //      (is_double_vote_day compares against the competition's local
+    //      timezone — migration 051 — so the caller-supplied hint and the
+    //      client clock can't be trusted or spoofed)
+    const [roundCheck, alreadyVoted, doubleRes] = await Promise.all([
+      checkActiveVotingRound(competitionId),
+      hasUsedFreeVoteToday(userId, competitionId),
+      supabase.rpc('is_double_vote_day', { p_competition_id: competitionId }),
+    ]);
+
     if (!roundCheck.isActive) {
       return { success: false, error: 'Voting is not currently active. Please wait for the next voting round.' };
     }
 
-    // 2. Check if already voted today (prevent race condition)
-    const alreadyVoted = await hasUsedFreeVoteToday(userId, competitionId);
     if (alreadyVoted) {
       return { success: false, error: 'You have already used your free vote today' };
     }
 
-    // 3. Re-verify double-vote-day status against the source of truth.
-    // is_double_vote_day RPC compares against the competition's local
-    // timezone (see migration 051), so we don't trust the caller-supplied
-    // hint or the client's clock.
-    const { data: rpcDouble } = await supabase.rpc('is_double_vote_day', {
-      p_competition_id: competitionId,
-    });
-    const isDoubleVoteDay = rpcDouble === true;
+    const isDoubleVoteDay = doubleRes?.data === true;
     const voteValue = isDoubleVoteDay ? 2 : 1;
 
-    // 4. Insert the vote record
+    // Insert the vote record.
     const { error: voteError } = await supabase
       .from('votes')
       .insert({
@@ -202,18 +206,24 @@ export async function submitFreeVote({
       return { success: false, error: voteError.message };
     }
 
-    // 4. The on_vote_insert DB trigger has already incremented
-    //    contestants.votes and competitions.total_votes. Only the profile
-    //    lifetime total still needs a separate update.
-    const { data: contestant } = await supabase
+    // The on_vote_insert DB trigger has already incremented contestants.votes
+    // and competitions.total_votes atomically with the insert. The only thing
+    // left is bumping the contestant-owner's lifetime profile total, which the
+    // voter never sees — so fire-and-forget it (matching the app's
+    // fire-and-forget convention for non-critical writes) instead of holding
+    // the success response for two more round-trips (contestant lookup +
+    // profile update).
+    supabase
       .from('contestants')
       .select('user_id')
       .eq('id', contestantId)
-      .single();
-
-    if (contestant?.user_id) {
-      await updateProfileVotes(contestant.user_id, voteValue);
-    }
+      .single()
+      .then(({ data: contestant }) => {
+        if (contestant?.user_id) {
+          return updateProfileVotes(contestant.user_id, voteValue);
+        }
+      })
+      .catch((err) => console.warn('Deferred profile vote update failed:', err));
 
     return { success: true, votesAdded: voteValue };
   } catch (err) {
