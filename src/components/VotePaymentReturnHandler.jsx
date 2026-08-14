@@ -130,7 +130,7 @@ export default function VotePaymentReturnHandler() {
         // client-side write for instant feedback; anonymous voters rely on
         // the stripe-webhook so voter_email comes from billing details.
         if (isAuthenticated && user?.id && paymentIntent.status === 'succeeded') {
-          await recordPaidVote({
+          const recorded = await recordPaidVote({
             paymentIntentId: paymentIntent.id,
             competitionId,
             contestantId,
@@ -140,6 +140,18 @@ export default function VotePaymentReturnHandler() {
             voterEmail: user?.email,
             isDoubleVote: isDoubleVoteDay,
           });
+          if (recorded && !recorded.success) {
+            // Charge already succeeded; the webhook is the backstop writer.
+            // Surface the client-write failure so it can't pair silently
+            // with a webhook outage.
+            Sentry.captureException(
+              new Error(`recordPaidVote failed: ${recorded.error || 'unknown'}`),
+              {
+                tags: { stage: 'record-paid-vote-return' },
+                extra: { paymentIntentId: paymentIntent.id, competitionId, contestantId },
+              },
+            );
+          }
         }
 
         stripParams();

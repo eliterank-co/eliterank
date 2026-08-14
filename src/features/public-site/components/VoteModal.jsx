@@ -378,7 +378,7 @@ export default function VoteModal({
     // voters we let the webhook be the source of truth so voter_email is
     // populated from Stripe's billing details instead of left null.
     if (userId) {
-      await recordPaidVote({
+      const recorded = await recordPaidVote({
         paymentIntentId,
         competitionId,
         contestantId: contestant.id,
@@ -388,12 +388,30 @@ export default function VoteModal({
         voterEmail: user?.email,
         isDoubleVote: !!forceDoubleVoteDay,
       });
+      if (recorded && !recorded.success) {
+        // The card is already charged; the stripe-webhook dedups on
+        // payment_intent_id and remains the backstop writer, so don't block
+        // the buyer — but this failure must reach Sentry, otherwise a
+        // simultaneous webhook outage loses the vote with no signal anywhere.
+        Sentry.captureException(
+          new Error(`recordPaidVote failed: ${recorded.error || 'unknown'}`),
+          {
+            tags: { stage: 'record-paid-vote' },
+            extra: {
+              paymentIntentId,
+              competitionId,
+              contestantId: contestant?.id,
+              voteCount: creditedVoteCount,
+            },
+          },
+        );
+      }
     }
 
     setVotesAdded(creditedVoteCount);
     setShowPaymentForm(false);
     setShowSuccess(true);
-    onVoteSuccess?.();
+    onVoteSuccess?.(creditedVoteCount);
   };
 
   // Handle back from payment form

@@ -318,7 +318,7 @@ export default function CompetitionCardVoting({
       setAlreadyVoted(true);
       setShowShareModal(true);
       toast?.success?.(`Vote cast for ${contestantName}!`);
-      onVoteCast?.();
+      onVoteCast?.(result?.votesAdded);
     } else {
       setError(result?.error || 'Could not cast your vote.');
     }
@@ -356,7 +356,7 @@ export default function CompetitionCardVoting({
       writeAnonVoted(competitionId);
       setShowShareModal(true);
       toast?.success?.(`Vote cast for ${contestantName}!`);
-      onVoteCast?.();
+      onVoteCast?.(result?.votesAdded);
     } else {
       // Server enforces 1 free vote per device per competition per day. Lock
       // the free-vote section so the voter can't keep resubmitting, and fire
@@ -705,11 +705,11 @@ export default function CompetitionCardVoting({
           competitionId={competitionId}
           user={user}
           isAuthenticated={!!user?.id}
-          onVoteSuccess={() => {
+          onVoteSuccess={(creditedVotes) => {
             handleVoteModalClose();
             setShowShareModal(true);
             toast?.success?.('Votes purchased!');
-            onVoteCast?.();
+            onVoteCast?.(creditedVotes);
           }}
           currentRound={roundForModal}
           initialVoteCount={Number(selectedCount) || 1}
