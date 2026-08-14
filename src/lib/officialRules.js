@@ -562,6 +562,22 @@ export function buildOfficialRules(competition, context = {}) {
       },
     ];
 
+    // Per-round vote resets — disclosed when any round starts from a clean
+    // slate, so an in-round tally dropping at a round boundary is stated
+    // policy rather than a surprise. Owner-approved copy (2026-08-14).
+    // Placed directly after the opening paragraph so the round-lifecycle
+    // facts (rounds close → votes reset) read together, ahead of the
+    // bonus-task and double-vote-day mechanics.
+    const hasRoundResets = sortedRounds.some(
+      (r) => r && (r.votes_reset_at_start ?? r.votesResetAtStart),
+    );
+    if (hasRoundResets) {
+      votingBlocks.push({
+        kind: 'p',
+        text: 'This Competition is run in rounds. When a round starts fresh, the contestants who advance begin it with zero votes — the free and paid votes from earlier rounds do not carry over. Only bonus-task votes and votes added by the Host carry forward. Each vote counts toward the round it was cast in, and vote purchases are final and non-refundable even when the count resets for the next round.',
+      });
+    }
+
     // Bonus votes — disclosed when the competition has enabled bonus tasks.
     if (hasBonusTasks) {
       votingBlocks.push({
@@ -575,19 +591,6 @@ export function buildOfficialRules(competition, context = {}) {
       votingBlocks.push({
         kind: 'p',
         text: 'On scheduled double-vote days, every free and purchased vote counts twice (2×); votes earned from bonus tasks are not doubled. The scheduled double-vote days are shown on the competition timeline.',
-      });
-    }
-
-    // Per-round vote resets — disclosed when any round starts from a clean
-    // slate, so an in-round tally dropping at a round boundary is stated
-    // policy rather than a surprise. Owner-approved copy (2026-08-14).
-    const hasRoundResets = sortedRounds.some(
-      (r) => r && (r.votes_reset_at_start ?? r.votesResetAtStart),
-    );
-    if (hasRoundResets) {
-      votingBlocks.push({
-        kind: 'p',
-        text: 'This Competition is run in rounds. When a round starts fresh, the contestants who advance begin it with zero votes — the free and paid votes from earlier rounds do not carry over. Only bonus-task votes and votes added by the Host carry forward. Each vote counts toward the round it was cast in, and vote purchases are final and non-refundable even when the count resets for the next round.',
       });
     }
 
