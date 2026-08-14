@@ -422,6 +422,17 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
     },
   );
 
+  // entry.lifetimeVotes comes from a one-shot fetch in the parent
+  // (getContestantCompetitions) that nothing refreshes after a vote —
+  // refetchLeaderboard only updates rank data. Track votes cast from this
+  // card locally so the header total moves immediately; a reload replaces
+  // the sum with the authoritative DB value.
+  const [voteBump, setVoteBump] = useState(0);
+  const handleVoteCast = (added) => {
+    setVoteBump((b) => b + (Number(added) || 1));
+    refetchLeaderboard();
+  };
+
   // Countdown to the active round's end_date — drives the ROUND ENDS stat.
   const countdown = useCountdown(activeRound?.end_date || null);
 
@@ -592,7 +603,7 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
               color: colors.gold.primary,
               fontVariantNumeric: 'tabular-nums',
             }}>
-              {(entry.lifetimeVotes || 0).toLocaleString()}
+              {((entry.lifetimeVotes || 0) + voteBump).toLocaleString()}
             </span>
             <span style={{
               display: 'inline-flex',
@@ -658,7 +669,7 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
           currentRound={activeRound}
           isPreview={isPreview}
           leaderboard={leaderboard}
-          onVoteCast={refetchLeaderboard}
+          onVoteCast={handleVoteCast}
         />
       )}
 
