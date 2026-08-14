@@ -580,14 +580,14 @@ export function buildOfficialRules(competition, context = {}) {
 
     // Per-round vote resets — disclosed when any round starts from a clean
     // slate, so an in-round tally dropping at a round boundary is stated
-    // policy rather than a surprise.
+    // policy rather than a surprise. Owner-approved copy (2026-08-14).
     const hasRoundResets = sortedRounds.some(
       (r) => r && (r.votes_reset_at_start ?? r.votesResetAtStart),
     );
     if (hasRoundResets) {
       votingBlocks.push({
         kind: 'p',
-        text: 'Vote totals reset at the start of each new voting round: each round’s outcome is decided by the support received during that round, and public vote totals from earlier rounds do not carry forward (votes a contestant has earned from bonus tasks are retained). A contestant’s cumulative, competition-wide vote total is unaffected by round resets.',
+        text: 'This Competition is run in rounds. When a round starts fresh, the contestants who advance begin it with zero votes — the free and paid votes from earlier rounds do not carry over. Only bonus-task votes and votes added by the Host carry forward. Each vote counts toward the round it was cast in, and vote purchases are final and non-refundable even when the count resets for the next round.',
       });
     }
 
