@@ -121,6 +121,10 @@ export function buildAutoRules(competition) {
     sections.push({
       title: 'Voting',
       content: `Anyone eligible can vote on the public competition page. No purchase is necessary — every registered voter gets a free vote each day, renewing on a rolling basis (your next free vote becomes available no later than 24 hours after your previous one, not at local midnight); additional votes may be purchased to show extra support, but buying votes wins the purchaser nothing. Voting opens and closes on the dates shown on the competition timeline.${
+        rounds.some((r) => r && (r.votes_reset_at_start ?? r.votesResetAtStart))
+          ? ' Vote totals reset at the start of each round, so every round is decided by the support received during that round; cumulative totals are unaffected.'
+          : ''
+      }${
         isCanadianCompetition ? ' Canadian winners must correctly answer a skill-testing question before receiving a prize.' : ''
       }`,
     });
