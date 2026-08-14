@@ -896,10 +896,15 @@ function AnonForm({
       onSubmit={onSubmit}
       style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
     >
-      {/* Honeypot */}
+      {/* Honeypot. Deliberately has NO name/id/placeholder: browser autofill
+          maps fields by those tokens, and the previous name="company" made
+          Chrome/Safari fill it with the voter's saved organization whenever
+          they autofilled the visible fields (autocomplete="off" is ignored
+          for recognized address tokens) — rejecting real voters as bots with
+          "Invalid submission". Scripted bots fill every text input regardless
+          of name, so the trap still catches them. */}
       <input
         type="text"
-        name="company"
         tabIndex={-1}
         autoComplete="off"
         value={company}

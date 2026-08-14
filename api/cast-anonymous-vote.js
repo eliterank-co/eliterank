@@ -196,6 +196,11 @@ export default async function handler(request, response) {
 
   // ─── Bot traps ─────────────────────────────────────────────────────────
   if (company) {
+    // Server-side log only — this rejection previously left no trace, which
+    // hid a wave of autofill false positives among the generic 400s.
+    console.warn('[cast-anonymous-vote] 400 HONEYPOT', {
+      ua: request.headers['user-agent'] || '',
+    });
     return response.status(400).json({ error: 'Invalid submission' });
   }
 
