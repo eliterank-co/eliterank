@@ -298,7 +298,7 @@ export function buildOfficialRules(competition, context = {}) {
       publicVotes
         ? {
             kind: 'p',
-            text: 'Where the Competition includes public voting, everyone receives free votes: every registered voter may cast at least one free vote each day, renewed every 24 hours — no purchase is ever necessary. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
+            text: 'Where the Competition includes public voting, everyone receives free votes: every registered voter may cast at least one free vote each day — no purchase is ever necessary. Free votes renew on a rolling basis rather than at local midnight: after casting a free vote, your next free vote becomes available no later than 24 hours later. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
           }
         : {
             kind: 'p',
