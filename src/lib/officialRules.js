@@ -298,7 +298,7 @@ export function buildOfficialRules(competition, context = {}) {
       publicVotes
         ? {
             kind: 'p',
-            text: 'Where the Competition includes public voting, everyone receives free votes: every registered voter may cast at least one free vote each day, renewed every 24 hours — no purchase is ever necessary. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
+            text: 'Where the Competition includes public voting, everyone receives free votes: every registered voter may cast at least one free vote each day — no purchase is ever necessary. Free votes renew on a rolling basis rather than at local midnight: after casting a free vote, your next free vote becomes available no later than 24 hours later. Purchasing additional votes is entirely optional and is never required to enter, participate, or win. Purchasing votes increases voting capacity only — it is not an entry into any drawing and gives the purchaser no prize, reward, or chance of winning.',
           }
         : {
             kind: 'p',
@@ -575,6 +575,19 @@ export function buildOfficialRules(competition, context = {}) {
       votingBlocks.push({
         kind: 'p',
         text: 'On scheduled double-vote days, every free and purchased vote counts twice (2×); votes earned from bonus tasks are not doubled. The scheduled double-vote days are shown on the competition timeline.',
+      });
+    }
+
+    // Per-round vote resets — disclosed when any round starts from a clean
+    // slate, so an in-round tally dropping at a round boundary is stated
+    // policy rather than a surprise.
+    const hasRoundResets = sortedRounds.some(
+      (r) => r && (r.votes_reset_at_start ?? r.votesResetAtStart),
+    );
+    if (hasRoundResets) {
+      votingBlocks.push({
+        kind: 'p',
+        text: 'Vote totals reset at the start of each new voting round: each round’s outcome is decided by the support received during that round, and public vote totals from earlier rounds do not carry forward (votes a contestant has earned from bonus tasks are retained). A contestant’s cumulative, competition-wide vote total is unaffected by round resets.',
       });
     }
 
