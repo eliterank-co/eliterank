@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import * as Sentry from '@sentry/react';
 
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -21,6 +22,19 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+
+    // React 18 does not re-throw boundary-caught errors to window.onerror in
+    // production builds, so Sentry's global handlers never see them. Without
+    // this explicit capture every crash that lands on this fallback is
+    // invisible in Sentry — which is how the Chrome-auto-translate crash in
+    // the vote flow reached users via WhatsApp instead of an alert.
+    Sentry.captureException(error, {
+      tags: {
+        boundary: 'app',
+        chunkLoad: this.isChunkLoadError(error) ? 'yes' : 'no',
+      },
+      contexts: { react: { componentStack: errorInfo?.componentStack } },
+    });
 
     // Auto-reload once for chunk load failures (stale deployment cache)
     if (this.isChunkLoadError(error)) {

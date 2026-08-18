@@ -744,7 +744,7 @@ export default function VoteModal({
             Vote Submitted!
           </h2>
           <p style={{ fontSize: typography.fontSize.md, color: colors.text.secondary, marginBottom: spacing.xl }}>
-            You gave <span style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.semibold }}>{contestant.name}</span> {votesAdded} {votesAdded > 1 ? 'votes' : 'vote'}
+            <span>You gave </span><span style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.semibold }}>{contestant.name}</span><span>{` ${votesAdded} ${votesAdded > 1 ? 'votes' : 'vote'}`}</span>
           </p>
 
           {/* Become a Fan prompt for logged-in users */}
@@ -867,7 +867,7 @@ export default function VoteModal({
           {contestant.name}
         </h3>
         <p style={{ color: colors.gold.primary, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold }}>
-          {formatNumber(contestant.votes || 0)} votes
+          <span>{`${formatNumber(contestant.votes || 0)} votes`}</span>
         </p>
       </div>
 
@@ -879,7 +879,7 @@ export default function VoteModal({
         {!isAuthenticated ? (
           <>
             <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs, marginBottom: spacing.sm, textAlign: 'center' }}>
-              Sign in for a <span style={{ color: colors.status.success, fontWeight: typography.fontWeight.semibold }}>free daily vote</span>
+              <span>Sign in for a </span><span style={{ color: colors.status.success, fontWeight: typography.fontWeight.semibold }}>free daily vote</span>
               {forceDoubleVoteDay && <span style={{ color: colors.status.success }}> (2x!)</span>}
             </p>
             <Button
@@ -895,7 +895,7 @@ export default function VoteModal({
               }}
             >
               <LogIn size={16} />
-              Sign In for Free Vote
+              <span>Sign In for Free Vote</span>
             </Button>
           </>
         ) : (
@@ -904,16 +904,16 @@ export default function VoteModal({
               {!hasActiveRound ? (
                 <>
                   <Clock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
-                  Voting is not currently active
+                  <span>Voting is not currently active</span>
                 </>
               ) : freeVoteUsed ? (
                 <>
                   <Clock size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
-                  Free vote resets in {getTimeUntilReset()}
+                  <span>{`Free vote resets in ${getTimeUntilReset()}`}</span>
                 </>
               ) : (
                 <>
-                  Use your <span style={{ color: colors.status.success, fontWeight: typography.fontWeight.semibold }}>free daily vote</span>
+                  <span>Use your </span><span style={{ color: colors.status.success, fontWeight: typography.fontWeight.semibold }}>free daily vote</span>
                   {forceDoubleVoteDay && <span style={{ color: colors.status.success }}> (2x!)</span>}
                 </>
               )}
@@ -938,27 +938,27 @@ export default function VoteModal({
               {checkingVoteStatus ? (
                 <>
                   <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                  Checking...
+                  <span>Checking...</span>
                 </>
               ) : !hasActiveRound ? (
                 <>
                   <Clock size={16} />
-                  Voting Not Active
+                  <span>Voting Not Active</span>
                 </>
               ) : isSubmitting ? (
                 <>
                   <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                  Submitting...
+                  <span>Submitting...</span>
                 </>
               ) : freeVoteUsed ? (
                 <>
                   <Check size={16} />
-                  Free Vote Used Today
+                  <span>Free Vote Used Today</span>
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Use Free Daily Vote (+{freeVoteValue})
+                  <span>{`Use Free Daily Vote (+${freeVoteValue})`}</span>
                 </>
               )}
             </Button>
