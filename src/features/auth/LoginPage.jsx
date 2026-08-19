@@ -507,7 +507,7 @@ export default function LoginPage({ onLogin, onBack }) {
             }}
           >
             <ArrowLeft size={16} />
-            Back to competitions
+            <span>Back to competitions</span>
           </button>
         )}
 
@@ -529,7 +529,7 @@ export default function LoginPage({ onLogin, onBack }) {
             }}
           >
             <ArrowLeft size={16} />
-            Change email
+            <span>Change email</span>
           </button>
         )}
 
@@ -554,7 +554,7 @@ export default function LoginPage({ onLogin, onBack }) {
             {error && (
               <div style={alertStyle('error')}>
                 <AlertCircle size={16} />
-                {error}
+                <span>{error}</span>
               </div>
             )}
 
@@ -587,11 +587,11 @@ export default function LoginPage({ onLogin, onBack }) {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  Checking...
+                  <span>Checking...</span>
                 </>
               ) : (
                 <>
-                  Continue
+                  <span>Continue</span>
                   <ArrowRight size={18} />
                 </>
               )}
@@ -605,14 +605,14 @@ export default function LoginPage({ onLogin, onBack }) {
             {error && (
               <div style={alertStyle('error')}>
                 <AlertCircle size={16} />
-                {error}
+                <span>{error}</span>
               </div>
             )}
 
             {success && (
               <div style={alertStyle('success')}>
                 <CheckCircle size={16} />
-                {success}
+                <span>{success}</span>
               </div>
             )}
 
@@ -675,12 +675,12 @@ export default function LoginPage({ onLogin, onBack }) {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  Signing in...
+                  <span>Signing in...</span>
                 </>
               ) : (
                 <>
                   <LogIn size={18} />
-                  Sign In
+                  <span>Sign In</span>
                 </>
               )}
             </button>
@@ -699,7 +699,7 @@ export default function LoginPage({ onLogin, onBack }) {
                   textDecoration: 'underline',
                 }}
               >
-                Forgot password?
+                <span>Forgot password?</span>
               </button>
             </div>
           </form>
@@ -711,14 +711,14 @@ export default function LoginPage({ onLogin, onBack }) {
             {error && (
               <div style={alertStyle('error')}>
                 <AlertCircle size={16} />
-                {error}
+                <span>{error}</span>
               </div>
             )}
 
             {success && (
               <div style={alertStyle('success')}>
                 <CheckCircle size={16} />
-                {success}
+                <span>{success}</span>
               </div>
             )}
 
@@ -826,12 +826,12 @@ export default function LoginPage({ onLogin, onBack }) {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  Creating account...
+                  <span>Creating account...</span>
                 </>
               ) : (
                 <>
                   <UserPlus size={18} />
-                  Create Account
+                  <span>Create Account</span>
                 </>
               )}
             </button>
@@ -844,7 +844,7 @@ export default function LoginPage({ onLogin, onBack }) {
             {error && (
               <div style={alertStyle('error')}>
                 <AlertCircle size={16} />
-                {error}
+                <span>{error}</span>
               </div>
             )}
 
@@ -922,12 +922,12 @@ export default function LoginPage({ onLogin, onBack }) {
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
                   }} />
-                  Sending...
+                  <span>Sending...</span>
                 </>
               ) : (
                 <>
                   <Mail size={18} />
-                  Send Magic Link to Claim
+                  <span>Send Magic Link to Claim</span>
                 </>
               )}
             </button>
@@ -993,7 +993,7 @@ export default function LoginPage({ onLogin, onBack }) {
                 cursor: 'pointer',
               }}
             >
-              Use a different email
+              <span>Use a different email</span>
             </button>
           </div>
         )}
