@@ -371,10 +371,13 @@ export default function CompetitionCardVoting({
         // the vote really expires, not 24h-from-now.
         writeAnonVoted(competitionId, result?.prevVoteAt);
         const resetIn = formatResetIn(getAnonVoteResetMs(competitionId));
+        // Say WHICH signal matched and how to reach a human — "already voted"
+        // alone reads as a bug to someone who is sure they didn't vote (shared
+        // Wi-Fi, a partner's phone, a returning device).
         toast?.info?.(
           resetIn
-            ? `You've already used your free vote for this competition. Try again in ${resetIn}.`
-            : `You've already used your free vote for this competition today.`
+            ? `This device already used its free vote for this competition — it unlocks in ${resetIn}. Paid votes work anytime. If that's not right, email info@eliterank.co.`
+            : `This device already used its free vote for this competition. Free votes reset 24h after your last one; paid votes work anytime. If that's not right, email info@eliterank.co.`
         );
       } else {
         setError(result?.error || 'Could not cast your vote.');

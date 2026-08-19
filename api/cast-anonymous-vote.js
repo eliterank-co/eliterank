@@ -25,8 +25,9 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { isSuspiciouslyFast, MIN_SUBMIT_MS } from './_vote-timing.js';
 
-const MIN_SUBMIT_MS = 1500;
+const HELP = 'info@eliterank.co';
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_IP_LIMIT = 10;
 
@@ -82,7 +83,7 @@ async function checkIpRateLimit(supabase, ipHash, email, limit) {
     // same WiFi all get through — this only fires for unusually large bursts.
     return {
       allowed: false,
-      reason: 'A lot of people have voted from this network in the last 24h. Try again later, or send paid votes anytime.',
+      reason: `More than ${limit} people have already voted from this network in the last 24 hours, so free voting from it is paused. This usually means shared Wi\u2011Fi or a mobile carrier that many people share. Free voting reopens within 24 hours, paid votes work now, and if you think this is a mistake email ${HELP}.`,
     };
   }
   return { allowed: true };
@@ -129,7 +130,7 @@ async function checkFingerprintLimit(supabase, fingerprint, ipHash, competitionI
   if (data && data.length > 0) {
     return {
       allowed: false,
-      reason: "You've already cast your free daily vote from this device. Come back tomorrow!"
+      reason: `This device has already used its free vote for this competition. Free votes reset 24 hours after your last one, and paid votes work anytime. If that doesn\u2019t look right, email ${HELP}.`
     };
   }
 
@@ -201,16 +202,31 @@ export default async function handler(request, response) {
     console.warn('[cast-anonymous-vote] 400 HONEYPOT', {
       ua: request.headers['user-agent'] || '',
     });
-    return response.status(400).json({ error: 'Invalid submission' });
+    return response.status(400).json({
+      error: `We couldn\u2019t verify that submission. Please refresh the page and try again \u2014 if it keeps happening, email ${HELP}.`,
+      code: 'INVALID_SUBMISSION',
+    });
   }
 
-  if (mountedAt && Number.isFinite(mountedAt) && Date.now() - Number(mountedAt) < MIN_SUBMIT_MS) {
-    return response.status(400).json({ error: 'Submitted too fast — please try again.' });
+  if (isSuspiciouslyFast(mountedAt, Date.now(), MIN_SUBMIT_MS)) {
+    // Logged for the same reason the honeypot is (#668): a silent 400 hides
+    // false positives among the generic ones.
+    console.warn('[cast-anonymous-vote] 400 TOO_FAST', {
+      elapsedMs: Date.now() - Number(mountedAt),
+      ua: request.headers['user-agent'] || '',
+    });
+    return response.status(400).json({
+      error: `That came through faster than we could verify. Wait a moment and try again — if it keeps happening, email ${HELP}.`,
+      code: 'TOO_FAST',
+    });
   }
 
   const botCheck = await checkBotId(request);
   if (!botCheck.passed) {
-    return response.status(403).json({ error: 'Automated traffic detected.' });
+    return response.status(403).json({
+      error: `We couldn\u2019t confirm this request came from a browser. If you\u2019re voting normally, email ${HELP} and we\u2019ll sort it out.`,
+      code: 'BOT_DETECTED',
+    });
   }
 
   // ─── Input validation ──────────────────────────────────────────────────
@@ -364,7 +380,7 @@ export default async function handler(request, response) {
         prevVoteAgeHours,
       });
       return response.status(409).json({
-        error: 'You\u2019ve already used your free vote for this competition today.',
+        error: `You\u2019ve already used your free vote for this competition. Free votes reset 24 hours after your last one, and paid votes work anytime. Questions? ${HELP}.`,
         code: 'ALREADY_VOTED',
         // Lets the client display an accurate "Try again in Xh" countdown
         // based on the real prior vote, not a pessimistic 24h-from-now lock.
@@ -398,7 +414,10 @@ export default async function handler(request, response) {
     if (voteErr) {
       console.error('Vote insert failed:', voteErr);
       if (voteErr.code === '23505') {
-        return response.status(409).json({ error: "You've already used your free vote today.", code: 'ALREADY_VOTED' });
+        return response.status(409).json({
+        error: `You\u2019ve already used your free vote for this competition. Free votes reset 24 hours after your last one, and paid votes work anytime. Questions? ${HELP}.`,
+        code: 'ALREADY_VOTED',
+      });
       }
       // Include error details in non-production for debugging
       const isDev = process.env.NODE_ENV !== 'production' || process.env.VERCEL_ENV === 'preview';

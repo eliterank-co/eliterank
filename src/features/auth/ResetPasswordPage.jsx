@@ -19,9 +19,30 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
   const [success, setSuccess] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+
+  // A recovery link that still carries an UNSPENT token: the email points here
+  // with `?token_hash=...&type=recovery` instead of at Supabase's GET
+  // /auth/v1/verify. Exchanging it is deferred to an explicit click below,
+  // because mail-security scanners (Microsoft EOP and friends) pre-fetch links
+  // to scan them and would otherwise spend the single-use token before the
+  // recipient ever taps it.
+  const [pendingToken, setPendingToken] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const tokenHash = params.get('token_hash');
+    return tokenHash ? { tokenHash, type: params.get('type') || 'recovery' } : null;
+  });
 
   // On mount, check if we have a valid recovery session
   useEffect(() => {
+    // Holding an unspent token, so there is nothing to wait for — the session
+    // gets created on confirm, not on load.
+    if (pendingToken) {
+      setCheckingSession(false);
+      return undefined;
+    }
+
     let cancelled = false;
     let subscription = null;
     let timeoutId = null;
@@ -98,6 +119,34 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
+
+  // Spend the one-time recovery token. Only ever called from a click.
+  const handleConfirmReset = async () => {
+    setConfirming(true);
+    setError('');
+
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: pendingToken.tokenHash,
+        type: pendingToken.type,
+      });
+
+      if (verifyError) {
+        setError('Invalid or expired reset link. Please request a new one.');
+        setPendingToken(null);
+        return;
+      }
+
+      setPendingToken(null);
+      setSessionReady(true);
+    } catch (err) {
+      console.error('Verify recovery token error:', err);
+      setError('Invalid or expired reset link. Please request a new one.');
+      setPendingToken(null);
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -357,6 +406,67 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
 
           <p style={footerStyle}>© 2025 EliteRank. All rights reserved.</p>
         </div>
+      </div>
+    );
+  }
+
+  // Confirm state — holding an unspent token, waiting on a human click.
+  if (pendingToken) {
+    return (
+      <div style={containerStyle}>
+        <div style={cardStyle}>
+          <div style={logoStyle}>
+            <EliteRankCrown size={56} />
+            <h1 style={{ ...titleStyle, marginTop: '8px' }}>
+              <span style={{ color: '#ffffff' }}>Elite</span>
+              <span style={{
+                background: 'linear-gradient(90deg, #d4af37, #c9a227)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>Rank</span>
+            </h1>
+            <p style={subtitleStyle}>Reset your password</p>
+          </div>
+
+          <p style={{
+            fontSize: typography.fontSize.md,
+            color: colors.text.secondary,
+            textAlign: 'center',
+            marginBottom: spacing.lg,
+          }}>
+            <span>Tap the button below to continue setting a new password.</span>
+          </p>
+
+          <button
+            type="button"
+            onClick={handleConfirmReset}
+            disabled={confirming}
+            style={buttonStyle}
+          >
+            {confirming ? (
+              <>
+                <span style={{
+                  width: '18px',
+                  height: '18px',
+                  border: '2px solid rgba(0,0,0,0.3)',
+                  borderTopColor: '#0a0a0f',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }} />
+                <span>Verifying...</span>
+              </>
+            ) : (
+              <>
+                <Lock size={18} />
+                <span>Set My Password</span>
+              </>
+            )}
+          </button>
+
+          <p style={footerStyle}>© 2025 EliteRank. All rights reserved.</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
