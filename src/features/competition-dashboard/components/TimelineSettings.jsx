@@ -23,6 +23,64 @@ import { renumberVotingTitles } from '../../../utils/renumberVotingTitles';
 import { getVotingBeforeNominationsWarning } from '../../../utils/votingScheduleWarnings';
 import { SkeletonPulse, SkeletonText } from '../../../components/common/Skeleton';
 
+// ────────────────────────────────────────────────────────────────────────────
+// Timezone-aware wall-clock conversion.
+//
+// This editor used to read and write dates as *naive UTC* — a host typed
+// "9:00 AM" and we stored 09:00Z. Every other surface (public site, countdowns)
+// renders the true instant in the viewer's local time, so a Chicago pageant
+// whose host set "voting opens 9:00 AM" actually opened at 4:00 AM, and the
+// host had no way to see it. Rounds were closing hours early, mid-competition.
+//
+// Times are now interpreted in the COMPETITION's timezone
+// (competitions.timezone, an IANA name validated by a DB trigger). What the
+// host types is what contestants get.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Wall-clock parts of an instant, as observed in `timeZone`. */
+function zonedParts(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+    .formatToParts(date)
+    .reduce((acc, p) => (p.type === 'literal' ? acc : { ...acc, [p.type]: p.value }), {});
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    // Intl can emit hour "24" for midnight under hour12:false.
+    hours: Number(parts.hour) % 24,
+    minutes: Number(parts.minute),
+    seconds: Number(parts.second),
+  };
+}
+
+/** Offset of `timeZone` from UTC, in ms, at the given instant. */
+function zoneOffsetMs(date, timeZone) {
+  const p = zonedParts(date, timeZone);
+  const asIfUtc = Date.UTC(p.year, p.month - 1, p.day, p.hours, p.minutes, p.seconds);
+  return asIfUtc - date.getTime();
+}
+
+/**
+ * ISO instant for a wall-clock reading in `timeZone`.
+ * Applied twice so DST boundaries settle (the offset depends on the instant we
+ * are still solving for).
+ */
+function isoFromZonedWallClock({ year, month, day, hours = 0, minutes = 0 }, timeZone) {
+  const naive = Date.UTC(year, month, day, hours, minutes);
+  if (Number.isNaN(naive)) return null;
+  let ms = naive - zoneOffsetMs(new Date(naive), timeZone);
+  ms = naive - zoneOffsetMs(new Date(ms), timeZone);
+  const d = new Date(ms);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+const pad2 = (n) => String(n).padStart(2, '0');
+
 /**
  * Parse a typed date string into an ISO date string
  * Supports formats like:
@@ -31,7 +89,7 @@ import { SkeletonPulse, SkeletonText } from '../../../components/common/Skeleton
  * - "2025-01-15 18:00"
  * - "January 15 2025 6:00pm"
  */
-function parseTypedDate(input) {
+function parseTypedDate(input, timeZone = 'UTC') {
   if (!input || !input.trim()) return null;
 
   const str = input.trim();
@@ -81,10 +139,8 @@ function parseTypedDate(input) {
 
     if (month !== undefined && day >= 1 && day <= 31) {
       const { hours, minutes } = parseTime(timeStr);
-      date = new Date(Date.UTC(year, month, day, hours, minutes));
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
+      const iso = isoFromZonedWallClock({ year, month, day, hours, minutes }, timeZone);
+      if (iso) return iso;
     }
   }
 
@@ -99,10 +155,8 @@ function parseTypedDate(input) {
 
     if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
       const { hours, minutes } = parseTime(timeStr);
-      date = new Date(Date.UTC(year, month, day, hours, minutes));
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
+      const iso = isoFromZonedWallClock({ year, month, day, hours, minutes }, timeZone);
+      if (iso) return iso;
     }
   }
 
@@ -117,10 +171,8 @@ function parseTypedDate(input) {
 
     if (month >= 0 && month <= 11 && day >= 1 && day <= 31) {
       const { hours, minutes } = parseTime(timeStr);
-      date = new Date(Date.UTC(year, month, day, hours, minutes));
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
+      const iso = isoFromZonedWallClock({ year, month, day, hours, minutes }, timeZone);
+      if (iso) return iso;
     }
   }
 
@@ -157,29 +209,21 @@ function parseTime(timeStr) {
 /**
  * Format an ISO date for display
  */
-function formatDateForDisplay(isoDate) {
+function formatZonedDisplay(isoDate, timeZone = 'UTC') {
   if (!isoDate) return '';
 
   const date = new Date(isoDate);
   if (isNaN(date.getTime())) return '';
 
-  // Read UTC components (naive wall-clock), matching how the nomination editor
-  // and the datetime-local inputs store/show times. This keeps a time shown as
-  // "7:04 AM" identical across nominations, voting and the finale instead of
-  // drifting by the viewer's UTC offset.
+  // Rendered in the competition's timezone, so what the host reads here is the
+  // same moment contestants and voters experience.
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[date.getUTCMonth()];
-  const day = date.getUTCDate();
-  const year = date.getUTCFullYear();
+  const p = zonedParts(date, timeZone);
 
-  let hours = date.getUTCHours();
-  const minutes = date.getUTCMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12;
+  const ampm = p.hours >= 12 ? 'PM' : 'AM';
+  const hours = p.hours % 12 || 12;
 
-  const minuteStr = minutes.toString().padStart(2, '0');
-
-  return `${month} ${day}, ${year} ${hours}:${minuteStr} ${ampm}`;
+  return `${months[p.month - 1]} ${p.day}, ${p.year} ${hours}:${pad2(p.minutes)} ${ampm}`;
 }
 
 // Static styles — module-level so they aren't reallocated per render and so the
@@ -208,22 +252,32 @@ const inputStyle = {
   outline: 'none',
 };
 
-// ISO timestamptz ↔ <input type="datetime-local"> value, using the same naive
-// wall-clock (UTC) convention as the nomination editor so times don't shift.
-function toDateInput(iso) {
-  return iso ? String(iso).slice(0, 16) : '';
+// ISO timestamptz ↔ <input type="datetime-local"> value, both sides expressed
+// as wall-clock in the competition's timezone.
+function zonedInputValue(iso, timeZone = 'UTC') {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = zonedParts(d, timeZone);
+  return `${p.year}-${pad2(p.month)}-${pad2(p.day)}T${pad2(p.hours)}:${pad2(p.minutes)}`;
 }
-function fromDateInput(local) {
+function isoFromInputValue(local, timeZone = 'UTC') {
   if (!local) return null;
-  const withSecs = local.length === 16 ? `${local}:00` : local;
-  const d = new Date(`${withSecs}Z`);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(local);
+  if (!m) return null;
+  return isoFromZonedWallClock({
+    year: Number(m[1]),
+    month: Number(m[2]) - 1,
+    day: Number(m[3]),
+    hours: Number(m[4]),
+    minutes: Number(m[5]),
+  }, timeZone);
 }
 
 // One voting-round card, memoized so editing a field only re-renders that row
 // (not every card on each keystroke). Props are referentially stable: `round`
 // keeps its identity for untouched rows, and onUpdate/onRemove are useCallback'd.
-const VotingRoundCard = memo(function VotingRoundCard({ round, index, pos, isLastRound, isMobile, usesJudges, onUpdate, onRemove, onSetBlend, onSetSeparate, onSetWeight }) {
+const VotingRoundCard = memo(function VotingRoundCard({ round, index, pos, isLastRound, isMobile, usesJudges, timeZone = 'UTC', onUpdate, onRemove, onSetBlend, onSetSeparate, onSetWeight }) {
   const roundConfig = ROUND_TYPE_CONFIG[round.round_type] || ROUND_TYPE_CONFIG.voting;
   const judgeWeight = round.judge_weight || 0;
   const isJudgingType = (round.round_type || 'voting') === 'judging';
@@ -313,8 +367,8 @@ const VotingRoundCard = memo(function VotingRoundCard({ round, index, pos, isLas
           <label style={{ ...labelStyle, fontSize: typography.fontSize.xs }}>Opens</label>
           <input
             type="datetime-local"
-            value={toDateInput(round.start_date)}
-            onChange={(e) => onUpdate(index, 'start_date', fromDateInput(e.target.value))}
+            value={zonedInputValue(round.start_date, timeZone)}
+            onChange={(e) => onUpdate(index, 'start_date', isoFromInputValue(e.target.value, timeZone))}
             style={{ ...inputStyle, fontSize: '16px', padding: spacing.md, minHeight: '44px', colorScheme: 'dark' }}
           />
         </div>
@@ -322,9 +376,9 @@ const VotingRoundCard = memo(function VotingRoundCard({ round, index, pos, isLas
           <label style={{ ...labelStyle, fontSize: typography.fontSize.xs }}>Closes</label>
           <input
             type="datetime-local"
-            value={toDateInput(round.end_date)}
-            min={toDateInput(round.start_date) || undefined}
-            onChange={(e) => onUpdate(index, 'end_date', fromDateInput(e.target.value))}
+            value={zonedInputValue(round.end_date, timeZone)}
+            min={zonedInputValue(round.start_date, timeZone) || undefined}
+            onChange={(e) => onUpdate(index, 'end_date', isoFromInputValue(e.target.value, timeZone))}
             style={{ ...inputStyle, fontSize: '16px', padding: spacing.md, minHeight: '44px', colorScheme: 'dark' }}
           />
         </div>
@@ -525,6 +579,16 @@ async function reconcileOrderedRows({
 export default function TimelineSettings({ competition, onSave, isSuperAdmin = false }) {
   const toast = useToast();
   const { isMobile } = useResponsive();
+
+  // Every date in this editor is read and written as wall-clock in the
+  // COMPETITION's timezone, not the viewer's and not UTC. These thin wrappers
+  // bind that timezone once so the call sites below stay unchanged.
+  const timeZone = competition?.timezone || 'UTC';
+  const formatDateForDisplay = useCallback((iso) => formatZonedDisplay(iso, timeZone), [timeZone]);
+  const toDateInput = useCallback((iso) => zonedInputValue(iso, timeZone), [timeZone]);
+  const fromDateInput = useCallback((value) => isoFromInputValue(value, timeZone), [timeZone]);
+  const parseTyped = useCallback((value) => parseTypedDate(value, timeZone), [timeZone]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -743,12 +807,13 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       }
     }
 
-    // Voting minimums (only enforced once the host has started adding voting
-    // rounds): at least 3 rounds. There is no minimum total duration — hosts are
-    // free to run shorter voting windows (well under 30 days) if they want to.
+    // Voting minimum: one voting round. The floor used to be three, which
+    // blocked the most common pageant shape there is — a single voting round
+    // followed by a judging round. There is no minimum total duration either;
+    // hosts are free to run short voting windows.
     const votingTypeRounds = votingRounds.filter((r) => r.round_type === 'voting');
-    if (votingTypeRounds.length > 0 && votingTypeRounds.length < 3) {
-      validationErrors.push('Voting needs at least 3 rounds.');
+    if (votingRounds.length > 0 && votingTypeRounds.length === 0) {
+      validationErrors.push('Add at least one voting round.');
     }
 
     if (status === COMPETITION_STATUS.LIVE && !isHostUpload) {
@@ -893,7 +958,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       return;
     }
 
-    const parsed = parseTypedDate(displayValue);
+    const parsed = parseTyped(displayValue);
     if (parsed) {
       updateNominationPeriod(index, field, parsed);
       updateNominationDisplayValue(index, field, formatDateForDisplay(parsed));
@@ -1183,7 +1248,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       return;
     }
 
-    const parsed = parseTypedDate(displayValue);
+    const parsed = parseTyped(displayValue);
     if (parsed) {
       setSettings(prev => ({ ...prev, [field]: parsed }));
       setDisplayValues(prev => ({ ...prev, [field]: formatDateForDisplay(parsed) }));
@@ -1202,7 +1267,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
       return;
     }
 
-    const parsed = parseTypedDate(displayValue);
+    const parsed = parseTyped(displayValue);
     if (parsed) {
       updateVotingRound(index, field, parsed);
       updateRoundDisplayValue(index, field, formatDateForDisplay(parsed));
@@ -1381,11 +1446,15 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
             : 'This competition is vote-based only. To add judges, change “How they win” in your competition details before submitting.'}
         </p>
         <p style={{ fontSize: typography.fontSize.xs, color: colors.gold.primary, marginBottom: spacing.md }}>
-          Voting runs across at least <strong>3 rounds</strong> — as short or as long as you like. We recommend voting opens 5 days after nominations close
+          Voting needs at least <strong>one round</strong> — one voting round plus a judging round is a perfectly normal pageant. We recommend voting opens 5 days after nominations close
           {recommendedVotingStartIso ? <> — about <strong>{formatDateForDisplay(recommendedVotingStartIso)}</strong>.</> : '.'}{' '}
           Use <strong>Auto-fill recommended</strong> to lay out 3 voting rounds and the finale for you
           {usesJudges ? <> — judges decide the final round at <strong>60%</strong>. Prefer a judges-only finale? Change it on the final round below.</> : '. '}
           {' '}Adjust anything after.
+        </p>
+        <p style={{ fontSize: typography.fontSize.xs, color: colors.text.muted, marginBottom: spacing.md }}>
+          <Clock size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+          All times below are <strong>{timeZone.replace(/_/g, ' ')}</strong> — the competition&rsquo;s timezone. Contestants and voters see exactly these times.
         </p>
 
         {votingWindowWarning && (
@@ -1491,6 +1560,7 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
                   isLastRound={isLast}
                   isMobile={isMobile}
                   usesJudges={usesJudges}
+                  timeZone={timeZone}
                   onUpdate={updateVotingRound}
                   onRemove={removeVotingRound}
                   onSetBlend={isLast ? setBlendJudging : undefined}
