@@ -19,6 +19,38 @@ import PublicProfileView from './components/PublicProfileView';
 import UpcomingEventCard from './components/UpcomingEventCard';
 import { getOrgLogo } from '../../lib/storageImage';
 
+// A contestant's OWN profile wins over the contestant row.
+//
+// The contestant row is seeded by the host (roster import or a nomination) and
+// is never written again when that person edits their profile — only `profiles`
+// is. While the contestant row took priority, anything the host typed
+// permanently shadowed what the contestant wrote about herself, so her edits
+// looked like they never saved. The host's values stay as the fallback for
+// entrants with no account, or fields they haven't filled in.
+//
+// `name` already behaved this way; everything else now matches it.
+const own = (mine, hostValue) =>
+  mine === null || mine === undefined || mine === '' ? hostValue : mine;
+
+function profileFirstFields(c) {
+  const profile = c.profile || {};
+  const profileName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+  return {
+    name: profileName || c.name,
+    age: own(profile.age, c.age),
+    occupation: own(profile.occupation, c.occupation),
+    bio: own(profile.bio, c.bio),
+    avatarUrl: own(profile.avatar_url, c.avatar_url),
+    avatar_url: own(profile.avatar_url, c.avatar_url),
+    instagram: own(profile.instagram, c.instagram),
+    twitter: own(profile.twitter, c.twitter),
+    linkedin: own(profile.linkedin, c.linkedin),
+    city: own(profile.city, c.city),
+    hobbies: profile.interests?.length ? profile.interests : (c.interests || []),
+    gallery: profile.gallery?.length ? profile.gallery : (c.gallery || []),
+  };
+}
+
 const VOTING_TABS = [
   { id: 'contestants', label: 'Vote', mobileLabel: 'Vote', icon: Users },
   { id: 'events', label: 'Events', mobileLabel: 'Events', icon: Calendar },
@@ -149,26 +181,12 @@ export default function PublicSitePage({
 
         setFetchedData({
           contestants: (contestantsResult.data || []).map((c, idx) => {
-            // Merge profile data with contestant data (profile has more fields like city, twitter, linkedin, gallery)
-            const profile = c.profile || {};
-            const profileName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
             return {
               ...c, // Pass through all contestant fields
               id: c.id,
-              name: profileName || c.name,
-              age: c.age || profile.age,
-              occupation: c.occupation || profile.occupation,
-              bio: c.bio || profile.bio,
               votes: c.votes || 0,
               rank: idx + 1,
-              avatarUrl: c.avatar_url || profile.avatar_url,
-              avatar_url: c.avatar_url || profile.avatar_url,
-              instagram: c.instagram || profile.instagram,
-              twitter: c.twitter || profile.twitter,
-              linkedin: c.linkedin || profile.linkedin,
-              city: c.city || profile.city,
-              hobbies: c.interests || profile.interests || [],
-              gallery: c.gallery || profile.gallery || [],
+              ...profileFirstFields(c),
             };
           }),
           events: (eventsResult.data || []).map(e => ({
@@ -237,8 +255,10 @@ export default function PublicSitePage({
                   ? {
                       ...c,
                       ...payload.new,
-                      avatarUrl: payload.new.avatar_url || c.avatarUrl,
-                      avatar_url: payload.new.avatar_url || c.avatar_url,
+                      // payload.new is the raw contestant row, so re-apply the
+                      // profile-first merge — otherwise every vote update would
+                      // silently restore the host's copy of bio/photo/socials.
+                      ...profileFirstFields({ ...payload.new, profile: c.profile }),
                     }
                   : c
               )
