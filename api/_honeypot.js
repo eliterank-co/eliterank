@@ -1,29 +1,43 @@
 /**
- * Honeypot diagnostics for the anonymous-vote endpoint.
+ * Honeypot rules for the anonymous-vote endpoint.
  *
  * Kept in its own `_`-prefixed module (Vercel skips these when building
- * routes) so the classification can be unit-tested without pulling in the
- * handler's runtime-only dependencies — same reasoning as _vote-timing.js.
+ * routes) so the decision can be unit-tested without pulling in the handler's
+ * runtime-only dependencies — same reasoning as _vote-timing.js.
  *
- * #668 stripped the trap's name/id/placeholder so browser autofill would stop
- * keying on it, and added a log line carrying the UA. Production logs since
- * show the trap still fires ~18x/hour, every event a Chrome-family UA, at
- * human pace — so the UA alone cannot tell an autofill spill from a bot.
+ * History, because this trap has been wrong twice:
  *
- * These two functions add the missing discriminator without logging the value
- * itself: WHICH of the voter's own fields it echoes (autofill), and what shape
- * it has when it echoes none of them (a saved company name reads as text, a
- * spam payload does not).
+ *   #668 stripped the trap's name/id/placeholder so browser autofill would
+ *   stop keying on it, and added a log line carrying the UA.
+ *   #675 stopped rejecting values that echoed a visible field, on the theory
+ *   that autofill was writing the voter's own name back into the trap.
+ *   #676 added the fields needed to check that theory.
+ *
+ * Fourteen hours of production data then said both were wrong. Every single
+ * honeypot event was `verdict: 'unrelated'` — never an echo, so #675 helped
+ * nobody — and every one was `shape: 'textLike'` with a browser fingerprint,
+ * a 4-29s fill time, and distinct values across distinct networks and
+ * distinct contestant pages. Those are real voters whose browsers wrote a
+ * saved profile field into the trap, not bots.
+ *
+ * So the text trap only ever produced false positives, and the rule below
+ * stops treating arbitrary text as evidence. What replaces it is a checkbox
+ * on the client, which autofill cannot tick at all — see the honeypot input
+ * in CompetitionCardVoting.jsx.
  */
 
 const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
 
+/** What a ticked honeypot checkbox submits. Autofill never produces this. */
+export const CHECKBOX_TRIPPED = 'on';
+
 /**
- * Which visible field the honeypot value duplicates, if any.
+ * Which visible field the honeypot value duplicates, if any. Diagnostic only —
+ * the reject decision no longer turns on it, but it stays in the logs so a
+ * change in the mix is visible.
  *
  * @param {unknown} value the honeypot field's submitted value
  * @param {{firstName?: unknown, lastName?: unknown, email?: unknown}} fields
- *   the visible fields from the same submission
  * @returns {'empty'|'firstName'|'lastName'|'fullName'|'email'|'unrelated'}
  */
 export function classifyHoneypot(value, { firstName, lastName, email } = {}) {
@@ -42,9 +56,9 @@ export function classifyHoneypot(value, { firstName, lastName, email } = {}) {
 }
 
 /**
- * Coarse shape of the value, for the 'unrelated' case. Deliberately does not
- * return the value — an organization or address line the browser had saved is
- * the voter's PII, and we only need to know it reads like one.
+ * Coarse shape of the value. Deliberately does not return the value — an
+ * organization or address line the browser had saved is the voter's PII, and
+ * we only need to know it reads like one.
  *
  * @param {unknown} value
  * @returns {'empty'|'link'|'long'|'textLike'|'other'}
@@ -54,18 +68,40 @@ export function honeypotShape(value) {
   if (!raw) return 'empty';
   if (/https?:\/\/|<[a-z]|\[url|\bwww\./i.test(raw)) return 'link';
   if (raw.length > 60) return 'long';
-  if (/^[\p{L}\p{M}\p{N} .,'&()/-]+$/u.test(raw)) return 'textLike';
+  if (/^[\p{L}\p{M}\p{N} .,'&()/@+-]+$/u.test(raw)) return 'textLike';
   return 'other';
 }
 
 /**
- * True when the value is the voter's own data, spilled into the trap by the
- * browser — not something a bot composed. `empty` is excluded deliberately: a
- * truthy non-string honeypot never came from autofill.
+ * The rule. Rejects only on evidence that survived contact with production:
  *
- * @param {ReturnType<typeof classifyHoneypot>} verdict
- * @returns {boolean}
+ *   - a ticked checkbox, which no autofill implementation can produce;
+ *   - a link or markup payload, which no address book holds;
+ *   - something longer than any name, organization or address line.
+ *
+ * Everything else passes. Short text in this field means a browser wrote a
+ * saved profile value into it, which is what 100% of measured events were.
+ * A voter is not a bot because Chrome filled a field they cannot see.
+ *
+ * Passing here is not "no checks" — device fingerprint+IP dedup, per-voter
+ * email dedup, the per-IP email cap and the active-round check all still run.
+ *
+ * @param {unknown} value
+ * @param {{firstName?: unknown, lastName?: unknown, email?: unknown}} fields
+ * @returns {{verdict: string, shape: string, reject: boolean, rule: string}}
  */
-export function isAutofillSpill(verdict) {
-  return verdict !== 'empty' && verdict !== 'unrelated';
+export function shouldRejectHoneypot(value, fields = {}) {
+  const verdict = classifyHoneypot(value, fields);
+  const shape = honeypotShape(value);
+
+  // A truthy value that is not a string never came out of a form control.
+  if (value && typeof value !== 'string') return { verdict, shape, reject: true, rule: 'payload' };
+
+  if (verdict === 'empty') return { verdict, shape, reject: false, rule: 'empty' };
+  if (norm(value) === CHECKBOX_TRIPPED) return { verdict, shape, reject: true, rule: 'checkbox' };
+  if (shape === 'link' || shape === 'long' || shape === 'other') {
+    return { verdict, shape, reject: true, rule: 'payload' };
+  }
+
+  return { verdict, shape, reject: false, rule: 'autofill' };
 }

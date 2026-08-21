@@ -1,21 +1,61 @@
 import { describe, it, expect } from 'vitest';
-import { classifyHoneypot, honeypotShape, isAutofillSpill } from './_honeypot.js';
+import { classifyHoneypot, honeypotShape, shouldRejectHoneypot, CHECKBOX_TRIPPED } from './_honeypot.js';
+
+const voter = { firstName: 'Neveen', lastName: 'Faress', email: 'nfaress84@gmail.com' };
 
 /**
- * The honeypot rejection carries only a UA today, and every event in
- * production carries the same frozen Chrome UA — which every Android Chrome
- * reports. These two helpers add what the UA cannot say: whether the value is
- * the voter's own data spilled by autofill, or something a bot wrote.
+ * The rule these tests pin down was written against 13 hours of production
+ * data: 8 honeypot events, 7 of them `unrelated` + `textLike`, every one
+ * carrying a browser fingerprint and a 4-29s fill time, with distinct values
+ * across distinct networks and distinct contestant pages. Arbitrary text in
+ * this field is a browser writing a saved profile value into a control the
+ * voter cannot see — not evidence of a bot.
  */
-describe('classifyHoneypot', () => {
-  const voter = { firstName: 'Neveen', lastName: 'Faress', email: 'nfaress84@gmail.com' };
-
-  it('reports empty for the normal case', () => {
-    expect(classifyHoneypot('', voter)).toBe('empty');
-    expect(classifyHoneypot(undefined, voter)).toBe('empty');
+describe('shouldRejectHoneypot', () => {
+  it('passes the normal case — an untouched trap', () => {
+    expect(shouldRejectHoneypot('', voter)).toMatchObject({ reject: false, rule: 'empty' });
+    expect(shouldRejectHoneypot(undefined, voter)).toMatchObject({ reject: false, rule: 'empty' });
   });
 
-  it('names the visible field an autofill spill duplicates', () => {
+  it('rejects a ticked checkbox — autofill cannot produce this', () => {
+    expect(shouldRejectHoneypot(CHECKBOX_TRIPPED, voter)).toMatchObject({ reject: true, rule: 'checkbox' });
+    expect(shouldRejectHoneypot(' ON ', voter)).toMatchObject({ reject: true, rule: 'checkbox' });
+  });
+
+  it('rejects payloads no address book holds', () => {
+    expect(shouldRejectHoneypot('http://spam.example/x', voter)).toMatchObject({ reject: true, rule: 'payload' });
+    expect(shouldRejectHoneypot('<a href="#">x</a>', voter)).toMatchObject({ reject: true, rule: 'payload' });
+    expect(shouldRejectHoneypot('a'.repeat(61), voter)).toMatchObject({ reject: true, rule: 'payload' });
+    expect(shouldRejectHoneypot('$%^&*{}', voter)).toMatchObject({ reject: true, rule: 'payload' });
+  });
+
+  it('rejects a truthy non-string — never came from a form control', () => {
+    expect(shouldRejectHoneypot(42, voter)).toMatchObject({ reject: true, rule: 'payload' });
+    expect(shouldRejectHoneypot({}, voter)).toMatchObject({ reject: true, rule: 'payload' });
+  });
+
+  it('passes a saved profile value spilled by autofill', () => {
+    // These are the shapes production actually produced. A voter is not a bot
+    // because Chrome filled a field they cannot see.
+    for (const v of ['Royal LePage Realty', '123 Bay St', '+1 416-555-1234', 'Toronto', "O'Brien & Sons"]) {
+      expect(shouldRejectHoneypot(v, voter)).toMatchObject({ reject: false, rule: 'autofill' });
+    }
+  });
+
+  it('passes an echo of the voter’s own field', () => {
+    for (const v of ['Neveen', 'Faress', 'Neveen Faress', 'nfaress84@gmail.com']) {
+      expect(shouldRejectHoneypot(v, voter).reject).toBe(false);
+    }
+  });
+
+  it('still reports the verdict and shape for the logs', () => {
+    expect(shouldRejectHoneypot('Neveen', voter)).toMatchObject({ verdict: 'firstName', shape: 'textLike' });
+    expect(shouldRejectHoneypot('Royal LePage', voter)).toMatchObject({ verdict: 'unrelated', shape: 'textLike' });
+  });
+});
+
+describe('classifyHoneypot', () => {
+  it('names the visible field a value duplicates', () => {
     expect(classifyHoneypot('Neveen', voter)).toBe('firstName');
     expect(classifyHoneypot('Faress', voter)).toBe('lastName');
     expect(classifyHoneypot('Neveen Faress', voter)).toBe('fullName');
@@ -27,10 +67,7 @@ describe('classifyHoneypot', () => {
   });
 
   it('reports unrelated for a value the voter never typed', () => {
-    // The #668 mechanism — a saved organization — lands here, and so does a
-    // bot payload. honeypotShape() is what tells those two apart.
     expect(classifyHoneypot('Royal LePage Realty', voter)).toBe('unrelated');
-    expect(classifyHoneypot('http://spam.example/x', voter)).toBe('unrelated');
   });
 
   it('does not match a blank visible field against a filled honeypot', () => {
@@ -42,41 +79,20 @@ describe('honeypotShape', () => {
   it('flags links and markup', () => {
     expect(honeypotShape('http://spam.example/x')).toBe('link');
     expect(honeypotShape('www.spam.example')).toBe('link');
-    expect(honeypotShape('<a href="#">x</a>')).toBe('link');
   });
 
   it('flags oversized payloads', () => {
     expect(honeypotShape('a'.repeat(61))).toBe('long');
   });
 
-  it('reads a saved organization or address line as text', () => {
+  it('reads saved profile data as text, including phone numbers and emails', () => {
     expect(honeypotShape('Royal LePage Realty')).toBe('textLike');
-    expect(honeypotShape("O'Brien & Sons, Inc.")).toBe('textLike');
-    expect(honeypotShape('123 Bay St')).toBe('textLike');
+    expect(honeypotShape('+1 416-555-1234')).toBe('textLike');
+    expect(honeypotShape('someone@example.com')).toBe('textLike');
   });
 
   it('reports empty for the normal case', () => {
     expect(honeypotShape('')).toBe('empty');
     expect(honeypotShape(null)).toBe('empty');
-  });
-});
-
-describe('isAutofillSpill', () => {
-  const voter = { firstName: 'Neveen', lastName: 'Faress', email: 'nfaress84@gmail.com' };
-
-  it('lets a voter through when the trap holds their own data', () => {
-    for (const v of ['Neveen', 'Faress', 'Neveen Faress', 'nfaress84@gmail.com']) {
-      expect(isAutofillSpill(classifyHoneypot(v, voter))).toBe(true);
-    }
-  });
-
-  it('still blocks a value the voter never typed', () => {
-    expect(isAutofillSpill(classifyHoneypot('Royal LePage Realty', voter))).toBe(false);
-    expect(isAutofillSpill(classifyHoneypot('http://spam.example/x', voter))).toBe(false);
-  });
-
-  it('blocks a truthy non-string honeypot — autofill only ever writes strings', () => {
-    expect(isAutofillSpill(classifyHoneypot(42, voter))).toBe(false);
-    expect(isAutofillSpill(classifyHoneypot({}, voter))).toBe(false);
   });
 });

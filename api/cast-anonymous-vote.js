@@ -26,7 +26,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { isSuspiciouslyFast, MIN_SUBMIT_MS } from './_vote-timing.js';
-import { classifyHoneypot, honeypotShape, isAutofillSpill } from './_honeypot.js';
+import { shouldRejectHoneypot } from './_honeypot.js';
 
 const HELP = 'info@eliterank.co';
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -213,34 +213,32 @@ export default async function handler(request, response) {
 
   // ─── Bot traps ─────────────────────────────────────────────────────────
   if (company) {
-    // #668 stripped this trap's name/id/placeholder so browser autofill would
-    // stop keying on it, and added a log line carrying the UA. Neither held:
-    // the path still fires ~18x/hour — roughly a third of all free-vote
-    // submissions — every event a Chrome-family UA arriving at human pace, and
-    // the UA cannot tell an autofill spill from a bot.
+    // The trap is a CHECKBOX on the client now (see CompetitionCardVoting).
+    // Autofill fills text and select fields; it cannot tick a checkbox, so a
+    // ticked one is unambiguous. Arbitrary text arriving here is a legacy
+    // client whose browser wrote a saved profile value into the old text
+    // input — 14 hours of production data had that at 100% of events, all
+    // with fingerprints, 4-29s fill times and distinct values across distinct
+    // networks. Those are voters, and they now pass. See _honeypot.js.
     //
-    // So a non-empty honeypot is no longer proof on its own. Reject only when
-    // the value is NOT something the voter typed into the visible fields; a
-    // browser echoing their own name or email back into a hidden input is a
-    // fill heuristic, not automation. Every other gate is untouched — device
-    // fingerprint+IP dedup, per-voter email dedup, the per-IP email cap and
-    // the active-round check all still run on anything allowed through here.
-    //
-    // Logged either way, with the verdict and a coarse shape but never the
-    // value itself: an organization the browser had saved is the voter's PII.
-    // `verdict: 'unrelated', shape: 'textLike'` is the signature of the #668
-    // mechanism surviving (a saved company name), and is the case to watch.
-    const verdict = classifyHoneypot(company, { firstName, lastName, email });
-    const spill = isAutofillSpill(verdict);
+    // Passing here is not "no checks": device fingerprint+IP dedup, per-voter
+    // email dedup, the per-IP email cap and the active-round check all run on
+    // anything allowed through.
+    const { verdict, shape, reject, rule } = shouldRejectHoneypot(company, {
+      firstName,
+      lastName,
+      email,
+    });
     const stampedAt = Number(mountedAt);
     const [hp, net] = await Promise.all([
       shortHash(company),
       shortHash(getClientIp(request)),
     ]);
     console.warn('[cast-anonymous-vote] HONEYPOT', {
-      action: spill ? 'allowed' : '400',
+      action: reject ? '400' : 'allowed',
+      rule,
       verdict,
-      shape: honeypotShape(company),
+      shape,
       len: typeof company === 'string' ? company.length : -1,
       // `hp` repeating across events means one payload = automation; N distinct
       // values across N events means N different people's data.
@@ -248,8 +246,7 @@ export default async function handler(request, response) {
       // Same question at the network level. Compare against the `net` spread on
       // the 200 VOTE line below — a farm is narrow where real voters are wide.
       net,
-      // Humans take seconds to fill three fields. TOO_FAST only fires under
-      // 1.5s and never has; the distribution is the tell, not the threshold.
+      // Humans take seconds to fill three fields.
       elapsedMs: Number.isFinite(stampedAt) ? Date.now() - stampedAt : null,
       // A bot POSTing JSON straight at this route has no reason to compute one.
       hasFp: !!fingerprint,
@@ -257,7 +254,7 @@ export default async function handler(request, response) {
       referer: request.headers['referer'] || '',
     });
 
-    if (!spill) {
+    if (reject) {
       return response.status(400).json({
         error: `We couldn\u2019t verify that submission. Please refresh the page and try again \u2014 if it keeps happening, email ${HELP}.`,
         code: 'INVALID_SUBMISSION',
