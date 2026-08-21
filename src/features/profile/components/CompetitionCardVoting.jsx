@@ -899,19 +899,30 @@ function AnonForm({
       onSubmit={onSubmit}
       style={{ display: 'flex', flexDirection: 'column', gap: spacing.sm }}
     >
-      {/* Honeypot. Deliberately has NO name/id/placeholder: browser autofill
-          maps fields by those tokens, and the previous name="company" made
-          Chrome/Safari fill it with the voter's saved organization whenever
-          they autofilled the visible fields (autocomplete="off" is ignored
-          for recognized address tokens) — rejecting real voters as bots with
-          "Invalid submission". Scripted bots fill every text input regardless
-          of name, so the trap still catches them. */}
+      {/* Honeypot — a CHECKBOX, not a text input.
+
+          #668 removed this field's name/id/placeholder so autofill would stop
+          keying on it. That did not work, because removing the name only takes
+          away the classifier's hint; it does not make the field ineligible.
+          Chrome's autofill visibility gate reads display / visibility and the
+          bounding box — NOT opacity — so a 1x1 offscreen input at opacity 0 is
+          still a fillable field, and Chrome kept writing a saved profile value
+          into it. Every honeypot rejection measured in production was a real
+          voter: 100% carried a browser fingerprint, took 4-29s to fill the
+          form, and submitted distinct values from distinct networks for
+          distinct contestants.
+
+          A checkbox closes it by construction — autofill fills text and select
+          fields and cannot tick a checkbox — while a bot that fills every input
+          still trips it. Submitting 'on' keeps the wire format a string, so the
+          server contract is unchanged and clients still running the old text
+          input keep working. */}
       <input
-        type="text"
+        type="checkbox"
         tabIndex={-1}
         autoComplete="off"
-        value={company}
-        onChange={(e) => setCompany(e.target.value)}
+        checked={company === 'on'}
+        onChange={(e) => setCompany(e.target.checked ? 'on' : '')}
         style={{ position: 'absolute', left: '-10000px', width: '1px', height: '1px', opacity: 0 }}
         aria-hidden="true"
       />
