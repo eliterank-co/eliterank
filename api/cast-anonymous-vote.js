@@ -62,6 +62,21 @@ async function hashIp(ip) {
     .join('');
 }
 
+// Salted, truncated SHA-256. Lets the logs COUNT distinct values without
+// recording them: a bot reuses one payload across many submissions, where N
+// real voters produce N different values. The honeypot may hold an
+// organization the browser had saved, which is the voter's PII, so the value
+// itself must never reach a log line.
+async function shortHash(value) {
+  const data = new TextEncoder().encode(String(value) + '|eliterank-vote-salt');
+  const buf = await (globalThis.crypto?.subtle?.digest('SHA-256', data));
+  if (!buf) return 'nohash';
+  return Array.from(new Uint8Array(buf))
+    .slice(0, 4)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 async function checkIpRateLimit(supabase, ipHash, email, limit) {
   const cutoffIso = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
 
@@ -217,11 +232,27 @@ export default async function handler(request, response) {
     // mechanism surviving (a saved company name), and is the case to watch.
     const verdict = classifyHoneypot(company, { firstName, lastName, email });
     const spill = isAutofillSpill(verdict);
+    const stampedAt = Number(mountedAt);
+    const [hp, net] = await Promise.all([
+      shortHash(company),
+      shortHash(getClientIp(request)),
+    ]);
     console.warn('[cast-anonymous-vote] HONEYPOT', {
       action: spill ? 'allowed' : '400',
       verdict,
       shape: honeypotShape(company),
       len: typeof company === 'string' ? company.length : -1,
+      // `hp` repeating across events means one payload = automation; N distinct
+      // values across N events means N different people's data.
+      hp,
+      // Same question at the network level. Compare against the `net` spread on
+      // the 200 VOTE line below — a farm is narrow where real voters are wide.
+      net,
+      // Humans take seconds to fill three fields. TOO_FAST only fires under
+      // 1.5s and never has; the distribution is the tell, not the threshold.
+      elapsedMs: Number.isFinite(stampedAt) ? Date.now() - stampedAt : null,
+      // A bot POSTing JSON straight at this route has no reason to compute one.
+      hasFp: !!fingerprint,
       ua: request.headers['user-agent'] || '',
       referer: request.headers['referer'] || '',
     });
@@ -456,6 +487,16 @@ export default async function handler(request, response) {
     // Record rate-limit entry only after a successful vote so failed
     // attempts don't count against the IP/fingerprint.
     await recordIpRateLimit(supabase, ipHash, normalizedEmail, fingerprint, competitionId);
+
+    // The denominator. Rejections are logged in detail but were unreadable
+    // without knowing what the ACCEPTED population looks like: honeypot hits
+    // being 100% Chrome means nothing if accepted votes are 100% Chrome too,
+    // and means everything if they are mostly iOS Safari and webviews.
+    console.log('[cast-anonymous-vote] 200 VOTE', {
+      ua,
+      webview,
+      net: ipHash.slice(0, 8),
+    });
 
     // Return voter info so the client can prompt "Become a Fan" post-vote.
     // No email sent — conversion happens in-context on the success screen.
