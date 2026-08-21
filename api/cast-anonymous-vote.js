@@ -26,6 +26,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { isSuspiciouslyFast, MIN_SUBMIT_MS } from './_vote-timing.js';
+import { classifyHoneypot, honeypotShape, isAutofillSpill } from './_honeypot.js';
 
 const HELP = 'info@eliterank.co';
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -197,15 +198,40 @@ export default async function handler(request, response) {
 
   // ─── Bot traps ─────────────────────────────────────────────────────────
   if (company) {
-    // Server-side log only — this rejection previously left no trace, which
-    // hid a wave of autofill false positives among the generic 400s.
-    console.warn('[cast-anonymous-vote] 400 HONEYPOT', {
+    // #668 stripped this trap's name/id/placeholder so browser autofill would
+    // stop keying on it, and added a log line carrying the UA. Neither held:
+    // the path still fires ~18x/hour — roughly a third of all free-vote
+    // submissions — every event a Chrome-family UA arriving at human pace, and
+    // the UA cannot tell an autofill spill from a bot.
+    //
+    // So a non-empty honeypot is no longer proof on its own. Reject only when
+    // the value is NOT something the voter typed into the visible fields; a
+    // browser echoing their own name or email back into a hidden input is a
+    // fill heuristic, not automation. Every other gate is untouched — device
+    // fingerprint+IP dedup, per-voter email dedup, the per-IP email cap and
+    // the active-round check all still run on anything allowed through here.
+    //
+    // Logged either way, with the verdict and a coarse shape but never the
+    // value itself: an organization the browser had saved is the voter's PII.
+    // `verdict: 'unrelated', shape: 'textLike'` is the signature of the #668
+    // mechanism surviving (a saved company name), and is the case to watch.
+    const verdict = classifyHoneypot(company, { firstName, lastName, email });
+    const spill = isAutofillSpill(verdict);
+    console.warn('[cast-anonymous-vote] HONEYPOT', {
+      action: spill ? 'allowed' : '400',
+      verdict,
+      shape: honeypotShape(company),
+      len: typeof company === 'string' ? company.length : -1,
       ua: request.headers['user-agent'] || '',
+      referer: request.headers['referer'] || '',
     });
-    return response.status(400).json({
-      error: `We couldn\u2019t verify that submission. Please refresh the page and try again \u2014 if it keeps happening, email ${HELP}.`,
-      code: 'INVALID_SUBMISSION',
-    });
+
+    if (!spill) {
+      return response.status(400).json({
+        error: `We couldn\u2019t verify that submission. Please refresh the page and try again \u2014 if it keeps happening, email ${HELP}.`,
+        code: 'INVALID_SUBMISSION',
+      });
+    }
   }
 
   if (isSuspiciouslyFast(mountedAt, Date.now(), MIN_SUBMIT_MS)) {
