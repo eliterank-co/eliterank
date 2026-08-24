@@ -168,10 +168,10 @@ serve(async (req) => {
     const totalAmount = subtotalAmount + taxAmount
 
     // Resolve double-vote-day status so the Stripe description and receipt
-    // reflect what the contestant actually gets credited (e.g. "200 votes
+    // reflect what the contestant actually gets credited (e.g. "200 points
     // (2× Double Vote Day)") instead of the raw purchase count. Without
     // this, customers paying $70 for 100 votes on a double day saw "100
-    // votes" on their statement while their contestant got 200 credited —
+    // points" on their statement while their contestant got 200 credited —
     // confusing and looks like short-changing.
     //
     // Important: metadata.vote_count stays as the raw purchase count.
@@ -184,8 +184,8 @@ serve(async (req) => {
     const creditedVoteCount = isDoubleVoteDay ? voteCount * 2 : voteCount
     const compName = competition.name || `Season ${competition.season}`
     const description = isDoubleVoteDay
-      ? `${creditedVoteCount} votes (2× Double Vote Day) for ${contestant.name} in ${compName}`
-      : `${creditedVoteCount} vote${creditedVoteCount > 1 ? 's' : ''} for ${contestant.name} in ${compName}`
+      ? `${creditedVoteCount} points (2× Double Vote Day) for ${contestant.name} in ${compName}`
+      : `${creditedVoteCount} point${creditedVoteCount > 1 ? 's' : ''} for ${contestant.name} in ${compName}`
 
     // Initialize Stripe
     const stripe = new Stripe(stripeSecretKey, {
