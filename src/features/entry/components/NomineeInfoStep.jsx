@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Instagram, Camera, X, Mail } from 'lucide-react';
+import { suggestEmailCorrection } from '../../../lib/emailDomainTypos';
 
 /**
  * Nomination: nominee info (name, email, instagram, optional photo).
@@ -33,6 +34,13 @@ export default function NomineeInfoStep({
     const previewUrl = URL.createObjectURL(file);
     onChange({ photoFile: file, photoPreview: previewUrl });
   };
+
+  // Nomination is pure first contact: the nominator types a stranger's address
+  // and we mail it immediately. That flow bounced 24.4% in the 2026-08 audit,
+  // because a typo'd provider domain is still a syntactically valid address and
+  // `type="email"` accepts it. Advisory only — never gates `isValid`, so a
+  // false positive can cost a prompt but never a nomination.
+  const emailSuggestion = suggestEmailCorrection(data.email);
 
   const isValid =
     data.name.trim() &&
@@ -103,6 +111,19 @@ export default function NomineeInfoStep({
             placeholder="email@example.com"
           />
         </div>
+        {emailSuggestion && (
+          <p className="entry-email-suggestion">
+            Did you mean{' '}
+            <button
+              type="button"
+              className="entry-email-suggestion-apply"
+              onClick={() => onChange({ email: emailSuggestion })}
+            >
+              {emailSuggestion}
+            </button>
+            ?
+          </p>
+        )}
       </div>
 
       <div className="entry-form-field">
