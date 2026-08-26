@@ -17,6 +17,8 @@ import LaunchRoadmap from '../LaunchRoadmap';
 import CompetitionSummaryCard from '../CompetitionSummaryCard';
 import { hasAcceptedCurrentAgreement } from '../../../../lib/hostAgreement';
 
+const MOST_ELIGIBLE_ORG_ID = 'ac3e2a10-fc35-419e-9b14-f279f9d93467';
+
 /**
  * OverviewTab - Host Dashboard with performance metrics and quick actions
  */
@@ -180,7 +182,7 @@ export default function OverviewTab({
           <HostLaunchStatus competition={competition} rulesComplete={rulesComplete} onRefresh={onRefresh} onNavigateToTab={onNavigateToTab} />
           <LaunchRoadmap competition={competition} onNavigateToTab={onNavigateToTab} />
           <CompetitionSummaryCard competition={competition} onNavigateToTab={onNavigateToTab} onRefresh={onRefresh} />
-          {competition?.managed ? (
+          {competition?.managed && competition?.organizationId !== MOST_ELIGIBLE_ORG_ID ? (
             <Panel title="Agreement & payouts" icon={FileText} style={{ marginBottom: 0 }}>
               <div style={{ padding: spacing.xl }}>
                 <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, lineHeight: 1.5, margin: 0 }}>
@@ -191,12 +193,14 @@ export default function OverviewTab({
               </div>
             </Panel>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? spacing.lg : spacing.xl, alignItems: 'start' }}>
-              <div id="host-agreement-card">
-                <HostAgreementCard agreement={competition?.agreement} organizationId={competition?.organizationId} onAccepted={onRefresh} />
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile || competition?.managed ? '1fr' : '1fr 1fr', gap: isMobile ? spacing.lg : spacing.xl, alignItems: 'start' }}>
+              {!competition?.managed && (
+                <div id="host-agreement-card">
+                  <HostAgreementCard agreement={competition?.agreement} organizationId={competition?.organizationId} onAccepted={onRefresh} />
+                </div>
+              )}
               <div id="host-connect-card">
-                <HostConnectCard connect={competition?.connect} organizationId={competition?.organizationId} locked={!hasAcceptedCurrentAgreement(competition?.agreement)} onSynced={onRefresh} />
+                <HostConnectCard connect={competition?.connect} organizationId={competition?.organizationId} locked={!competition?.managed && !hasAcceptedCurrentAgreement(competition?.agreement)} onSynced={onRefresh} />
               </div>
             </div>
           )}
