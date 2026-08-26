@@ -119,11 +119,29 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     </div>
   `
 
+  // Sender identification + postal address, on EVERY email type.
+  //
+  // This lives in the shared `footer` (which `wrapper()` applies to all 14
+  // cases) rather than in individual templates on purpose. Before this change
+  // the entity name and address appeared only in `subscriberLegalFooter`, which
+  // exactly 2 of the 14 types called — so the two highest-volume types,
+  // nominee_invite and the host broadcast, went out with no identification at
+  // all. Per-template inclusion is the thing that failed; the choke point is
+  // the fix. Keep it here.
+  //
+  // NOTE this provides identification and address only. It is NOT an
+  // unsubscribe mechanism: opt-out is still limited to fans and subscribers,
+  // who have real tokens (fan-unsubscribe / subscriber-unsubscribe). No opt-out
+  // state exists for nominees or contestants, so no link is rendered for them —
+  // a link that resolves to nothing is worse than none.
   const footer = `
     <div style="text-align:center;padding:24px 0;border-top:1px solid #333;margin-top:32px;">
       <a href="${appUrl}" style="color:#d4a843;font-size:12px;text-decoration:none;font-family:Arial,sans-serif;">eliterank.co</a>
-      <p style="color:#666;font-size:11px;margin-top:8px;font-family:Arial,sans-serif;">
+      <p style="color:#999;font-size:11px;margin-top:8px;font-family:Arial,sans-serif;">
         You're receiving this because of activity on EliteRank.
+      </p>
+      <p style="color:#999;font-size:11px;margin:8px 0 0;font-family:Arial,sans-serif;line-height:1.5;">
+        Most Eligible LLC &middot; 1 W Old State Cap Plz, Ste 805, Springfield, IL 62701
       </p>
     </div>
   `
@@ -141,19 +159,20 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   // Compliance footer for emails sent to coming-soon-page subscribers.
   // CAN-SPAM (US), CASL (Canada), and ePrivacy (EU) all require unsubscribe
   // + sender identity + physical postal address on commercial-adjacent mail.
-  const subscriberLegalFooter = (unsubscribeUrl?: string) => `
+  // Unsubscribe only. The entity + postal address moved to the shared `footer`
+  // above so every type carries them; repeating them here would print the
+  // address twice on the two subscriber types.
+  const subscriberLegalFooter = (unsubscribeUrl?: string) =>
+    unsubscribeUrl
+      ? `
     <div style="text-align:center;padding:16px 0 0;margin-top:24px;">
-      ${unsubscribeUrl
-        ? `<p style="color:#666;font-size:11px;margin:0 0 8px;font-family:Arial,sans-serif;line-height:1.5;">
-             You signed up for updates about this competition.
-             <a href="${unsubscribeUrl}" style="color:#999;text-decoration:underline;">Unsubscribe</a>.
-           </p>`
-        : ''}
-      <p style="color:#555;font-size:11px;margin:0;font-family:Arial,sans-serif;line-height:1.5;">
-        Most Eligible LLC &middot; 1 W Old State Cap Plz, Ste 805, Springfield, IL 62701
+      <p style="color:#999;font-size:11px;margin:0;font-family:Arial,sans-serif;line-height:1.5;">
+        You signed up for updates about this competition.
+        <a href="${unsubscribeUrl}" style="color:#d4a843;text-decoration:underline;">Unsubscribe</a>.
       </p>
     </div>
   `
+      : ''
 
   // The design is light text on a dark card. Clients (Outlook) and reply-quote
   // views strip a <body> background, which would leave light-gray text on white
