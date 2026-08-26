@@ -141,7 +141,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         You're receiving this because of activity on EliteRank.
       </p>
       <p style="color:#999;font-size:11px;margin:8px 0 0;font-family:Arial,sans-serif;line-height:1.5;">
-        Most Eligible LLC &middot; 1 W Old State Cap Plz, Ste 805, Springfield, IL 62701
+        EliteRank &middot; 1 W Old State Cap Plz, Ste 805, Springfield, IL 62701
       </p>
     </div>
   `
