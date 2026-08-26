@@ -97,7 +97,7 @@ function buildHostEmail(params: {
         <div style="text-align:center;padding:24px 0;border-top:1px solid #333;margin-top:32px;">
           <a href="${appUrl}" style="color:#d4a843;font-size:12px;text-decoration:none;font-family:Arial,sans-serif;">eliterank.co</a>
           <p style="color:#999;font-size:11px;margin:8px 0 0;font-family:Arial,sans-serif;line-height:1.5;">
-            Most Eligible LLC &middot; 1 W Old State Cap Plz, Ste 805, Springfield, IL 62701
+            EliteRank &middot; 1 W Old State Cap Plz, Ste 805, Springfield, IL 62701
           </p>
         </div>
             </td></tr>
