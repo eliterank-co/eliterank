@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { evaluateNomineePasswordPolicy } from '../_shared/nomineePasswordPolicy.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,7 +10,9 @@ const corsHeaders = {
 /**
  * set-nominee-password
  *
- * Sets a password for a nominee's auth account using the admin API.
+ * Creates a password-backed account for a nominee who does not already have
+ * an auth account. Existing users must use their secure sign-in link or their
+ * existing credentials; this function must never reset their password.
  * Used when the nominee arrives at the claim page without a session and
  * client-side signUp fails (e.g. handle_new_user trigger crash).
  *
@@ -52,6 +55,22 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
+
+    const findAuthUserByEmail = async (email: string) => {
+      const normalizedEmail = email.trim().toLowerCase()
+      const perPage = 1000
+
+      for (let page = 1; ; page += 1) {
+        const { data, error } = await supabase.auth.admin.listUsers({ page, perPage })
+        if (error) throw error
+
+        const users = data?.users || []
+        const match = users.find(
+          (user: { email?: string }) => user.email?.trim().toLowerCase() === normalizedEmail
+        )
+        if (match || users.length < perPage) return match || null
+      }
+    }
 
     // ── 1. Look up the nominee ──────────────────────────────────────────
     // Try invite_token first, then nominee_id, then email
@@ -103,28 +122,28 @@ serve(async (req) => {
 
     console.log('Found nominee:', JSON.stringify({ id: nominee.id, email: nominee.email, user_id: nominee.user_id }))
 
-    // ── 2. Determine the email to use ───────────────────────────────────
-    // IMPORTANT: prefer clientEmail (what the user typed on the form) over
-    // nominee.email (what the nominator entered). The client will sign in
-    // with clientEmail after this function returns — if we create the auth
-    // account with a different email, signInWithPassword will fail.
-    const email = clientEmail?.trim() || nominee.email
-    if (!email) {
+    // ── 2. Bind account creation to the nominated email ─────────────────
+    if (!nominee.email) {
       return new Response(
         JSON.stringify({ error: 'No email address available to create an account' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log('Using email:', email)
-
-    // Backfill / update email on nominee record so it stays in sync
-    if (email !== nominee.email) {
-      await supabase
-        .from('nominees')
-        .update({ email })
-        .eq('id', nominee.id)
+    const emailPolicy = evaluateNomineePasswordPolicy({
+      nomineeEmail: nominee.email,
+      clientEmail,
+      existingAuthUserId: null,
+    })
+    if (!emailPolicy.allowed) {
+      return new Response(
+        JSON.stringify({ error: emailPolicy.error }),
+        { status: emailPolicy.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+
+    const email = emailPolicy.email
+    console.log('Using email:', email)
 
     // ── 3. Find existing auth user ──────────────────────────────────────
     let authUserId: string | null = null
@@ -160,39 +179,33 @@ serve(async (req) => {
       }
     }
 
-    // 3c. Via auth admin listUsers (with email filter)
+    // 3c. Via a complete auth-user scan. listUsers has no email-filter
+    // parameter; passing one silently searched only the first page.
     if (!authUserId) {
-      const { data: listData } = await supabase.auth.admin.listUsers({
-        filter: email,
-        page: 1,
-        perPage: 50,
-      })
-      const match = listData?.users?.find(
-        (u: { email?: string }) => u.email?.toLowerCase() === email.toLowerCase()
-      )
+      const match = await findAuthUserByEmail(email)
       if (match) {
         authUserId = match.id
         console.log('Found auth user via listUsers:', authUserId)
       }
     }
 
-    // ── 4. Create or update the auth user ───────────────────────────────
-    if (authUserId) {
-      // User exists — just set the password
-      console.log('Setting password on existing user:', authUserId)
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        authUserId,
-        { password, email_confirm: true }
+    // ── 4. Existing accounts authenticate through the secure sign-in flow ─
+    const accountPolicy = evaluateNomineePasswordPolicy({
+      nomineeEmail: email,
+      clientEmail: email,
+      existingAuthUserId: authUserId,
+    })
+    if (!accountPolicy.allowed) {
+      return new Response(
+        JSON.stringify({ error: accountPolicy.error }),
+        { status: accountPolicy.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
-      if (updateError) {
-        console.error('Failed to set password:', updateError.message)
-        return new Response(
-          JSON.stringify({ error: 'Failed to set password', details: updateError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-    } else {
-      // No existing user — create one
+    }
+
+    // No existing user — create one. Keep the recovery nonce scoped to this
+    // attempt so it cannot authorize a later request.
+    {
+      const creationNonce = crypto.randomUUID()
       console.log('Creating new auth user for:', email)
 
       // Clean up any orphaned profiles with this email first (prevents
@@ -216,7 +229,7 @@ serve(async (req) => {
         email,
         password,
         email_confirm: true,
-        user_metadata: { first_name: firstName, last_name: lastName },
+        user_metadata: { first_name: firstName, last_name: lastName, nominee_claim_nonce: creationNonce },
       })
 
       if (createError) {
@@ -224,26 +237,40 @@ serve(async (req) => {
 
         // createUser can fail even if the user was partially created (trigger
         // crash). Search for the user one more time.
-        const { data: retryList } = await supabase.auth.admin.listUsers({
-          filter: email,
-          page: 1,
-          perPage: 50,
-        })
-        const found = retryList?.users?.find(
-          (u: { email?: string }) => u.email?.toLowerCase() === email.toLowerCase()
-        )
+        const found = await findAuthUserByEmail(email)
 
         if (found) {
-          console.log('Found partially-created user after createUser failure:', found.id)
-          authUserId = found.id
+          const recoveryPolicy = evaluateNomineePasswordPolicy({
+            nomineeEmail: email,
+            clientEmail: email,
+            existingAuthUserId: found.id,
+            creationNonce,
+            existingUserCreationNonce: found.user_metadata?.nominee_claim_nonce,
+          })
 
-          // Set password + confirm email
-          await supabase.auth.admin.updateUserById(found.id, {
+          if (!recoveryPolicy.allowed || recoveryPolicy.action !== 'recover_partial') {
+            console.log('Account appeared during account creation; refusing password reset:', found.id)
+            return new Response(
+              JSON.stringify({
+                error: 'An account with this email already exists. Use the secure sign-in link or your existing password.',
+              }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+
+          console.log('Recovering account partially created by this request:', found.id)
+          const { error: recoveryError } = await supabase.auth.admin.updateUserById(found.id, {
             password,
             email_confirm: true,
           })
+          if (recoveryError) {
+            return new Response(
+              JSON.stringify({ error: 'Failed to recover account', details: recoveryError.message }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          authUserId = found.id
 
-          // Ensure profile exists (trigger may have crashed before creating it)
           await supabase.from('profiles').upsert({
             id: found.id,
             email,
@@ -267,7 +294,7 @@ serve(async (req) => {
             email,
             password,
             email_confirm: true,
-            user_metadata: { first_name: firstName, last_name: lastName },
+            user_metadata: { first_name: firstName, last_name: lastName, nominee_claim_nonce: creationNonce },
           })
 
           if (retryError || !retryUser?.user) {
