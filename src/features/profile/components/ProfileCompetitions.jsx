@@ -12,7 +12,13 @@ import AcceptNominationModal from '../../../components/modals/AcceptNominationMo
 import { generateCompetitionSlug, getCompetitionUrl, slugify } from '../../../utils/slugs';
 import { getRoundLabel } from '../../../utils/roundLabels';
 import { getCityImage } from '../../../utils/cityImages';
-import { getPhaseDisplayConfig, computeCompetitionPhase } from '../../../utils/competitionPhase';
+import {
+  getPhaseDisplayConfig,
+  computeCompetitionPhase,
+  isCompetitionVisible,
+  isCompetitionInProgress,
+  isPublished,
+} from '../../../utils/competitionPhase';
 import CompetitionCardVoting from './CompetitionCardVoting';
 
 // Display order for the compact competition cards: active voting first, then
@@ -203,6 +209,11 @@ function RoleBadge({ role, size = 'sm', subLabel, contestantLabel }) {
   );
 }
 
+function shouldShowRoleBadge(entry) {
+  if (entry.role !== 'host') return true;
+  return isPublished(entry.competition?.status) || isCompetitionInProgress(entry.competition);
+}
+
 /**
  * Public-facing tier a contestant reached, given the round they were
  * eliminated in. Delegates the tier naming to the shared `roundLabels`
@@ -295,7 +306,7 @@ function CompactCompetitionCard({ entry, onAcceptClick, isMobile }) {
       )}
 
       {/* Role badge */}
-      {entry.role && (
+      {entry.role && shouldShowRoleBadge(entry) && (
         <RoleBadge role={entry.role} size="xs" subLabel={entry.reachedTierLabel} />
       )}
 
@@ -548,7 +559,7 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
           {/* Row 2: Role badge as a label beneath the title. Skipped when
               the role doesn't map to a badge so we don't leave an empty
               gap in the stack. */}
-          {entry.role && (
+          {entry.role && shouldShowRoleBadge(entry) && (
             <div style={{ display: 'flex' }}>
               <RoleBadge
                 role={entry.role}
@@ -744,12 +755,16 @@ export default function ProfileCompetitions({ userId, userEmail, user, profile, 
       getContestantCompetitions(userId),
       getNominationsForUser(userId, userEmail),
     ]).then(([hosted, contestant, noms]) => {
-      setHostedCompetitions(hosted);
+      setHostedCompetitions(
+        isOwnProfile || isPreview
+          ? hosted
+          : hosted.filter(comp => isCompetitionVisible(comp?.status))
+      );
       setContestantEntries(contestant);
       setNominations(noms);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [userId, userEmail]);
+  }, [userId, userEmail, isOwnProfile, isPreview]);
 
   const hasHosted = hostedCompetitions.length > 0;
   const hasContestant = contestantEntries.length > 0;
