@@ -346,9 +346,8 @@ function CompactCompetitionCard({ entry, onAcceptClick, isMobile }) {
         {competition.season && <span style={{ flexShrink: 0 }}>{competition.season}</span>}
       </div>
 
-      {/* Lifetime competition vote total — shown for contestant-role entries
-          so a past winner/contestant's total reads in context on the card. */}
-      {['winner', 'contestant', 'eliminated'].includes(entry.role) && (entry.lifetimeVotes || 0) > 0 && (
+      {/* Current-round vote total, matching the competition leaderboard. */}
+      {['winner', 'contestant', 'eliminated'].includes(entry.role) && (entry.votes || 0) > 0 && (
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -359,7 +358,7 @@ function CompactCompetitionCard({ entry, onAcceptClick, isMobile }) {
           fontWeight: typography.fontWeight.semibold,
         }}>
           <Heart size={12} style={{ fill: colors.gold.primary }} />
-          {(entry.lifetimeVotes || 0).toLocaleString()} votes
+          {(entry.votes || 0).toLocaleString()} votes
         </div>
       )}
 
@@ -433,7 +432,7 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
     },
   );
 
-  // entry.lifetimeVotes comes from a one-shot fetch in the parent
+  // entry.votes comes from a one-shot fetch in the parent
   // (getContestantCompetitions) that nothing refreshes after a vote —
   // refetchLeaderboard only updates rank data. Track votes cast from this
   // card locally so the header total moves immediately; a reload replaces
@@ -595,7 +594,7 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
           </div>
         </div>
 
-        {/* Lifetime vote total, right-aligned in the header for any
+        {/* Current-round vote total, right-aligned in the header for any
             contestant-role entry. The figure leads with the city/season meta
             on the left, so the header reads "who / where" → "how many" without
             a separate stat band below. */}
@@ -614,7 +613,7 @@ function CompetitionCard({ entry, onAcceptClick, isMobile, isPreview = false }) 
               color: colors.gold.primary,
               fontVariantNumeric: 'tabular-nums',
             }}>
-              {((entry.lifetimeVotes || 0) + voteBump).toLocaleString()}
+              {((entry.votes || 0) + voteBump).toLocaleString()}
             </span>
             <span style={{
               display: 'inline-flex',
@@ -847,10 +846,6 @@ export default function ProfileCompetitions({ userId, userEmail, user, profile, 
       status: comp?.status,
       competition: comp,
       votes: entry.votes || 0,
-      // Never-reset competition total (paid + free + bonus + manual). Shown on
-      // the card so it reflects everything earned across the comp, not just the
-      // current round's running `votes` (which resets each round).
-      lifetimeVotes: entry.lifetime_votes ?? entry.votes ?? 0,
       contestant: {
         id: entry.id,
         name: entry.name,
