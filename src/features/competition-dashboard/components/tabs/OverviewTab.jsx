@@ -7,7 +7,6 @@ import { Button, Panel, Avatar, Badge } from '../../../../components/ui';
 import { formatNumber, formatCurrency, formatRelativeTime, daysUntil, formatDate } from '../../../../utils/formatters';
 import { generateAchievementCard } from '../../../achievement-cards/generateAchievementCard';
 import { isLive } from '../../../../utils/competitionPhase';
-import { sortContestantsByStanding } from '../../../../utils/contestantRanking';
 import TimelineCard from '../../../overview/components/TimelineCard';
 import MetricCard from '../../../overview/components/MetricCard';
 import HostConnectCard from '../HostConnectCard';
@@ -16,6 +15,10 @@ import HostLaunchStatus from '../HostLaunchStatus';
 import LaunchRoadmap from '../LaunchRoadmap';
 import CompetitionSummaryCard from '../CompetitionSummaryCard';
 import { hasAcceptedCurrentAgreement } from '../../../../lib/hostAgreement';
+import {
+  buildHostFinancialSummary,
+  sortHostContestantsByRound,
+} from '../../../../utils/hostDashboardMetrics';
 
 const MOST_ELIGIBLE_ORG_ID = 'ac3e2a10-fc35-419e-9b14-f279f9d93467';
 
@@ -31,6 +34,7 @@ export default function OverviewTab({
   announcements,
   host,
   voteRevenue = 0,
+  revenueState = 'ready',
   isSuperAdmin,
   onViewPublicSite,
   onNavigateToTab,
@@ -88,12 +92,10 @@ export default function OverviewTab({
     }
   };
 
-  // Standing order, ranked on total competition votes: still-competing
-  // contestants sit above eliminated ones (who keep their old round's votes),
-  // and the number shown is each contestant's lifetime total so the host sees
-  // one comparable figure across every round.
+  // Match the public leaderboard and profile cards: the host is making a
+  // current-round advancement decision, so lifetime totals are the wrong fact.
   const rankedContestants = useMemo(() => {
-    return sortContestantsByStanding(contestants, (c) => c.lifetimeVotes || 0);
+    return sortHostContestantsByRound(contestants);
   }, [contestants]);
 
   const topContestants = rankedContestants.slice(0, 5);
@@ -135,7 +137,17 @@ export default function OverviewTab({
   const sponsorRevenue = (sponsors || [])
     .filter((s) => s.tier !== 'inkind')
     .reduce((sum, s) => sum + (s.amount || 0), 0);
-  const totalRevenue = sponsorRevenue + (voteRevenue || 0);
+  const voteFinancials = buildHostFinancialSummary({
+    grossRevenue: voteRevenue,
+    // The competition accumulator excludes collected tax. It is the closest
+    // ledger-backed legacy source available without adding a second DB writer.
+    revenueExcludingTax: competition?.totalRevenue ?? voteRevenue,
+    platformFeePct: competition?.platformFeePct,
+    charityPct: competition?.charityPercentage,
+  });
+  const grossRevenueCents = voteFinancials.grossCents + Math.round(sponsorRevenue * 100);
+  const hostBeforeStripeCents =
+    voteFinancials.hostBeforeStripeCents + Math.round(sponsorRevenue * 100);
 
   const sortedAnnouncements = useMemo(() => {
     return [...(announcements || [])].sort((a, b) => {
@@ -377,7 +389,7 @@ export default function OverviewTab({
           borderRadius: borderRadius.xl,
           background: 'linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 60%, rgba(6,182,212,0.06) 100%)',
           border: '1px solid rgba(34,197,94,0.25)',
-          boxShadow: totalRevenue > 0 ? '0 4px 24px rgba(34,197,94,0.12)' : 'none',
+          boxShadow: grossRevenueCents > 0 ? '0 4px 24px rgba(34,197,94,0.12)' : 'none',
           position: 'relative',
           overflow: 'hidden',
         }}>
@@ -405,7 +417,7 @@ export default function OverviewTab({
               <DollarSign size={16} style={{ color: '#4ade80' }} />
             </div>
             <span style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Total Revenue
+              Revenue snapshot
             </span>
           </div>
           <p style={{
@@ -416,20 +428,44 @@ export default function OverviewTab({
             letterSpacing: '-0.02em',
             position: 'relative',
           }}>
-            {formatCurrency(totalRevenue)}
+            {revenueState === 'ready' ? formatCurrency(hostBeforeStripeCents / 100) : '—'}
           </p>
-          {totalRevenue > 0 ? (
-            <p style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary, position: 'relative' }}>
-              {[
-                voteRevenue > 0 && `Votes ${formatCurrency(voteRevenue)}`,
-                sponsorRevenue > 0 && `Sponsors ${formatCurrency(sponsorRevenue)}`,
-              ].filter(Boolean).join(' · ')}
+          <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm, position: 'relative', marginBottom: spacing.lg }}>
+            Estimated host proceeds before Stripe processing fees
+          </p>
+          {revenueState === 'error' ? (
+            <p style={{ color: colors.gold.primary, fontSize: typography.fontSize.sm, position: 'relative' }}>
+              Financial details are temporarily unavailable. No zero balance is being reported.
             </p>
-          ) : (
-            <p style={{ color: colors.text.muted, fontSize: typography.fontSize.sm, position: 'relative' }}>
-              Revenue from votes, sponsors, and events will appear here
-            </p>
+          ) : <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(2, minmax(0, 1fr))', gap: spacing.md, position: 'relative' }}>
+            {[
+              ['Gross collected', formatCurrency(grossRevenueCents / 100)],
+              ['Collected tax', formatCurrency(voteFinancials.taxCents / 100)],
+              ['EliteRank fee (est.)', `−${formatCurrency(voteFinancials.platformFeeCents / 100)}`],
+              ['Stripe fees', 'See Stripe'],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p style={{ color: colors.text.muted, fontSize: typography.fontSize.xs, marginBottom: 2 }}>{label}</p>
+                <p style={{ color: colors.text.primary, fontSize: typography.fontSize.sm, fontWeight: typography.fontWeight.semibold, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+              </div>
+            ))}
+          </div>}
+          {revenueState === 'ready' && competition?.charityPercentage > 0 && (
+            <div style={{ marginTop: spacing.lg, paddingTop: spacing.md, borderTop: `1px solid ${colors.border.lighter}`, position: 'relative' }}>
+              <p style={{ color: colors.gold.primary, fontSize: typography.fontSize.xs, fontWeight: typography.fontWeight.semibold, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Charity reserve · {competition.charityPercentage}%
+              </p>
+              <p style={{ color: colors.text.primary, fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, fontVariantNumeric: 'tabular-nums' }}>
+                {formatCurrency(voteFinancials.charityReserveBeforeStripeCents / 100)}
+              </p>
+              <p style={{ color: colors.text.muted, fontSize: typography.fontSize.xs }}>
+                Planning estimate before Stripe fees. Confirm the final amount from the host&rsquo;s settled Stripe proceeds.
+              </p>
+            </div>
           )}
+          <p style={{ color: colors.text.muted, fontSize: typography.fontSize.xs, marginTop: spacing.lg, position: 'relative' }}>
+            Stripe deducts its actual processing fee in the connected account. Open Stripe for the final payout amount.
+          </p>
         </div>
 
         {/* Top Contestants */}
@@ -537,7 +573,7 @@ export default function OverviewTab({
                       )}
                     </div>
                     <span style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm }}>
-                      {formatNumber(contestant.lifetimeVotes || contestant.votes || 0)} votes
+                      {formatNumber(contestant.roundVotes ?? contestant.votes ?? 0)} round votes
                     </span>
                     <button
                       onClick={() => handleDownloadCard(contestant)}
