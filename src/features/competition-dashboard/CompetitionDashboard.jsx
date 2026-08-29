@@ -805,6 +805,7 @@ export default function CompetitionDashboard({
             announcements={data.announcements}
             host={data.host}
             voteRevenue={data.voteRevenue}
+            revenueState={data.revenueState}
             isSuperAdmin={isSuperAdmin}
             onViewPublicSite={onViewPublicSite}
             onNavigateToTab={navigateToTab}
@@ -830,6 +831,7 @@ export default function CompetitionDashboard({
               announcements={data.announcements}
               host={data.host}
               voteRevenue={data.voteRevenue}
+              revenueState={data.revenueState}
               isSuperAdmin={isSuperAdmin}
               onViewPublicSite={onViewPublicSite}
               onNavigateToTab={navigateToTab}

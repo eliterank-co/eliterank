@@ -21,6 +21,7 @@ import {
 } from '../../../utils/competitionStatusEngine';
 import { renumberVotingTitles } from '../../../utils/renumberVotingTitles';
 import { getVotingBeforeNominationsWarning } from '../../../utils/votingScheduleWarnings';
+import { describeLockedRoundOutcome } from '../../../utils/hostDashboardMetrics';
 import { SkeletonPulse, SkeletonText } from '../../../components/common/Skeleton';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1316,11 +1317,16 @@ export default function TimelineSettings({ competition, onSave, isSuperAdmin = f
           {votingRounds.length > 0
             ? votingRounds.map((r, i) => {
               const cfg = ROUND_TYPE_CONFIG[r.round_type] || ROUND_TYPE_CONFIG.voting;
+              const isFinalRound = r.round_type === 'finale' || i === votingRounds.length - 1;
+              const outcome = describeLockedRoundOutcome(r, isFinalRound);
               return (
                 <div key={i} style={rowStyle}>
                   <span style={{ color: colors.text.primary, fontSize: typography.fontSize.sm }}>
                     {r.title || `Round ${i + 1}`}
                     <span style={{ color: cfg.color, fontSize: typography.fontSize.xs, marginLeft: spacing.sm }}>{cfg.label}</span>
+                    <span style={{ display: 'block', color: colors.gold.primary, fontSize: typography.fontSize.xs, marginTop: 2 }}>
+                      {outcome}
+                    </span>
                   </span>
                   <span style={dateText}>{fmtRange(roundDisplayValues[i]?.start_date, roundDisplayValues[i]?.end_date)}</span>
                 </div>

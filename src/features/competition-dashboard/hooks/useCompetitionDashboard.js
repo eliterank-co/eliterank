@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { getCached, setCache, dedupeRequest } from '../../../lib/queryCache';
 import { checkAndAwardProfileBonuses, awardNomineeActionBonuses, setupDefaultBonusTasks } from '../../../lib/bonusVotes';
+import { deriveHostRoundVotes } from '../../../utils/hostDashboardMetrics';
 
 const REVENUE_CACHE_TABLE = 'competition_revenue';
 const REVENUE_CACHE_TTL = 60000; // 60s — refreshes on dashboard remount past TTL
@@ -70,6 +71,7 @@ export function useCompetitionDashboard(competitionId) {
     subscribers: [],
     competition: null,
     voteRevenue: 0,
+    revenueState: 'ready',
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -329,6 +331,7 @@ export function useCompetitionDashboard(competitionId) {
         age: c.age,
         email: c.email || c.profile?.email || null,
         votes: c.votes || 0,
+        roundVotes: deriveHostRoundVotes(c),
         lifetimeVotes: c.lifetime_votes || 0,
         status: c.status,
         trend: c.trend || 'same',
@@ -595,6 +598,7 @@ export function useCompetitionDashboard(competitionId) {
         coHosts,
         subscribers,
         voteRevenue,
+        revenueState: paidVotesResult.error ? 'error' : 'ready',
         competition: competition ? {
           id: competition.id,
           name: competition.name,
@@ -652,6 +656,8 @@ export function useCompetitionDashboard(competitionId) {
           selectionCriteria: competition.selection_criteria || null,
           numberOfWinners: competition.number_of_winners ?? null,
           charityPercentage: competition.charity_percentage ?? null,
+          totalRevenue: Number(competition.total_revenue) || 0,
+          platformFeePct: Number(competition.platform_fee_pct) || 0,
           plannedLaunchTimeframe: competition.planned_launch_timeframe || null,
           cashPrizeAmount: competition.cash_prize_amount ?? null,
           hasSponsoredPrizes: !!competition.has_sponsored_prizes,
