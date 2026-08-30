@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Route** | `/me/contestant` (tab appears only for a claimed contestant) |
-| **Renders when** | `social_profile` **off** — the tab lives in the member-area tab bar, which v3 replaces |
+| **Renders when** | Both paths — the page itself never checks the flag. Only its **tab** is flag-gated: with the flag on, the layout drops the tab bar and the route is reachable by direct URL only. |
 | **Source** | `src/app/(public)/(member)/me/contestant/{page.tsx,_form.tsx}`, `src/lib/contestant-guards.ts`, `src/lib/data/contestants.ts` |
 | **Diagram** | [`V4-contestant.svg`](../assets/diagrams/V4-contestant.svg) |
 | **Screenshot** | `IMG-V4-a` — not captured, see [assets](../assets/README.md) |

@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Routes** | `/me/settings` — with `/account` (crossover) holding password and email |
-| **Renders when** | `social_profile` **off** (tab bar) |
+| **Renders when** | Both paths — only the **tab** is flag-gated; with the flag on the route stays reachable by direct URL |
 | **Source** | `src/app/(public)/(member)/me/settings/{page.tsx,actions.ts,digest-toggle.tsx,account-danger-zone.tsx}`, `src/lib/account-deletion.ts`, `src/experiences/voter/account/` |
 | **Diagram** | [`V7-settings.svg`](../assets/diagrams/V7-settings.svg) |
 | **Screenshot** | `IMG-V7-a` — not captured, see [assets](../assets/README.md) |

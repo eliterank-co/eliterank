@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Route** | `/me/watching` |
-| **Renders when** | `social_profile` **off** (tab bar); the count also feeds the v3 hero |
+| **Renders when** | Both paths — only the **tab** is flag-gated; with the flag on the route stays reachable by direct URL; the count also feeds the v3 hero |
 | **Source** | `src/app/(public)/(member)/me/watching/page.tsx`, `src/lib/data/watching.ts` |
 | **Diagram** | [`V6-watching.svg`](../assets/diagrams/V6-watching.svg) |
 | **Screenshot** | `IMG-V6-a` — not captured, see [assets](../assets/README.md) |

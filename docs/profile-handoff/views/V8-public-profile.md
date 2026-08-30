@@ -41,8 +41,8 @@ missing.** They are unreachable while the flag is off, not absent.
 | --- | --- | --- | --- |
 | `AC-V8-01` | An owner arriving from "View as visitor" sees a persistent indication they are previewing, with a control returning to `/me`. | P4 | `T-AC-V8-01` |
 | `AC-V8-02` | A visitor who is not the owner sees no preview strip and no return control. | P4 | `T-AC-V8-02` |
-| `AC-V8-03` | One term names the member relationship everywhere it appears; digest email and competition pages agree with the profile. | X2 | `T-AC-V8-03` |
-| `AC-V8-04` | The story card renders the agreed composition at 1080x1920 and downloads with a sensible filename. | S2 | `T-AC-V8-04` (visual) |
+| `AC-V8-03` | One term names the member relationship everywhere it appears; digest email and competition pages agree with the profile. | X2 | `T-AC-V8-03` (profile page only) + manual sweep of digest email and competition pages — the automated test cannot see the email |
+| `AC-V8-04` | The story card returns 200/PNG at 1080x1920 and downloads with a sensible filename (automated), and matches the S2 design decision once one is recorded (visual — **gated on that decision**, see the checklist). | S2 | `T-AC-V8-04` + visual |
 | `AC-V8-05` | Social marks render from the agreed icon set, inline, with no raw hex and no external font. | S4 | `T-AC-V8-05` |
 | `AC-V8-06` | At mobile widths the share control carries a text label, not a bare glyph. | S5 | `T-AC-V8-06` (visual) |
 | `AC-V8-07` | The Watching count does not appear on this page for any viewer. | — (regression guard) | `T-AC-V8-07` |

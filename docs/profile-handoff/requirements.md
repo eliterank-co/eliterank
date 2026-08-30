@@ -47,8 +47,10 @@ specifically to stay token-driven.
 **REQ-06 — Gold is the only accent.** Status colours (success, warning, error)
 are for status only, never decoration.
 
-**REQ-07 — Both themes.** Any new surface must resolve in light, dark, and the
-unstamped system default.
+**REQ-07 — The app is deliberately dark-only.** `app/globals.css` sets
+`color-scheme: dark` and defines no light palette or `prefers-color-scheme`
+branch. Do not add a light theme as a side effect of a fix; paint every new
+surface explicitly from the dark tokens so it holds on any host ground.
 
 ---
 
@@ -112,6 +114,12 @@ infrastructure.
 
 **REQ-18 — E2E specs declare their flag state.** Every Playwright spec sets the
 `ui_override` cookie explicitly rather than inheriting ambient state.
+
+**REQ-19 — Fixes add the instrumentation their tests need.** The e2e specs
+select on `data-testid="stat-label"`, `"history-entry"` and `"profile-hero"`.
+**None of these exist in the app today** — adding them is part of the fix each
+spec verifies, not optional polish. A fix PR that leaves its spec selecting on
+copy text has not closed its criterion.
 
 ---
 

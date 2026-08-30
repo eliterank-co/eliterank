@@ -41,9 +41,9 @@ rendering it above this hero would show the same name twice.
 
 | ID | Criterion | Finding | Verified by |
 | --- | --- | --- | --- |
-| `AC-V2-01` | A member who owns or belongs to an organization sees that organization named in the hero. A non-host sees no host affordance. | G2 | `T-AC-V2-01` |
+| `AC-V2-01` | A member who owns or belongs to an organization sees that organization named in the hero. A non-host sees no host affordance. | G2 | `T-AC-V2-01` + `T-AC-V2-01b` |
 | `AC-V2-02` | A contestant with at least one incomplete bonus task sees those open tasks on their own profile, each linking to the action that completes it. | G3 | `T-AC-V2-02` |
-| `AC-V2-03` | The hero avatar meets the agreed size, and identity text below it is left-aligned. | S3 | `T-AC-V2-03` (visual) |
+| `AC-V2-03` | The hero avatar renders larger than the current 44×44, and identity text below it is left-aligned. (Owner feedback: "a bit bigger" — the exact size is a design call; larger-than-current and left-alignment are the testable floor.) | S3 | `T-AC-V2-03` (visual) |
 | `AC-V2-04` | The Interests panel either renders member-set interests or does not render. Its empty-state never references a control that does not exist. | G1 | `T-AC-V2-04` |
 | `AC-V2-05` | The Watching count renders for the owner and is absent from `/p/[voterId]`. | — (regression guard) | `T-AC-V2-05` |
 

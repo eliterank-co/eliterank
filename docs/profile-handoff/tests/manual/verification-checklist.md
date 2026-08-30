@@ -33,10 +33,12 @@ Run first; these need no judgement.
 | `AC-V1-05` | `T-AC-V1-05` | off | ☐ | labels stable across roles |
 | `AC-V2-01` | `T-AC-V2-01` | on | ☐ | host org named in hero |
 | `AC-V2-02` | `T-AC-V2-02` | on | ☐ | open bonus tasks on own profile |
+| `AC-V2-04` | `T-AC-V2-04` | on | ☐ | interests panel honest or absent |
 | `AC-V2-05` | `T-AC-V2-05` | on | ☐ | **guard** — should pass today |
 | `AC-V4-01` | `T-AC-V4-01` | off | ☐ | tier label present |
 | `AC-V4-02` | `T-AC-V4-02` | off | ☐ | eliminated keeps tier |
-| `AC-V4-03` | `T-AC-V4-03` | off | ☐ | tier per competition |
+| `AC-V4-03` | `T-AC-V4-03` | off | ☐ | tier per competition (needs multi-comp fixture) |
+| `AC-V4-04` | `T-AC-V3-03` (shared) | n/a | ☐ | social parity with profile editor |
 | `AC-V5-01` | `T-AC-V5-01` | off | ☐ | hosting appears in history |
 | `AC-V5-02` | `T-AC-V5-02` | off | ☐ | role on every entry |
 | `AC-V5-03` | `T-AC-V5-03` | off | ☐ | one surface, paid as filter |
@@ -71,11 +73,11 @@ Capture the matching screenshot from
 | `AC-V8-04` | Story card composition matches the agreed design | on | `IMG-V8-c` | ☐ |
 | `AC-V8-06` | Share control labelled at 390px, not a bare glyph | on | `IMG-V8-b` | ☐ |
 
-Also confirm across both themes and the unstamped system default (REQ-07):
+Theme note (REQ-07): the app is deliberately dark-only (`color-scheme: dark`,
+no light palette exists). There is no light theme to verify — instead:
 
-- [ ] Light
-- [ ] Dark
-- [ ] System default (no explicit theme set)
+- [ ] Every surface touched by a fix paints its own background from the dark
+      tokens (nothing inherits a host/browser ground)
 
 ---
 
@@ -90,6 +92,8 @@ These close when a document exists, not when a test passes.
 | `AC-V5-04` | Votes received: fields, ordering, and whether voter identity is shown to the contestant | | ☐ |
 | `AC-V3-07` | Age and video prompts: implement, or record as intentional drops | | ☐ |
 | `AC-V8-03` | Relationship term — "fan" or "watch" — applied everywhere in one pass | | ☐ |
+| `AC-V8-03` (sweep) | After the rename: manual sweep of digest **email** and competition pages — the automated test only sees the profile page | | ☐ |
+| `AC-V8-04` (design) | **S2 story-card composition** — record the target design; the visual half of `AC-V8-04` cannot pass until this exists | | ☐ |
 
 ---
 

@@ -37,6 +37,9 @@ export const FIXTURES = {
     process.env.SS_CONTESTANT_ACTIVE ?? 'e2e/.auth/contestant-active.json',
   MEMBER_CONTESTANT_OUT:
     process.env.SS_CONTESTANT_OUT ?? 'e2e/.auth/contestant-out.json',
+  /** Claimed contestant in two or more competitions — required by AC-V4-03. */
+  MEMBER_CONTESTANT_MULTI:
+    process.env.SS_CONTESTANT_MULTI ?? 'e2e/.auth/contestant-multi.json',
   MEMBER_WITH_FANS: process.env.SS_MEMBER_FANS ?? 'e2e/.auth/member-fans.json',
 } as const;
 

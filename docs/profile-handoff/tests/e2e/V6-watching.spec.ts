@@ -24,7 +24,14 @@ test.describe('V6 — watch list', () => {
   test('T-AC-V6-02 — a case-mismatched email still resolves the watch list', async ({ page }) => {
     // Regression guard: listMyWatching keys on the lowercased email. A mismatch
     // returns an empty list rather than an error, so the failure is silent.
+    //
+    // PRECONDITION (or this test passes vacuously): the fixture's auth email
+    // must contain at least one uppercase letter while its notify_me rows were
+    // created lowercase. Seed it that way and set SS_MEMBER_MIXEDCASE, or this
+    // skips rather than pretending to guard.
+    test.skip(!process.env.SS_MEMBER_MIXEDCASE, 'seed a mixed-case-email fixture and set SS_MEMBER_MIXEDCASE');
     await page.goto('/me/watching');
-    await expect(page.getByText(/Saved markets \(\d+\)/)).toBeVisible();
+    const heading = await page.getByText(/Saved markets \((\d+)\)/).innerText();
+    expect(Number(heading.match(/\((\d+)\)/)?.[1] ?? '0')).toBeGreaterThan(0);
   });
 });

@@ -53,7 +53,10 @@ link, X handle and YouTube embed have no legacy equivalent.
 
 ## Notes
 
-`AC-V3-01`, `AC-V3-02` and `AC-V3-03` are the highest-value automated coverage
-in this package: the validation logic is pure and needs no session, so
+`AC-V3-01` and `AC-V3-03` are the highest-value automated coverage in this
+package: the normalization logic is pure and needs no session, so most of
 [`tests/unit/social-handle.test.ts`](../tests/unit/social-handle.test.ts) runs
-today against the real schema.
+today against the real contract. One exception: the `saveOwnProfile` assertion
+inside `T-AC-V3-02` hits the session check **before** validation
+(`profile.ts` returns `unauthenticated` first), so that single test needs a
+session mock or the e2e path — it is skipped in bare Vitest and marked so.

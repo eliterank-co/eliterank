@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Routes** | `/me/votes`, `/me/transactions`, `/me/history` |
-| **Renders when** | `social_profile` **off** (tab bar); `/me/history` is also linked from the v3 hero counts |
+| **Renders when** | Both paths — only the **tab** is flag-gated; with the flag on the route stays reachable by direct URL; `/me/history` is also linked from the v3 hero counts |
 | **Source** | `src/app/(public)/(member)/me/{votes,transactions,history}/`, `src/lib/data/{voter.ts,voter-history.ts}` |
 | **Diagram** | [`V5-vote-records.svg`](../assets/diagrams/V5-vote-records.svg) |
 | **Screenshot** | `IMG-V5-a`, `IMG-V5-b`, `IMG-V5-c` — not captured, see [assets](../assets/README.md) |

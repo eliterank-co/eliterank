@@ -18,9 +18,12 @@ The code under test lives in `eliterank-co/eliterank-app`. Copy them across:
 
 ## Three tiers, three levels of readiness
 
-**`unit/` — runnable today.** Pure validation logic, no session, no flag. This
-is the highest-value coverage in the package: `P1` is entirely a validation
-bug, so it can be proven and fixed without any test infrastructure.
+**`unit/` — mostly runnable today.** The `normalizeSocialHandle` matrix is
+pure logic — no session, no flag — and is the highest-value coverage in the
+package: `P1` is entirely a validation bug. One test inside it
+(`saveOwnProfile` naming the failed field) needs a session mock, because the
+action checks auth before validation; it skips unless `SESSION_MOCK` is set,
+and its criterion is also covered by the e2e path.
 
 **`e2e/` — needs a signed-in session.** Playwright specs against a real
 environment. They need `storageState` for an authenticated member and, for
@@ -44,6 +47,14 @@ that is currently correct and could regress under a nearby fix:
   the public profile.
 - `T-AC-V6-02` — email case normalisation in the watch-list lookup.
 
+## Instrumentation the specs assume (REQ-19)
+
+Several specs select on test ids that **do not exist in the app yet**:
+`stat-label` (V1), `history-entry` (V5), `profile-hero` (V2),
+`contestant-competition-row` (V4). Adding each id is part of the fix its spec
+verifies. Until then those specs fail on the selector, not the behaviour —
+which is another reason they ship as `test.fixme`.
+
 ## Flag discipline
 
 Every spec sets `ui_override` explicitly rather than inheriting ambient state
@@ -66,6 +77,8 @@ hardcoding ids in specs:
 | `MEMBER_WINNER` | at least one crowned entry |
 | `MEMBER_CONTESTANT_ACTIVE` | claimed contestant in an open round |
 | `MEMBER_CONTESTANT_OUT` | claimed contestant, eliminated after surviving a capped round |
+| `MEMBER_CONTESTANT_MULTI` | claimed contestant in two or more competitions (AC-V4-03) |
+| `SS_MEMBER_MIXEDCASE` (env) | member whose auth email contains an uppercase letter (T-AC-V6-02 — skips without it) |
 | `MEMBER_WITH_FANS` | at least one fan and several timeline events |
 
 Do not point these at real production members — several specs write profile

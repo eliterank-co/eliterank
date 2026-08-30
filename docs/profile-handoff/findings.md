@@ -10,7 +10,7 @@ decision · **Gap** legacy does it, v2 does not · **Craft** design and clarity 
 ---
 
 ## P1 — Saving a profile with a pasted social URL fails with a bare error
-**Class:** Defect · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-01`, `AC-V3-02`, `AC-V3-03`
+**Class:** Defect · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-01`, `AC-V3-02`, `AC-V3-03`, `AC-V4-04`
 
 Every social field is validated against a handle charset — letters, digits,
 period, underscore, hyphen. Paste a full profile URL and the colon and slashes

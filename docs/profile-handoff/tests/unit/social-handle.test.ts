@@ -66,7 +66,11 @@ describe('T-AC-V3-02 — genuinely invalid input is rejected by field, not form'
     expect(normalizeSocialHandle('instagram', bad)).toBeNull();
   });
 
-  it('saveOwnProfile names the offending field rather than returning invalid_input', async () => {
+  // saveOwnProfile checks the session BEFORE validation (profile.ts: getSession
+  // -> 'unauthenticated' -> only then safeParse), so in bare Vitest this test
+  // exercises the auth guard, not the validator. Runs only with a session mock;
+  // the e2e T-AC-V3-02 covers the same criterion through the real form.
+  it.skipIf(!process.env.SESSION_MOCK)('saveOwnProfile names the offending field rather than returning invalid_input', async () => {
     const result = await saveOwnProfile({
       displayName: 'Test Member',
       firstName: 'Test',

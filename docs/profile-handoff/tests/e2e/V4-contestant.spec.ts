@@ -32,11 +32,16 @@ test.describe('V4 — contestant self-service', () => {
       expect(hasTier).toBe(true);
     });
 
+  });
+
+  test.describe('multi-competition contestant', () => {
+    test.use({ storageState: FIXTURES.MEMBER_CONTESTANT_MULTI });
+
     test.fixme('T-AC-V4-03 — multi-competition contestants see tier per competition', async ({ page }) => {
       await page.goto('/me/contestant');
-      const rows = page.getByRole('link', { name: /./ });
+      const rows = page.getByTestId('contestant-competition-row'); // REQ-19
       const count = await rows.count();
-      test.skip(count < 2, 'fixture is single-competition');
+      expect(count).toBeGreaterThan(1);
       for (let i = 0; i < count; i++) {
         await expect(rows.nth(i)).toContainText(/Top \d+|Entry Round|#\d+/);
       }
