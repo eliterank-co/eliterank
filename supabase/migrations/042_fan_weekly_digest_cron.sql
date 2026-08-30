@@ -1,4 +1,17 @@
 -- =============================================================================
+-- Weekly fan digest cron — SUPERSEDED, do not enable
+-- =============================================================================
+-- Kept for history only. The digest is no longer a single platform-wide send at
+-- one Central-time hour: each competition now sends at 10 AM in ITS OWN
+-- timezone, driven by an hourly GitHub Actions run against
+-- send-fan-weekly-digest, with exactly-once delivery enforced by the
+-- fan_digest_sends ledger (migration 20260830000000_126_fan_digest_schedule).
+--
+-- Enabling the pg_cron job below would bypass that ledger's scheduling and send
+-- every competition at 16:00 UTC again. Leave it commented out.
+-- =============================================================================
+
+-- ---- original note, retained -----------------------------------------------
 -- Weekly fan digest cron — Friday 10:00 AM Central Time
 -- =============================================================================
 -- Invokes the send-fan-weekly-digest edge function once a week so contestants

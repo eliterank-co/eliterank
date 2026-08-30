@@ -2,82 +2,52 @@ name: Fan Weekly Digest
 
 # Weekly performance digest for contestants and their fans.
 #
-# GitHub Actions cron runs in UTC and does not follow daylight savings. To
-# keep the send at a true 10 AM America/Chicago wall-clock year-round, we
-# schedule BOTH 15:00 and 16:00 UTC every Friday and let exactly one of the
-# two ticks proceed: during CDT (Mar–Nov) 10 AM Chicago is 15:00 UTC, during
-# CST (Nov–Mar) it is 16:00 UTC.
+# This runs HOURLY and sends nothing most of the time. That is deliberate: each
+# competition sends at 10 AM in ITS OWN timezone, so there is no single UTC hour
+# that serves a competition in Vancouver and one in Toronto. The workflow's only
+# job is to ask "who is due right now?" once an hour; send-fan-weekly-digest
+# answers from each competition's local clock and its fan_digest_sends ledger.
 #
-# The gate compares the CRON EXPRESSION THAT SCHEDULED THIS RUN against the
-# one that currently means 10 AM Chicago — NOT the wall clock at execution
-# time. GitHub routinely delays scheduled runs under load, and the previous
-# wall-clock check ("proceed only if it is now hour 10 in Chicago") turned
-# every delayed run into a silent no-op: on 2026-08-28 both ticks landed
-# ~9 hours late, both failed the hour check, and nobody got a digest that
-# week while the workflow still reported success.
-#
-# Required repo secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_URL                — https://<ref>.supabase.co
-#   SUPABASE_SERVICE_ROLE_KEY   — the service role key from Supabase
+# Exactly-once delivery therefore lives in the DATABASE, not in this cron. That
+# is what makes an hourly poll safe, and it also fixes the failure this file
+# used to have: it ran on two fixed Friday ticks gated by a wall-clock check, so
+# when GitHub delayed both ticks ~9 hours on 2026-08-28 the check failed twice
+# and nobody got a digest that week — while the workflow still reported success.
+# A delayed hourly tick now just sends late, because the ledger, not the clock,
+# decides what has already gone out.
 
 on:
   schedule:
-    - cron: '0 15 * * 5'   # 10 AM CDT (America/Chicago during DST)
-    - cron: '0 16 * * 5'   # 10 AM CST (America/Chicago outside DST)
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run (fetch recipient list but do not send emails)'
+        description: 'Dry run (build the recipient list but do not send)'
         type: boolean
         default: false
+      competition_id:
+        description: 'Optional: send for this competition only, ignoring the schedule'
+        type: string
+        required: false
+
+# Two overlapping runs could both claim the same competition-week. The ledger's
+# unique constraint is the backstop, but not overlapping is cheaper than
+# relying on it. Never cancel-in-progress: that would kill a run mid-send.
+concurrency:
+  group: fan-weekly-digest
+  cancel-in-progress: false
 
 jobs:
   send:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
-      - name: Select the tick that means 10 AM America/Chicago
-        id: check
-        env:
-          SCHEDULE: ${{ github.event.schedule }}
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "Manual dispatch — proceeding."
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Which cron tick is 10 AM Chicago today? -0500 = CDT, -0600 = CST.
-          # This is delay-immune: github.event.schedule reports the tick the run
-          # was scheduled from, however late the runner actually picked it up.
-          OFFSET=$(TZ=America/Chicago date +%z)
-          case "$OFFSET" in
-            -0500) EXPECTED='0 15 * * 5' ;;
-            -0600) EXPECTED='0 16 * * 5' ;;
-            *)
-              echo "::warning::Unexpected America/Chicago UTC offset $OFFSET — falling back to the CST tick."
-              EXPECTED='0 16 * * 5'
-              ;;
-          esac
-
-          echo "Chicago UTC offset: $OFFSET"
-          echo "This run's cron tick: ${SCHEDULE:-<none>}"
-          echo "Tick that sends today: $EXPECTED"
-
-          if [ "${SCHEDULE:-}" = "$EXPECTED" ]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Other tick handles today's send — skipping."
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Invoke send-fan-weekly-digest
-        if: steps.check.outputs.proceed == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          COMPETITION_ID: ${{ inputs.competition_id || '' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
@@ -87,17 +57,21 @@ jobs:
 
           ENDPOINT="${SUPABASE_URL%/}/functions/v1/send-fan-weekly-digest"
           # The function stops before the edge runtime's wall-clock limit and
-          # hands back summary.next_offset; keep invoking until the queue drains.
+          # reports summary.resume; keep invoking until it says it is finished.
           MAX_CHUNKS=12
-          OFFSET=0
           TOTAL_SENT=0
           TOTAL_SKIPPED=0
           TOTAL_FAILED=0
-          TOTAL_RECIPIENTS=0
-          DRAINED=false
+          TOTAL_DUE=0
+          FINISHED=false
+          LEDGER=unknown
 
           for chunk in $(seq 1 "$MAX_CHUNKS"); do
-            BODY=$(jq -n --argjson d "$DRY_RUN" --argjson o "$OFFSET" '{dry_run: $d, offset: $o}')
+            if [ -n "${COMPETITION_ID:-}" ]; then
+              BODY=$(jq -n --argjson d "$DRY_RUN" --arg c "$COMPETITION_ID" '{dry_run: $d, competition_id: $c}')
+            else
+              BODY=$(jq -n --argjson d "$DRY_RUN" '{dry_run: $d}')
+            fi
             echo "POST $ENDPOINT  body=$BODY"
             # Capture status and body separately so the body is always visible,
             # even on 5xx. Using --fail-with-body inside $() swallows the body
@@ -108,7 +82,7 @@ jobs:
               -d "$BODY" \
               "$ENDPOINT")
             echo "HTTP $HTTP_CODE"
-            jq '.summary // .' /tmp/resp.json || cat /tmp/resp.json
+            jq '{summary, competitions}' /tmp/resp.json || cat /tmp/resp.json
 
             if [ "$HTTP_CODE" -ge 400 ]; then
               echo "::error::Edge function returned HTTP $HTTP_CODE"
@@ -120,16 +94,23 @@ jobs:
             TOTAL_SENT=$((TOTAL_SENT + $(jq -r '.summary.sent // 0' /tmp/resp.json)))
             TOTAL_SKIPPED=$((TOTAL_SKIPPED + $(jq -r '.summary.skipped // 0' /tmp/resp.json)))
             TOTAL_FAILED=$((TOTAL_FAILED + $(jq -r '.summary.failed // 0' /tmp/resp.json)))
-            TOTAL_RECIPIENTS=$(jq -r '.summary.recipients // 0' /tmp/resp.json)
+            TOTAL_DUE=$(jq -r '.summary.competitions_due // 0' /tmp/resp.json)
+            LEDGER=$(jq -r '.ledger_available // "unknown"' /tmp/resp.json)
 
-            NEXT=$(jq -r '.summary.next_offset // empty' /tmp/resp.json)
-            if [ -z "$NEXT" ]; then
-              DRAINED=true
+            if [ "$(jq -r '.summary.resume // false' /tmp/resp.json)" != "true" ]; then
+              FINISHED=true
               break
             fi
-            echo "Queue not drained — resuming at offset $NEXT"
-            OFFSET="$NEXT"
+            echo "Time budget reached with work outstanding — invoking again."
           done
+
+          # Nothing due is the normal case for 167 of every 168 ticks. Say so
+          # briefly and leave the step summary empty rather than posting an
+          # hourly wall of "0 sent" noise.
+          if [ "$TOTAL_DUE" = "0" ]; then
+            echo "No competitions due this hour."
+            exit 0
+          fi
 
           ATTEMPTED=$((TOTAL_SENT + TOTAL_FAILED))
           {
@@ -137,15 +118,21 @@ jobs:
             echo ""
             echo "| | |"
             echo "| --- | --- |"
-            echo "| Recipients queued | $TOTAL_RECIPIENTS |"
+            echo "| Competitions due | $TOTAL_DUE |"
             echo "| Sent | $TOTAL_SENT |"
             echo "| Skipped (no email on file) | $TOTAL_SKIPPED |"
             echo "| Failed | $TOTAL_FAILED |"
-            echo "| Queue drained | $DRAINED |"
+            echo "| Schedule ledger | $LEDGER |"
+            echo ""
+            jq -r '.competitions[]? | "- **\(.name // .competition_id)** (\(.timezone // "?")): \(.status) — sent \(.sent // 0), failed \(.failed // 0)"' /tmp/resp.json || true
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$DRAINED" != "true" ]; then
-            echo "::error::Recipient queue still not drained after $MAX_CHUNKS chunks."
+          if [ "$LEDGER" = "false" ]; then
+            echo "::warning::fan_digest_sends is missing — running without the catch-up window. Apply migration 20260830000000_126_fan_digest_schedule.sql."
+          fi
+
+          if [ "$FINISHED" != "true" ]; then
+            echo "::error::Still had work outstanding after $MAX_CHUNKS invocations."
             exit 1
           fi
 

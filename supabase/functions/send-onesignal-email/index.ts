@@ -63,6 +63,8 @@ interface EmailRequest {
   subscriber_id?: string
   unsubscribe_url?: string
   // fan_weekly_digest fields
+  competition_city?: string | null
+  brand_accent?: string | null
   rank?: number | null
   trend?: 'up' | 'down' | 'same' | null
   total_votes?: number | null
@@ -113,9 +115,44 @@ async function signFanToken(fanId: string, secret: string): Promise<string> {
 function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   const appUrl = Deno.env.get('APP_URL') || 'https://eliterank.co'
 
+  // Escape anything host-controlled before it reaches markup.
+  const esc = (value: string) => value
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+  // Only a literal hex colour may reach an inline style attribute — theme
+  // colours are host-supplied and would otherwise be an injection point.
+  const safeHex = (value?: string | null): string | null => {
+    const v = (value || '').trim()
+    return /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : null
+  }
+
+  const GOLD = '#d4a843'
+
+  // The digest is the one email a fan gets every week, and it is about a
+  // specific competition in a specific city — not about the platform. So it
+  // leads with the competition's own name and accent. Every other type keeps
+  // the platform masthead: those are EliteRank speaking, and the legal
+  // identification in the footer is unchanged either way.
+  const isDigest = req.type === 'fan_weekly_digest'
+  const accent = (isDigest && safeHex(req.brand_accent)) || GOLD
+
+  // How this competition names itself, used for the masthead, the subject and
+  // the body copy so all three agree. "Most Eligible Toronto · Toronto" would
+  // stutter, so the city is only appended when the name doesn't already carry
+  // it — which is the common case for competitions named after their city.
+  const digestName = (req.competition_name || '').trim()
+  const digestCity = (req.competition_city || '').trim()
+  const digestLabel = digestCity && !digestName.toLowerCase().includes(digestCity.toLowerCase())
+    ? `${digestName} · ${digestCity}`
+    : digestName
+
+  // Uppercase BEFORE escaping: escaping first would turn '&lt;' into '&LT;'.
+  const mastheadText = isDigest && digestLabel ? digestLabel.toUpperCase() : 'ELITERANK'
+
   const header = `
     <div style="text-align:center;padding:32px 0 16px;">
-      <span style="font-size:12px;letter-spacing:0.3em;color:#999;font-family:Arial,sans-serif;">ELITERANK</span>
+      <span style="font-size:12px;letter-spacing:0.3em;color:#999;font-family:Arial,sans-serif;">${esc(mastheadText)}</span>
     </div>
   `
 
@@ -150,7 +187,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   // gradient — without it the button renders with no background at all.
   const goldButton = (text: string, url: string) => `
     <div style="text-align:center;margin:24px 0;">
-      <a href="${url}" style="display:inline-block;padding:14px 32px;background-color:#d4a843;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">
+      <a href="${url}" style="display:inline-block;padding:14px 32px;background-color:${accent};background:linear-gradient(135deg,${accent},#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">
         ${text}
       </a>
     </div>
@@ -462,9 +499,15 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     }
 
     case 'fan_weekly_digest': {
-      const contestantName = req.contestant_name || 'your contestant'
       const isSelf = !!req.is_self
-      const competitionName = req.competition_name || 'Most Eligible'
+      // Escaped: both names are operator- and host-supplied, and they land in
+      // markup here. (The other templates in this file still interpolate raw —
+      // a pre-existing pattern worth a sweep of its own.)
+      const contestantName = esc(req.contestant_name || 'your contestant')
+      // No 'Most Eligible' fallback: this email is about ONE competition, and
+      // labelling a Toronto competition with another brand's name is worse than
+      // being generic.
+      const competitionLabel = esc(digestLabel || 'the competition')
 
       const formatShortDate = (iso: string) => {
         try {
@@ -481,7 +524,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
       const rankBlock = req.rank
         ? `<div style="display:inline-block;padding:12px 20px;background:#1a1a1a;border:1px solid #333;border-radius:8px;margin:8px 4px;min-width:120px;">
              <div style="color:#999;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;">Rank</div>
-             <div style="color:#d4a843;font-size:32px;font-weight:bold;line-height:1.1;margin-top:4px;">#${req.rank}</div>
+             <div style="color:${accent};font-size:32px;font-weight:bold;line-height:1.1;margin-top:4px;">#${req.rank}</div>
              <div style="color:${trendColor};font-size:13px;margin-top:4px;">${trendArrow} ${trendLabel}</div>
            </div>`
         : ''
@@ -510,8 +553,8 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
       const roundCountdown = (() => {
         const days = req.voting_round_end ? daysLeft(req.voting_round_end) : null
         if (days === null) return ''
-        if (days === 0) return ' &mdash; <strong style="color:#d4a843;">last day to vote</strong>'
-        return ` &mdash; <strong style="color:#d4a843;">${days} day${days === 1 ? '' : 's'} left to vote</strong>`
+        if (days === 0) return ` &mdash; <strong style="color:${accent};">last day to vote</strong>`
+        return ` &mdash; <strong style="color:${accent};">${days} day${days === 1 ? '' : 's'} left to vote</strong>`
       })()
 
       const roundEndLine = req.voting_round_end
@@ -523,13 +566,16 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         : ''
 
       const intro = isSelf
-        ? `Here's your weekly performance snapshot for <strong>${competitionName}</strong>.`
-        : `Here's how <strong>${contestantName}</strong> is doing this week in <strong>${competitionName}</strong>.`
+        ? `Here's your weekly performance snapshot for <strong>${competitionLabel}</strong>.`
+        : `Here's how <strong>${contestantName}</strong> is doing this week in <strong>${competitionLabel}</strong>.`
 
       const heading = isSelf ? 'Your Weekly Update' : `Weekly Update: ${contestantName}`
+      // The subject names the competition on both variants — a fan following
+      // contestants in two competitions needs to tell the two emails apart in
+      // the inbox, and "Weekly update on Maria" alone doesn't.
       const subject = isSelf
-        ? `Your weekly update — ${competitionName}`
-        : `Weekly update on ${contestantName}`
+        ? `Your weekly update — ${competitionLabel}`
+        : `${contestantName} — this week in ${competitionLabel}`
 
       const ctaUrl = req.profile_url || req.competition_url
       const ctaLabel = isSelf ? 'View My Profile' : `View ${contestantName}'s Profile`
@@ -545,7 +591,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         subject,
         body: wrapper(`
           <div style="text-align:center;">
-            <h1 style="color:#d4a843;font-size:26px;margin:0 0 8px;">${heading}</h1>
+            <h1 style="color:${accent};font-size:26px;margin:0 0 8px;">${heading}</h1>
             <p style="color:#ccc;font-size:15px;margin:8px 0 16px;">${intro}</p>
             ${statsRow}
             ${roundEndLine}
