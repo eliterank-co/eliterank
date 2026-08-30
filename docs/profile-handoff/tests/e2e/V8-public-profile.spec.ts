@@ -1,85 +1,78 @@
 /**
- * V8 — Public member profile  (/p/[voterId], flag ON — 404s when OFF)
- * Findings: P4, X2, S2, S4, S5 · View doc: docs/profile-handoff/views/V8-public-profile.md
+ * V8 — Public member profile. Findings: R1, R9, R15 (+guard).
+ * View doc: views/V8-public-profile.md
+ * Needs target voterIds (fixture-provided) and the profile experience.
  */
-import { test, expect, withFlag, FIXTURES } from './_fixtures';
+import { test, expect, selectExperience, FIXTURES, BASE_URL } from './_fixtures';
 
-test.describe('V8 — public member profile', () => {
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'on');
+const TARGET = process.env.TARGET_VOTER_ID ?? '';
+const TARGET_WINNER = process.env.TARGET_VOTER_ID_WINNER ?? '';
+
+test.describe('V8 — visitor', () => {
+  test.skip(!TARGET, 'needs TARGET_VOTER_ID (a fixture member with fans + a live entry, NO crown, NO org)');
+  test.use({ storageState: FIXTURES.MEMBER_PLAIN });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'profile'));
+
+  test.fixme('T-AC-V8-01 — a signed-in visitor can become and stop being a fan', async ({ page }) => {
+    await page.goto(`/p/${TARGET}`);
+    // R1: FanButton is unmounted at c2f45dd — no toggle renders anywhere.
+    const toggle = page.locator('[data-testid="fan-toggle"]');
+    await expect(toggle).toBeVisible();
+    const before = await toggle.innerText();
+    await toggle.click();
+    await expect(toggle).not.toHaveText(before);
   });
 
-  test.describe('as the owner', () => {
-    test.use({ storageState: FIXTURES.MEMBER_WITH_FANS });
-
-    test.fixme('T-AC-V8-01 — the owner can get back from "View as visitor"', async ({ page }) => {
-      await page.goto('/me');
-      await page.getByRole('link', { name: /view as visitor/i }).click();
-      await expect(page).toHaveURL(/\/p\//);
-      // P4: the page has no /me reference at all today.
-      await expect(page.getByText(/previewing your public profile/i)).toBeVisible();
-      await page.getByRole('link', { name: /back to your view/i }).click();
-      await expect(page).toHaveURL(/\/me$/);
-    });
-
-    test('T-AC-V8-07 — the owner-only Watching count never renders here', async ({ page }) => {
-      // Regression guard: currently correct, and must survive fixes to the
-      // shared hero made for G2/G3 (see T-AC-V2-05).
-      await page.goto('/me');
-      await page.getByRole('link', { name: /view as visitor/i }).click();
-      await expect(page.getByText(/watching/i)).toHaveCount(0);
-    });
+  test.fixme('T-AC-V8-03 — the story-card modal delivers the actual card', async ({ page }) => {
+    await page.goto(`/p/${TARGET}`);
+    await page.getByRole('button', { name: /story card/i }).click();
+    // R9: today the modal offers navigator.share(url) and copy-link only;
+    // the 1080x1920 route is unreachable from it.
+    const download = page.getByRole('link', { name: /download/i })
+      .or(page.getByRole('button', { name: /download/i }));
+    await expect(download).toBeVisible();
   });
 
-  test.describe('as a visitor', () => {
-    test.use({ storageState: FIXTURES.MEMBER_PLAIN });
+  test.fixme('T-AC-V8-04 (negative) — no unearned role tabs for a crownless, org-less member', async ({ page }) => {
+    await page.goto(`/p/${TARGET}`); // fixture target has NO crown and NO org
+    await page.getByRole('button', { name: /story card/i }).click();
+    // R9: all five tabs render for everyone today.
+    await expect(page.getByRole('button', { name: 'WINNER' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'HOST' })).toHaveCount(0);
+  });
 
-    test.fixme('T-AC-V8-02 — a non-owner sees no preview strip', async ({ page, context }) => {
-      const targetVoterId = process.env.FIXTURE_VOTER_ID ?? '';
-      test.skip(!targetVoterId, 'set FIXTURE_VOTER_ID to a seeded member');
-      await page.goto(`/p/${targetVoterId}`);
-      await expect(page.getByText(/previewing your public profile/i)).toHaveCount(0);
-      await expect(page.getByRole('link', { name: /back to your view/i })).toHaveCount(0);
-      void context;
-    });
+  test('T-AC-V8-08 — guard: owner-only data absent on the public render', async ({ page }) => {
+    await page.goto(`/p/${TARGET}`);
+    await expect(page.getByText('Watching', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Bonus Vote Tasks')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Edit Profile' })).toHaveCount(0);
+    await expect(page.getByText('Viewing your official member profile')).toHaveCount(0);
+  });
+});
 
-    test.fixme('T-AC-V8-03 — one term names the member relationship everywhere', async ({ page }) => {
-      const targetVoterId = process.env.FIXTURE_VOTER_ID ?? '';
-      test.skip(!targetVoterId, 'set FIXTURE_VOTER_ID to a seeded member');
-      await page.goto(`/p/${targetVoterId}`);
-      const body = await page.locator('main').innerText();
-      // X2: pick one. Both terms present means the rename is incomplete.
-      const hasFan = /\bfan\b/i.test(body);
-      const hasWatch = /\bwatch(ing)?\b/i.test(body);
-      expect(hasFan && hasWatch).toBe(false);
-    });
+test.describe('V8 — crowned member (positive half of AC-V8-04)', () => {
+  // Without this half, a fix that deletes ALL role tabs would pass the
+  // negative test above while breaking earned self-presentation.
+  test.skip(!TARGET_WINNER, 'needs TARGET_VOTER_ID_WINNER (public profile of the crowned fixture)');
+  test.use({ storageState: FIXTURES.MEMBER_PLAIN });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'profile'));
 
-    test.fixme('T-AC-V8-05 — social marks are inline SVG with no raw hex', async ({ page }) => {
-      const targetVoterId = process.env.FIXTURE_VOTER_ID ?? '';
-      test.skip(!targetVoterId, 'set FIXTURE_VOTER_ID to a seeded member');
-      await page.goto(`/p/${targetVoterId}`);
-      const fills = await page.locator('svg [fill]').evaluateAll((els) =>
-        els.map((e) => e.getAttribute('fill') ?? ''),
-      );
-      // REQ-05: currentColor or a token, never a literal hex.
-      expect(fills.filter((f) => /^#[0-9a-f]{3,8}$/i.test(f))).toHaveLength(0);
-    });
+  test.fixme('T-AC-V8-04 (positive) — a crowned member keeps the WINNER tab', async ({ page }) => {
+    await page.goto(`/p/${TARGET_WINNER}`);
+    await page.getByRole('button', { name: /story card/i }).click();
+    await expect(page.getByRole('button', { name: 'WINNER' })).toBeVisible();
+  });
+});
 
-    test.fixme('T-AC-V8-06 — the share control carries a label at mobile widths', async ({ page }) => {
-      const targetVoterId = process.env.FIXTURE_VOTER_ID ?? '';
-      test.skip(!targetVoterId, 'set FIXTURE_VOTER_ID to a seeded member');
-      await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto(`/p/${targetVoterId}`);
-      // S5: today this is a bare glyph on mobile.
-      await expect(page.getByRole('button', { name: /share/i })).toContainText(/share/i);
-    });
+test.describe('V8 — naming (after the R15 decision)', () => {
+  test.skip(!TARGET, 'needs TARGET_VOTER_ID');
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'profile'));
 
-    test.fixme('T-AC-V8-04 — the story card renders and downloads', async ({ page }) => {
-      const targetVoterId = process.env.FIXTURE_VOTER_ID ?? '';
-      test.skip(!targetVoterId, 'set FIXTURE_VOTER_ID to a seeded member');
-      const res = await page.request.get(`/p/${targetVoterId}/story-card`);
-      expect(res.status()).toBe(200);
-      expect(res.headers()['content-type']).toContain('image/png');
-    });
+  test.fixme('T-AC-V8-02 — one term for the fan relationship', async ({ page }) => {
+    await page.goto(`/p/${TARGET}`);
+    // Placeholder until the term is chosen: assert the LOSING term is absent.
+    // Update on decision: e.g. if "Fans" wins, "Followers" must not appear.
+    const counts = await page.locator('[data-testid="hero-count-label"]').allInnerTexts();
+    expect(counts.filter((c) => /fan|follow/i.test(c)).length).toBeLessThanOrEqual(1);
   });
 });

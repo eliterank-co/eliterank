@@ -1,48 +1,43 @@
 /**
- * V5 — Votes, transactions, history  (flag OFF)
- * Findings: P3, X3, D3 · View doc: docs/profile-handoff/views/V5-vote-records.md
+ * V5 — Votes, transactions, history. Findings: R12, R16.
+ * View doc: views/V5-vote-records.md
+ * Needs the dashboard experience — skipped until the app-owned off-selection
+ * helper exists (see DASHBOARD_TODO in _fixtures.ts).
  */
-import { test, expect, withFlag, FIXTURES } from './_fixtures';
+import {
+  test,
+  expect,
+  selectExperience,
+  FIXTURES,
+  BASE_URL,
+  CAN_SELECT_DASHBOARD,
+  DASHBOARD_TODO,
+} from './_fixtures';
 
-test.describe('V5 — vote records', () => {
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'off');
+test.describe('V5 — host history', () => {
+  test.skip(!CAN_SELECT_DASHBOARD, DASHBOARD_TODO);
+  test.use({ storageState: FIXTURES.MEMBER_HOST });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'dashboard'));
+
+  test.fixme('T-AC-V5-01 — hosting appears in competition history with a role', async ({ page }) => {
+    await page.goto('/me/history');
+    // R12: voter-history.ts reads votes + notify_me only (103, 161).
+    await expect(
+      page.locator('[data-testid="history-entry"][data-role="hosted"]'),
+    ).not.toHaveCount(0);
   });
+});
 
-  test.describe('host member', () => {
-    test.use({ storageState: FIXTURES.MEMBER_HOST });
+test.describe('V5 — vote ledger (after the R16 decision)', () => {
+  test.skip(!CAN_SELECT_DASHBOARD, DASHBOARD_TODO);
+  test.use({ storageState: FIXTURES.MEMBER_PLAIN });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'dashboard'));
 
-    test.fixme('T-AC-V5-01 — a host sees competitions they ran in /me/history', async ({ page }) => {
-      await page.goto('/me/history');
-      // P3: getMyCompetitionHistory reads votes + notify_me_subscriptions only.
-      await expect(page.getByText(/hosted/i)).toBeVisible();
-    });
-
-    test.fixme('T-AC-V5-02 — each history entry names the member’s role', async ({ page }) => {
-      await page.goto('/me/history');
-      const entries = page.getByTestId('history-entry');
-      const n = await entries.count();
-      expect(n).toBeGreaterThan(0);
-      for (let i = 0; i < n; i++) {
-        await expect(entries.nth(i)).toContainText(/hosted|competed|voted|watching/i);
-      }
-    });
-  });
-
-  test.describe('plain member', () => {
-    test.use({ storageState: FIXTURES.MEMBER_PLAIN });
-
-    test.fixme('T-AC-V5-03 — cast and paid records live on one surface', async ({ page }) => {
-      await page.goto('/me/votes');
-      // X3: /me/transactions is the same rows filtered to amountPaidCents > 0.
-      await expect(page.getByRole('button', { name: /paid|filter/i })).toBeVisible();
-    });
-
-    test.fixme('T-AC-V5-05 — paid records stay framed as a vote ledger', async ({ page }) => {
-      await page.goto('/me/votes');
-      const body = await page.locator('main').innerText();
-      expect(body).toMatch(/vote (ledger|record)/i);
-      expect(body).not.toMatch(/card statement/i);
-    });
+  test.fixme('T-AC-V5-02 — one surface; paid is a filter, not a page', async ({ page }) => {
+    await page.goto('/me/votes');
+    await expect(page.getByRole('button', { name: /paid/i })).toBeVisible();
+    const res = await page.goto('/me/transactions');
+    // Redirect (or an intentional re-scope recorded in the decision).
+    expect(res?.url()).not.toContain('/me/transactions');
   });
 });

@@ -3,36 +3,21 @@
 | | |
 | --- | --- |
 | **Route** | `/me/watching` |
-| **Renders when** | Both paths — only the **tab** is flag-gated; with the flag on the route stays reachable by direct URL; the count also feeds the v3 hero |
-| **Source** | `src/app/(public)/(member)/me/watching/page.tsx`, `src/lib/data/watching.ts` |
-| **Diagram** | [`V6-watching.svg`](../assets/diagrams/V6-watching.svg) |
-| **Screenshot** | `IMG-V6-a` — not captured, see [assets](../assets/README.md) |
-| **Findings** | [D3](../findings.md#d3--markets-watched-counts-something-else) |
+| **Source** | `me/watching/page.tsx` ← `src/lib/data/watching.ts` (`listMyWatching`, keyed by lowercased email) |
+| **Findings** | [R8](../findings.md#r8--markets-watched-counts-something-else) (shared with V1) |
 | **Tests** | [`V6-watching.spec.ts`](../tests/e2e/V6-watching.spec.ts) |
 
 ## What it does today
 
-Saved markets and contestants, keyed on the member's lowercased email via
-`listMyWatching`, with a phase tint per row and an empty state. This is the
-authoritative watch list; the v3 hero's "Watching" count reads from the same
-function.
-
-## Requirements
-
-- **RQ-V6-1** This page and every watch count elsewhere in the app must read
-  from one source.
-- **RQ-V6-2** The lookup key is the member's email, lowercased — any new caller
-  must normalise identically or silently return an empty list.
+Lists `notify_me_subscriptions` for the member's email. This list is the
+ground truth for "watching"; three other surfaces show a watching number —
+the dashboard stat tile (wrong source, R8), the dashboard quick action
+(correct), and the profile hero's owner-only Watching count (correct,
+`page-v3.tsx:34,85`).
 
 ## Acceptance criteria
 
 | ID | Criterion | Finding | Verified by |
 | --- | --- | --- | --- |
-| `AC-V6-01` | The row count here equals every "watching" count shown elsewhere for the same member — the v3 hero, and the V1 tile once `AC-V1-04` is satisfied. | D3 | `T-AC-V6-01` |
-| `AC-V6-02` | A member whose email differs in case between auth and subscription records still sees their saved markets. | — (regression guard) | `T-AC-V6-02` |
-
-## Notes
-
-`AC-V6-02` guards an existing normalisation. It is worth an explicit test
-because the failure mode is silent: a case mismatch returns an empty list rather
-than an error, which reads as "nothing saved".
+| `AC-V6-01` | Every surface that shows a watching count agrees with this list's length: stat tile (or renamed), quick action, hero count. | R8 | `T-AC-V6-01` |
+| `AC-V6-02` | **Guard:** a member whose auth email contains uppercase still sees their watch list — the seeded rows actually render, not merely "no error" (lowercasing stays inside the loader). | — | `T-AC-V6-02` (mixed-case fixture + its known watch count) |

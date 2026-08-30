@@ -2,61 +2,44 @@
 
 | | |
 | --- | --- |
-| **Route** | `/me/profile` (also reached as `/profile?edit=true` on the crossover) |
-| **Renders when** | Both flag paths — this component is flag-independent |
-| **Source** | `src/experiences/voter/profile/profile-edit.tsx`, `use-media-upload.ts`, `city-autocomplete.tsx`; server side `src/lib/actions/profile.ts` |
-| **Diagram** | [`V3-profile-editor.svg`](../assets/diagrams/V3-profile-editor.svg) |
-| **Screenshot** | `IMG-V3-a` (owner-supplied, three-part) — see [assets](../assets/README.md) |
-| **Findings** | [P1](../findings.md#p1--saving-a-profile-with-a-pasted-social-url-fails-with-a-bare-error), [P2](../findings.md#p2--intro-video-saves-with-an-error-then-renders-as-a-black-frame), [S1](../findings.md#s1--pinned-link-and-link-are-indistinguishable-in-the-editor), [G1](../findings.md#g1--interests-render-but-cannot-be-edited), [G6](../findings.md#g6--age-and-video-prompts-have-no-v2-equivalent) |
+| **Route** | `/me/profile` (either experience; also reachable from the profile hero's Edit Profile — the specs pin the profile experience) |
+| **Source** | `src/experiences/voter/profile/profile-edit.tsx`, `src/components/profile/panels.tsx`, `src/lib/actions/profile.ts` |
+| **Findings** | [R4](../findings.md#r4--the-editor-captures-fields-the-profile-never-renders), [R5](../findings.md#r5--save-errors-are-fieldless-raw-codes), [R17](../findings.md#r17--interests-still-cannot-be-set), [R20](../findings.md#r20--age-on-the-profile-is-an-undecided-product-question), [R22](../findings.md#r22--link-and-pinned-link-are-still-indistinguishable-in-the-editor), [R24](../findings.md#r24--the-editors-video-preview-still-paints-a-black-frame) |
 | **Tests** | [`V3-profile-editor.spec.ts`](../tests/e2e/V3-profile-editor.spec.ts), [`social-handle.test.ts`](../tests/unit/social-handle.test.ts) |
 
 ## What it does today
 
-Sections: cover + avatar, Personal Information (display name, first, last, city,
-headline), Bio (500 chars), Connect (Instagram, TikTok, X, LinkedIn, Link,
-Pinned Link, Pinned Link Label), Photo Gallery (up to 6), Intro Video (upload or
-YouTube embed), then Save.
+Sections: identity (display/first/last name, city with autocomplete,
+headline), bio, Connect (Instagram/TikTok/X/LinkedIn/Link/Pinned Link +
+label), photo gallery (6 slots, drag-drop), intro video (upload or YouTube
+URL). Media commits immediately and Save is disabled + relabelled while a
+commit is in flight; text saves go through `saveOwnProfile` in one RPC.
+Social handles are normalized server-side (`extractSocialHandle`) — pasted
+URLs are accepted.
 
-Media commits **immediately** on upload and updates local state; Save
-atomically persists the remaining identity fields. Occupation, birthdate and
-interests are deliberately outside this editor.
-
-This is the surface most ahead of legacy — cover image, display name, pinned
-link, X handle and YouTube embed have no legacy equivalent.
+What is broken or undecided: errors render as raw codes with no field marked
+(R5); LinkedIn, cover image, and occupation are captured but the redesigned
+profile never renders them (R4); the video preview panel has no poster and
+paints black (R24); interests have no editor (R17); the two link fields are
+indistinguishable (R22); age is an unmade product decision (R20).
 
 ## Requirements
 
-- **RQ-V3-1** A rejected save must identify which field was rejected. (REQ-11)
-- **RQ-V3-2** A field whose placeholder or helper text advertises a format must
-  accept that format. (REQ-12)
-- **RQ-V3-3** The same social value must be accepted identically here and in the
-  contestant editor. Both write the same columns.
-- **RQ-V3-4** A save must never report failure for work that already committed.
-  (REQ-13)
-- **RQ-V3-5** Media that has uploaded successfully must render with a visible
-  first frame, not a black rectangle.
-- **RQ-V3-6** Two fields that do different things must be labelled differently
-  enough to tell apart without reading the code.
+- **RQ-V3-1** Every field the editor offers appears somewhere on the rendered
+  profile, or is removed (REQ-07 — the inverse direction: real data must not
+  be silently dropped).
+- **RQ-V3-2** Validation failures name the field and speak human (REQ-11).
+- **RQ-V3-3** The editor's own previews match what the profile will render —
+  same poster behavior, same crops.
 
 ## Acceptance criteria
 
 | ID | Criterion | Finding | Verified by |
 | --- | --- | --- | --- |
-| `AC-V3-01` | Pasting `https://instagram.com/crystalkendzior` into Instagram and saving succeeds, storing the handle `crystalkendzior`. Same for TikTok, X and LinkedIn. | P1 | `T-AC-V3-01` (unit + e2e) |
-| `AC-V3-02` | A genuinely invalid social value produces an error naming the field, not a form-level generic. | P1 | `T-AC-V3-02` |
-| `AC-V3-03` | A value accepted by the contestant editor is accepted here, and vice versa, for all four networks. | P1 | `T-AC-V3-03` (unit) |
-| `AC-V3-04` | Uploading an intro video then clicking Save produces no error, and the video persists. | P2 | `T-AC-V3-04` |
-| `AC-V3-05` | A saved intro video renders a visible poster frame before playback, never a black rectangle. | P2 | `T-AC-V3-05` (visual) |
-| `AC-V3-06` | Interests are editable here, or the Interests panel and its empty-state copy are removed from V2. | G1 | `T-AC-V3-06` |
-| `AC-V3-07` | A documented decision exists for age and video prompts: implemented, or recorded as an intentional drop. | G6 | Manual — [checklist](../tests/manual/verification-checklist.md) |
-| `AC-V3-08` | "Link" and "Pinned Link" are labelled so their difference is clear without reading source; placeholders are not near-identical. | S1 | `T-AC-V3-08` (visual) |
-
-## Notes
-
-`AC-V3-01` and `AC-V3-03` are the highest-value automated coverage in this
-package: the normalization logic is pure and needs no session, so most of
-[`tests/unit/social-handle.test.ts`](../tests/unit/social-handle.test.ts) runs
-today against the real contract. One exception: the `saveOwnProfile` assertion
-inside `T-AC-V3-02` hits the session check **before** validation
-(`profile.ts` returns `unauthenticated` first), so that single test needs a
-session mock or the e2e path — it is skipped in bare Vitest and marked so.
+| `AC-V3-01` | Submitting an invalid value marks the offending input and shows human copy; no raw code (`invalid_input`, `profile_update_failed`, …) ever renders. | R5 | `T-AC-V3-01` (unit + e2e) |
+| `AC-V3-02` | **Guard:** pasted profile URLs for all four networks normalize to bare handles; bare handles pass through; `@` strips; unsafe schemes reject. The guarded behavior ships today (`6b665a8`); the unit file proving it is contract-first and compiles only after the R5 fix extracts `extractSocialHandle` to a plain module. | — | `T-AC-V3-02` (unit, contract-first) |
+| `AC-V3-03` | For each of LinkedIn, cover image, occupation: the field renders on the profile, or the field is gone from the editor — with the decision recorded. | R4 | `T-AC-V3-03` + Manual |
+| `AC-V3-04` | No surface renders an unpostered `<video>`: the editor preview (and any other `panels.tsx` consumer) posters with the avatar or a captured frame. | R24 | `T-AC-V3-04` (fixture with an uploaded video) |
+| `AC-V3-05` | The two link fields are labelled by what they produce, and the pinned-link label field says it is button text. | R22 | `T-AC-V3-05` (+ visual) |
+| `AC-V3-06` | Interests are editable from this page (taxonomy picker), or the interests field and card are removed everywhere. | R17 | `T-AC-V3-06` (fixture with imported tags — either-arm) |
+| `AC-V3-07` | A recorded decision on public age display, referencing the 18+ eligibility work. | R20 | Manual |

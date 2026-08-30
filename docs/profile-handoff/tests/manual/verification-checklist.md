@@ -1,108 +1,81 @@
 # Verification checklist
 
-Sign-off sheet for hand-off. A finding is **closed** when every criterion it
-maps to passes and its row here is signed.
-
-Record the flag path for every row (REQ-03). A result without it is not
-evidence.
+Sign-off sheet. A finding is **closed** when every criterion it maps to
+passes and its row here is signed. Record the **experience** rendered for
+every row (REQ-02) — a result without it is not evidence.
 
 ## Before you start
 
-- [ ] Confirmed whether the `feature_flags` row for `social_profile` exists
-      (**not** just the `ui_override` cookie). Recorded here: ................
-- [ ] Fixture accounts seeded — see [tests/README.md](../README.md#preconditions)
-- [ ] Test environment base URL recorded: ................
-
----
+- [ ] Recorded how the environment resolves the experience (per the app
+      team's current mechanism) so results aren't from a stale override.
+      Note: dashboard-experience specs skip until the app-owned off-selection
+      helper exists (REQ-01).
+- [ ] Fixture accounts seeded — see [tests/README.md](../README.md#fixtures)
+- [ ] Base URL recorded: ................
 
 ## Automated
 
-Run first; these need no judgement.
+Run first; no judgement needed. `T-AC-*` per the
+[traceability matrix](../../traceability.md); each spec/unit file names its
+criterion. Guards expected green at `c2f45dd` (written from source, unrun —
+confirm on first execution): `AC-V2-03` (automated half), `AC-V2-07`,
+`AC-V6-02` (needs the mixed-case fixture + `MIXEDCASE_WATCH_COUNT`),
+`AC-V8-08`, `AC-V9-01`. The two contract-first unit files
+(`social-handle`, `track-record-labels`) do not compile until their fixes
+land — do not add them to CI before that.
 
-| Criterion | Test | Flag | Result | Notes |
-| --- | --- | --- | --- | --- |
-| `AC-V3-01` | `T-AC-V3-01` (unit + e2e) | either | ☐ | pasted URL → handle |
-| `AC-V3-02` | `T-AC-V3-02` | either | ☐ | error names the field |
-| `AC-V3-03` | `T-AC-V3-03` (unit) | n/a | ☐ | parity with contestant editor |
-| `AC-V3-04` | `T-AC-V3-04` | either | ☐ | video save reports no error |
-| `AC-V3-06` | `T-AC-V3-06` | either | ☐ | interests editable, or panel removed |
-| `AC-V1-01` | `T-AC-V1-01` | off | ☐ | no hardcoded tier |
-| `AC-V1-02` | `T-AC-V1-02` | off | ☐ | real win count |
-| `AC-V1-03` | `T-AC-V1-03` | off→on | ☐ | agrees with hero Crowns |
-| `AC-V1-04` | `T-AC-V1-04` | off | ☐ | watch tile matches `/me/watching` |
-| `AC-V1-05` | `T-AC-V1-05` | off | ☐ | labels stable across roles |
-| `AC-V2-01` | `T-AC-V2-01` | on | ☐ | host org named in hero |
-| `AC-V2-02` | `T-AC-V2-02` | on | ☐ | open bonus tasks on own profile |
-| `AC-V2-04` | `T-AC-V2-04` | on | ☐ | interests panel honest or absent |
-| `AC-V2-05` | `T-AC-V2-05` | on | ☐ | **guard** — should pass today |
-| `AC-V4-01` | `T-AC-V4-01` | off | ☐ | tier label present |
-| `AC-V4-02` | `T-AC-V4-02` | off | ☐ | eliminated keeps tier |
-| `AC-V4-03` | `T-AC-V4-03` | off | ☐ | tier per competition (needs multi-comp fixture) |
-| `AC-V4-04` | `T-AC-V3-03` (shared) | n/a | ☐ | social parity with profile editor |
-| `AC-V5-01` | `T-AC-V5-01` | off | ☐ | hosting appears in history |
-| `AC-V5-02` | `T-AC-V5-02` | off | ☐ | role on every entry |
-| `AC-V5-03` | `T-AC-V5-03` | off | ☐ | one surface, paid as filter |
-| `AC-V5-05` | `T-AC-V5-05` | off | ☐ | ledger framing preserved |
-| `AC-V6-01` | `T-AC-V6-01` | off→on | ☐ | counts agree |
-| `AC-V6-02` | `T-AC-V6-02` | off | ☐ | **guard** — should pass today |
-| `AC-V7-01` | `T-AC-V7-01` | off | ☐ | password/email one step away |
-| `AC-V7-03` | `T-AC-V7-03` | off | ☐ | **gated on `AC-V7-06`** |
-| `AC-V7-04` | `T-AC-V7-04` | off | ☐ | **gated on `AC-V7-06`** |
-| `AC-V7-05` | `T-AC-V7-05` | off | ☐ | **gated on `AC-V7-06`** |
-| `AC-V8-01` | `T-AC-V8-01` | on | ☐ | owner can return |
-| `AC-V8-02` | `T-AC-V8-02` | on | ☐ | visitor sees no preview strip |
-| `AC-V8-03` | `T-AC-V8-03` | on | ☐ | one relationship term |
-| `AC-V8-04` | `T-AC-V8-04` | on | ☐ | story card 200 + PNG |
-| `AC-V8-05` | `T-AC-V8-05` | on | ☐ | no raw hex in social marks |
-| `AC-V8-07` | `T-AC-V8-07` | on | ☐ | **guard** — should pass today |
-| `AC-V9-01` | `T-AC-V9-01` | either | ☐ | vote affordance present |
-| `AC-V9-02` | `T-AC-V9-02` | either | ☐ | disabled state explains itself |
+| Criterion | Result | Notes |
+| --- | --- | --- |
+| AC-V1-01 … AC-V1-05 | ☐ | dashboard stats honest (specs skip until the off-selection helper lands) |
+| AC-V2-01, -02, -03, -04, -06, -07 | ☐ | checklist, nav guard, preview, dead code |
+| AC-V3-01 … AC-V3-06 | ☐ | editor honesty |
+| AC-V4-01, -02 | ☐ | achievement framing |
+| AC-V5-01, -02 | ☐ | history + ledger |
+| AC-V6-01, -02 | ☐ | watching consistency |
+| AC-V7-01, -03, -04, -05 | ☐ | -03/-04/-05 blocked until AC-V7-06 signed |
+| AC-V8-01 … AC-V8-08 | ☐ | fan toggle, story card, track-record honesty |
+| AC-V9-01 | ☐ | guard |
+| AC-V10-01, -02, -03, -05 | ☐ | theme structure (units ship skipped; un-skip as the V10 pieces land) |
 
----
+## Decisions (written, dated, linked)
 
-## Visual — needs a person
+| Criterion | Decision needed | Signed |
+| --- | --- | --- |
+| AC-V2-03 | Profile-experience navigation: avatar-menu-only recorded as intended, or surfaced nav ships (R3) | ☐ |
+| AC-V2-05 | Host identity in the hero: track record sufficient, or org named | ☐ |
+| AC-V3-03 | Per field — LinkedIn / cover image / occupation: render or remove | ☐ |
+| AC-V3-07 | Age on the public profile (references 18+ eligibility work) | ☐ |
+| AC-V5-03 | Votes-received scope | ☐ |
+| AC-V7-02 | Phone: collect for SMS, or drop | ☐ |
+| AC-V7-06 | Retention policy (gates AC-V7-03/04/05); infra migrations named | ☐ |
+| AC-V8-07 | Placement-label ladder | ☐ |
+| AC-V10-08 | Theme toggle placement + persistence | ☐ |
 
-Capture the matching screenshot from
-[assets/README.md](../../assets/README.md) as evidence for each.
+## Visual — light theme walkthrough (AC-V10-06, AC-V10-07)
 
-| Criterion | Check | Flag | Asset | Result |
-| --- | --- | --- | --- | --- |
-| `AC-V3-05` | Saved intro video shows a poster frame, never black | either | `IMG-V3-c` | ☐ |
-| `AC-V3-08` | "Link" and "Pinned Link" tell apart at a glance; placeholders differ | either | `IMG-V3-b` | ☐ |
-| `AC-V2-03` | Hero avatar at agreed size; identity text left-aligned | on | `IMG-V2-a` | ☐ |
-| `AC-V8-04` | Story card composition matches the agreed design | on | `IMG-V8-c` | ☐ |
-| `AC-V8-06` | Share control labelled at 390px, not a bare glyph | on | `IMG-V8-b` | ☐ |
+For each view V1–V9, in **light**, then repeat spot checks in **dark**:
 
-Theme note (REQ-07): the app is deliberately dark-only (`color-scheme: dark`,
-no light palette exists). There is no light theme to verify — instead:
+1. Set the explicit theme to light (per AC-V10-08's landed control).
+2. Load the view with its fixture (per tests/README).
+3. Check: page ground is the light `--color-bg-app`; body text ≥4.5:1 (spot
+   check with devtools contrast picker on the faintest text token); gold
+   accents legible; card borders visible; no black scrim where content
+   should show; no white-on-white.
+4. Open every overlay on the view (lightbox, detail sheet, share modal,
+   story card): scrims render deliberately (tokenized or marked
+   theme-invariant), content inside is legible.
+5. Toggle to dark and back on the same page: no flash of the wrong theme,
+   no unstyled flicker, form controls follow (`color-scheme`).
+6. Capture the `IMG-V10-<view>-light` screenshot (see assets/README).
 
-- [ ] Every surface touched by a fix paints its own background from the dark
-      tokens (nothing inherits a host/browser ground)
-
----
-
-## Written decisions — not code
-
-These close when a document exists, not when a test passes.
-
-| Criterion | Decision needed | Owner | Result |
+| View | Light pass | Dark re-check | Signed |
 | --- | --- | --- | --- |
-| `AC-V7-06` | **Retention policy** — per role, what is erased, tombstoned, retained, and on what basis. **Gates `AC-V7-03`, `04`, `05`.** | | ☐ |
-| `AC-V7-02` | Phone number in v2: implement, or record as dropped with the SMS consequence noted | | ☐ |
-| `AC-V5-04` | Votes received: fields, ordering, and whether voter identity is shown to the contestant | | ☐ |
-| `AC-V3-07` | Age and video prompts: implement, or record as intentional drops | | ☐ |
-| `AC-V8-03` | Relationship term — "fan" or "watch" — applied everywhere in one pass | | ☐ |
-| `AC-V8-03` (sweep) | After the rename: manual sweep of digest **email** and competition pages — the automated test only sees the profile page | | ☐ |
-| `AC-V8-04` (design) | **S2 story-card composition** — record the target design; the visual half of `AC-V8-04` cannot pass until this exists | | ☐ |
+| V1 … V9 (one row each when executing) | ☐ | ☐ | |
 
----
+## Visual — remaining halves
 
-## Sign-off
-
-| | |
-| --- | --- |
-| Verified by | |
-| Environment | |
-| `feature_flags` row present | ☐ yes ☐ no |
-| Findings closed | ....... of 22 |
-| Findings deferred, with reason | |
+| Criterion | What to judge | Signed |
+| --- | --- | --- |
+| AC-V3-05 | The relabelled link fields read as different things at a glance | ☐ |
+| AC-V8-07 | The chosen ladder reads as earned, not inflated, on a real record | ☐ |
+| AC-V10-04 | Contrast measurements reviewed (script authored with the palette work); gold-split pairs listed and passing | ☐ |

@@ -1,85 +1,96 @@
 /**
- * V1 — Member dashboard  (/me, social_profile OFF)
- * Findings: D1, D2, D3 · View doc: docs/profile-handoff/views/V1-me-dashboard.md
+ * V1 — Member dashboard (dashboard experience). Findings: R6, R7, R8.
+ * View doc: views/V1-me-dashboard.md
  *
- * These reproduce ONLY with the flag off — this page does not render when v3 is on.
- * Fixture note: AC-V1-02/03 need MEMBER_WINNER (a member with crowned entries);
- * running them as MEMBER_PLAIN would pass vacuously once the literal '0' is removed.
+ * Every describe here needs the dashboard experience, whose selection is an
+ * app-owned TODO (see DASHBOARD_TODO in _fixtures.ts) — skipped until the
+ * app team ships the off-selection helper.
  */
-import { test, expect, withFlag, FIXTURES, statValue } from './_fixtures';
+import {
+  test,
+  expect,
+  selectExperience,
+  FIXTURES,
+  statValue,
+  heroCountValue,
+  BASE_URL,
+  CAN_SELECT_DASHBOARD,
+  DASHBOARD_TODO,
+} from './_fixtures';
 
-test.describe('V1 — member dashboard (plain member)', () => {
+test.describe('V1 — plain member', () => {
+  test.skip(!CAN_SELECT_DASHBOARD, DASHBOARD_TODO);
   test.use({ storageState: FIXTURES.MEMBER_PLAIN });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'dashboard'));
 
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'off');
+  test.fixme('T-AC-V1-01 — no hardcoded tier renders on /me', async ({ page }) => {
+    await page.goto('/me');
+    // AC-V1-01 allows a DERIVED tier. Two passing shapes:
+    //  - a tier element exists and names its derivation (data-source), or
+    //  - no tier element renders at all.
+    // Today (R6): the literals at me/page.tsx:111 and _components/header.tsx:75
+    // render with neither the testid nor a derivation — the else-arm fails.
+    const tier = page.locator('[data-testid="member-tier"]');
+    if (await tier.count()) {
+      await expect(tier.first()).toHaveAttribute('data-source', /.+/);
+    } else {
+      await expect(page.getByText('Gold member')).toHaveCount(0);
+      await expect(page.getByText('Member tier')).toHaveCount(0);
+    }
   });
 
-  test.fixme('T-AC-V1-01 — no hardcoded tier renders anywhere on /me', async ({ page }) => {
+  test.fixme('T-AC-V1-04 — watch tile matches /me/watching, or is renamed', async ({ page }) => {
     await page.goto('/me');
-    // D1: "Gold" is a string literal in both page.tsx and _components/header.tsx.
-    await expect(page.getByText('Gold member')).toHaveCount(0);
-    await expect(page.getByText('Member tier')).toHaveCount(0);
-  });
-
-  test.fixme('T-AC-V1-04 — the watch tile matches /me/watching, or is renamed', async ({ page }) => {
-    await page.goto('/me');
-    const tileValue = await statValue(page, 'Markets watched');
+    const tile = await statValue(page, 'Markets watched'); // fails once renamed — then retarget
     await page.goto('/me/watching');
-    const heading = await page.getByText(/Saved markets \((\d+)\)/).innerText();
-    const actual = heading.match(/\((\d+)\)/)?.[1] ?? '';
-    // D3: the tile counts distinct competitions VOTED IN (lib/data/voter.ts:122).
-    expect(tileValue).toBe(actual);
+    const rows = await page.locator('[data-testid="watching-row"]').count();
+    // R8: today the tile counts competitions VOTED IN (voter.ts:188).
+    expect(Number(tile)).toBe(rows);
   });
 
-  test.fixme('T-AC-V1-05a — tile labels for a non-host (compare with 05b)', async ({ page }) => {
-    // AC-V1-05 is a two-pass check: this test and 05b (host fixture below) each
-    // record the label set; the criterion is that the SETS are identical.
-    // Requires data-testid="stat-label" — REQ-19.
-    await page.goto('/me');
-    const labels = await page.locator('[data-testid="stat-label"]').allInnerTexts();
-    expect(labels.length).toBeGreaterThan(0);
-    test.info().annotations.push({ type: 'labels', description: JSON.stringify(labels) });
+  test.fixme('T-AC-V1-05 — host stats are additive, never renamed', async ({ browser }) => {
+    // AC-V1-05: the non-host label set is a subset of the host label set —
+    // hosts may gain an additive tile, but no shared tile is renamed by role.
+    // R7: today the third tile is role-redefined ("Active wins" ↔ "Orgs
+    // owned", me/page.tsx:107-109), so the subset assertion fails.
+    const readLabels = async (storageState: string): Promise<string[]> => {
+      const ctx = await browser.newContext({ storageState, baseURL: BASE_URL });
+      await selectExperience(ctx, BASE_URL, 'dashboard');
+      const p = await ctx.newPage();
+      await p.goto('/me');
+      const labels = await p.locator('[data-testid="stat-label"]').allInnerTexts();
+      await ctx.close();
+      return labels.map((l) => l.trim());
+    };
+
+    const plain = await readLabels(FIXTURES.MEMBER_PLAIN);
+    const host = await readLabels(FIXTURES.MEMBER_HOST);
+
+    expect(plain.length).toBeGreaterThan(0);
+    // Nothing a non-host sees may disappear or be renamed for a host…
+    for (const label of plain) expect(host).toContain(label);
+    // …and anything extra must be additive, not a redefinition of a shared tile.
+    expect(host.length).toBeGreaterThanOrEqual(plain.length);
   });
 });
 
-test.describe('V1 — member dashboard (winner)', () => {
+test.describe('V1 — winner', () => {
+  test.skip(!CAN_SELECT_DASHBOARD, DASHBOARD_TODO);
   test.use({ storageState: FIXTURES.MEMBER_WINNER });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'dashboard'));
 
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'off');
-  });
-
-  test.fixme('T-AC-V1-02 — a member with crowned entries sees a real win count', async ({ page }) => {
+  test.fixme('T-AC-V1-02 — a crowned member sees a real win count', async ({ page }) => {
     await page.goto('/me');
-    // D2: value is the literal '0' for every non-host.
+    // R7: value is the literal '0' for every non-host (me/page.tsx:107-109).
     expect(await statValue(page, 'Active wins')).not.toBe('0');
   });
 
-  test.fixme('T-AC-V1-03 — the wins tile agrees with the v3 hero Crowns count', async ({ page }) => {
+  test.fixme('T-AC-V1-03 — wins agree with the profile Crowns count', async ({ page, context }) => {
     await page.goto('/me');
-    const dashboardWins = await statValue(page, 'Active wins');
-    await withFlag(page, 'on');
+    const wins = await statValue(page, 'Active wins');
+    await selectExperience(context, BASE_URL, 'profile');
     await page.goto('/me');
-    const heroCrowns = await page.getByRole('link', { name: /crowns/i }).innerText();
-    expect(heroCrowns).toContain(dashboardWins);
-  });
-});
-
-test.describe('V1 — member dashboard (host)', () => {
-  test.use({ storageState: FIXTURES.MEMBER_HOST });
-
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'off');
-  });
-
-  test.fixme('T-AC-V1-05b — tile labels for a host (compare with 05a)', async ({ page }) => {
-    // D2: today the third tile reads "Orgs owned" here and "Active wins" for
-    // everyone else. Assert the label that must NOT be role-dependent.
-    await page.goto('/me');
-    const labels = await page.locator('[data-testid="stat-label"]').allInnerTexts();
-    expect(labels.length).toBeGreaterThan(0);
-    expect(labels).not.toContain('Orgs owned'); // role-swapped tile must be gone
-    test.info().annotations.push({ type: 'labels', description: JSON.stringify(labels) });
+    const crowns = await heroCountValue(page, 'Crowns');
+    expect(crowns).toBe(Number(wins));
   });
 });

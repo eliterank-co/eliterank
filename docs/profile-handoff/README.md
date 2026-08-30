@@ -1,24 +1,50 @@
-# Member Profile — Handoff Package
+# Member Profile — Handoff Package v2
 
-Everything needed to verify and fix the new member profile (v2, `eliterank-app`)
-against the legacy profile it replaces.
+Audit of the redesigned EliteRank member-profile experience and the work that
+remains to finish it.
 
-**Audited at:** `eliterank-co/eliterank-app` @ `3f6de99`
-**Compared against:** `eliterank-co/eliterank` (this repo — legacy, live production)
+**Audited at:** `eliterank-co/eliterank-app` @ `c2f45dd`
+**Design of record:** commit `6b665a8` — "single-axis 748px luxury member
+profile with medals grid, live round dual experience, and story cards (#158)"
+**Supersedes:** the prior packet pinned at `3f6de99` (22 findings, framed as
+new-vs-legacy parity). That framing is retired: every surviving item here is a
+product requirement of the current stack in its own right. See
+[`traceability.md`](traceability.md) for the old→new mapping.
+
+**Scope (cross-repo):** this packet targets the four-repo redesign stack —
+`eliterank-app` (product) · `eliterank-registry` (design system, brand
+contract) · `eliterank-shared` (shared packages) · `eliterank-infra`
+(migrations, design docs). Where a fix belongs outside the app, the finding
+says so. The legacy repo this packet is checked into is **storage only**:
+nothing here describes or changes the legacy application.
 
 ---
 
-## Why this lives in the legacy repo
+## What changed since the last packet
 
-The findings are about `eliterank-app` (v2), but this package was produced from
-a branch of the legacy repo and is checked in here so the review, the branch and
-the issue history stay together. **Nothing here is application code**, and
-nothing here is a v2 pattern being ported into this app — it is documentation
-only, so it does not cross the boundary described in the root `CLAUDE.md`.
+~55 commits, including the #158 profile redesign. The profile is now one
+748px single-axis page — hero (136px avatar, social chips, counts row), live
+round module with owner/supporter duals, featured media gallery, verified
+track record (medals grid), collapsible timeline, interests + fan community,
+and a 5-state story-card modal. Thirteen prior findings are improved by it —
+six resolved, two mostly resolved, five partially resolved — and several new
+defects shipped inside it. Both are catalogued in
+[`findings.md`](findings.md).
 
-If the team would rather it live beside the code it describes, move the whole
-folder to `eliterank-app/docs/profile-handoff/`. Every internal link is
-relative, so the folder survives the move intact.
+**New in this packet:** a light theme is now a requirement
+([V10](views/V10-light-theme.md)). The app and the design system are dark-only
+today; the brand contract has no light palette. The requirement is to author
+one, not to adopt one — see [`requirements.md`](requirements.md) §2 and the
+V10 acceptance criteria.
+
+**Removed from this packet:** flag and routing mechanics as *requirements*.
+The application team owns how experience switching works. Documents here state
+factually which surface renders where when needed to reproduce a finding, and
+tests select an experience through an app-owned helper
+([`requirements.md`](requirements.md) §1) — nothing here mandates a cookie or
+flag contract. (One consequence, stated plainly: selecting the dashboard
+experience has no app-owned helper yet, so those specs skip until the app
+team ships one.)
 
 ---
 
@@ -28,29 +54,11 @@ relative, so the folder survives the move intact.
 | --- | --- |
 | Deciding what to fix first | [`traceability.md`](traceability.md) then [`findings.md`](findings.md) |
 | Implementing a fix | The view doc under [`views/`](views/), then its acceptance criteria |
+| Building the light theme | [`views/V10-light-theme.md`](views/V10-light-theme.md) |
 | Verifying a fix | [`tests/manual/verification-checklist.md`](tests/manual/verification-checklist.md) |
 | Writing automated coverage | [`tests/README.md`](tests/README.md) |
 | Producing screenshots | [`assets/README.md`](assets/README.md) |
-
----
-
-## Before anything else: resolve the flag
-
-`social_profile` **defaults off** (`src/lib/ui-flags.ts`). It decides which of
-two entirely different pages `/me` renders, and therefore which findings are
-real:
-
-- **Flag off** — `/me` is a voter dashboard. Findings `D1`–`D3` are the
-  shipping experience. `/p/[voterId]` returns 404, so `P4`, `X2`, `S2` and `S6`
-  are unreachable rather than broken.
-- **Flag on** — `/me` is the v3 social profile. `D1`–`D3` never render at all.
-
-Resolution order is `ui_override` cookie → `feature_flags` row → off. **A cookie
-override makes your browser disagree with production.** Confirm the row before
-scoping anything.
-
-See [`requirements.md`](requirements.md) §1 for how to check and how to
-override for testing.
+| Auditing this packet's pipeline | [`REVIEW-LOG.md`](REVIEW-LOG.md) |
 
 ---
 
@@ -59,62 +67,65 @@ override for testing.
 ```
 profile-handoff/
 ├── README.md                  ← you are here
+├── REVIEW-LOG.md              audit trail: adversarial review dispositions
 ├── requirements.md            global constraints every fix must satisfy
-├── findings.md                the 22 findings, with evidence and fixes
-├── traceability.md            finding ↔ view ↔ criterion ↔ test ↔ asset
-├── views/                     one document per surface (V1–V9)
-├── assets/
-│   ├── README.md              screenshot capture spec
-│   ├── diagrams/              structural wireframes, one per view
-│   └── screenshots/           capture target (empty — see assets/README.md)
+├── findings.md                24 findings (R1–R24), with evidence and fixes
+├── traceability.md            finding ↔ view ↔ criterion ↔ test, plus old→new map
+├── views/                     one document per surface (V1–V9) + light theme (V10)
+├── assets/README.md           screenshot capture spec
 └── tests/
-    ├── README.md              how to run, what needs auth, what needs the flag
-    ├── unit/                  runnable today, no auth
+    ├── README.md              how to run, readiness per file, fixtures
+    ├── unit/                  three runnable-now files (shipped skip-marked
+    │                          post-fix acceptance where they must fail today)
+    │                          + two contract-first files that do NOT compile
+    │                          until their fixes land (banners inside)
     ├── e2e/                   Playwright, needs a signed-in session
-    └── manual/                verification checklist for hand-off sign-off
+    └── manual/                verification checklist for sign-off
 ```
 
 ---
 
 ## ID scheme
 
-Stable identifiers, used everywhere so any two documents can be cross-checked.
-
 | Prefix | Meaning | Example |
 | --- | --- | --- |
-| `V1`–`V9` | View (one surface) | `V3` = profile editor |
-| `P`, `D`, `X`, `G`, `S` | Finding class — defect, dashboard defect, policy, gap, craft | `P1` |
-| `AC-V3-02` | Acceptance criterion, numbered within its view | `AC-V3-02` |
-| `T-AC-V3-02` | The test that proves that criterion | `T-AC-V3-02` |
-| `IMG-V3-a` | An image asset for that view | `IMG-V3-a` |
+| `V1`–`V10` | View (one surface, or one workstream) | `V2` = member profile |
+| `R1`–`R24` | Finding (fresh series; old IDs mapped in traceability) | `R1` |
+| `AC-V2-03` | Acceptance criterion, numbered within its view | |
+| `T-AC-V2-03` | The test that proves that criterion | |
+| `IMG-V2-a` | An image asset for that view | |
 
-A finding is **closed** when every acceptance criterion it maps to passes, and
-the manual checklist row for it is signed off.
+A finding is **closed** when every acceptance criterion it maps to passes and
+its manual-checklist row is signed off.
 
 ---
 
-## The nine views
+## The ten views
 
 | ID | Surface | Route | Findings |
 | --- | --- | --- | --- |
-| [V1](views/V1-me-dashboard.md) | Member dashboard (flag **off**) | `/me` | D1, D2, D3 |
-| [V2](views/V2-me-social-profile.md) | Social profile v3 (flag **on**) | `/me` | G1, G2, G3, S3 |
-| [V3](views/V3-profile-editor.md) | Profile editor | `/me/profile` | P1, P2, S1, G1, G6 |
-| [V4](views/V4-contestant.md) | Contestant self-service | `/me/contestant` | G4 |
-| [V5](views/V5-vote-records.md) | Votes, transactions, history | `/me/votes`, `/me/transactions`, `/me/history` | P3, X3, D3 |
-| [V6](views/V6-watching.md) | Watch list | `/me/watching` | D3 |
-| [V7](views/V7-settings.md) | Settings and account | `/me/settings` | G5, X1 |
-| [V8](views/V8-public-profile.md) | Public member profile | `/p/[voterId]` | P4, X2, S2, S4, S5 |
-| [V9](views/V9-contestant-public.md) | Contestant public profile | `/o/…/[contestantSlug]` | S6 |
+| [V1](views/V1-me-dashboard.md) | Member dashboard (classic experience) | `/me` | R6, R7, R8 |
+| [V2](views/V2-member-profile.md) | Member profile, 748px owner view | `/me` (profile experience) | R2, R3, R13, R15, R21, R23 |
+| [V3](views/V3-profile-editor.md) | Profile editor | `/me/profile` | R4, R5, R17, R20, R22, R24 |
+| [V4](views/V4-contestant.md) | Contestant self-service | `/me/contestant` | R18 |
+| [V5](views/V5-vote-records.md) | Votes, transactions, history | `/me/votes`, `/me/transactions`, `/me/history` | R12, R16 |
+| [V6](views/V6-watching.md) | Watch list | `/me/watching` | R8 |
+| [V7](views/V7-settings.md) | Settings and account | `/me/settings` | R14, R19 |
+| [V8](views/V8-public-profile.md) | Public member profile | `/p/[voterId]` | R1, R9, R10, R11, R15 |
+| [V9](views/V9-contestant-public.md) | Contestant public profile | `/o/…/[contestantSlug]` | — (guard only) |
+| [V10](views/V10-light-theme.md) | Light theme (workstream, all surfaces) | — | — (requirements) |
 
 ---
 
 ## What this package does not contain
 
-- **Screenshots.** Every member view requires authentication, and this audit ran
-  without credentials. `assets/diagrams/` holds structural wireframes derived
-  from source instead; `assets/README.md` specifies exactly which screenshots to
-  capture and how to name them so they slot into the existing links.
-- **A retention policy.** Finding `X1` is blocked on one. The requirement is
-  written; the policy itself is a business decision, not an engineering artifact.
+- **Screenshots.** Member views require authentication; this audit ran from
+  source. `assets/README.md` specifies what to capture.
+- **Test runs.** Nothing here was executed — no credentials, no seeded
+  environment. Every readiness claim is source-verified, and
+  `tests/README.md` states each file's actual readiness level.
+- **A retention policy.** R14 is blocked on one; the requirement is written,
+  the policy is a business decision.
+- **A light palette.** V10 specifies how to author one and what proves it
+  done; the palette values themselves are design work.
 - **Fixes.** No application code was changed in producing this package.

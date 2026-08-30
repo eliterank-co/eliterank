@@ -1,454 +1,558 @@
 # Findings
 
-22 findings. Severity is about consequence, not effort. Every finding links to
-the view it lives on and the acceptance criteria that close it.
+24 findings (R1–R24), all verified against `eliterank-co/eliterank-app` at
+`c2f45dd`. Severity is about consequence, not effort. Every finding links to
+the view it lives on and the acceptance criteria that close it. The old→new
+mapping and the resolved list are at the bottom.
 
 Class key: **Defect** reproduces from source · **Policy** blocked on a written
-decision · **Gap** legacy does it, v2 does not · **Craft** design and clarity ·
-**Verify** needs a live check before filing.
+decision · **Product** a capability the product owes its users · **Craft**
+design and clarity. Counts: 13 defect · 3 policy · 5 product/decision ·
+3 craft.
 
 ---
 
-## P1 — Saving a profile with a pasted social URL fails with a bare error
-**Class:** Defect · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-01`, `AC-V3-02`, `AC-V3-03`, `AC-V4-04`
+## R1 — Becoming a fan is impossible on the redesigned profile
+**Class:** Defect (regression) · **View:** [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-01`
 
-Every social field is validated against a handle charset — letters, digits,
-period, underscore, hyphen. Paste a full profile URL and the colon and slashes
-fail the pattern; the server answers with one generic code naming no field, so
-the form can only show a single undifferentiated error.
+The fan toggle worked before #158 and its code still exists — it is simply no
+longer mounted anywhere. A visitor sees the fan community card and the "Fans"
+count but has no way to join it.
 
 ```
-src/lib/actions/profile.ts:38-43
-  handle = trimmed string refined against HANDLE_CHARSET,
-  applied to instagram, tiktok, linkedin and twitter.
-src/lib/actions/profile.ts:76
+src/app/(public)/p/[voterId]/fan-button.tsx   FanButton + toggleFan intact.
+Zero imports of FanButton anywhere in src/ at c2f45dd (the only reference
+  outside the file is a comment in the legacy crossover page).
+src/components/profile/profile-page-view.tsx  renders InterestsAndFans
+  (avatar stack, count, owner-only "Invite Fans") — no visitor toggle.
+```
+
+**Fix.** Mount a fan CTA in the redesigned layout — hero actions row or the
+fan community card — reusing `FanButton`/`toggleFan`. The fan rows drive
+`api/cron/fan-digest`; this is a re-mount, not a data change.
+
+---
+
+## R2 — The bonus-task checklist can never show progress, and shows the wrong tasks on a second live round
+**Class:** Defect · **View:** [V2](views/V2-member-profile.md) · **Closes with:** `AC-V2-01`, `AC-V2-02`
+
+#158 put the forward-looking checklist on the owner's live-round module — the
+right call. Two bugs undercut it:
+
+```
+src/app/(public)/(member)/me/_v3/page-v3.tsx:39-48
+  tasks load only for liveEntries[0].competitionId, and every task maps to
+  { …, completed: false }  (line 46) — completion is hardcoded.
+src/components/vote/profile-vote-module.tsx:67-71
+  the single bonusTasks array renders inside entries.map(...), so a member
+  live in two competitions sees competition #1's tasks under both rounds.
+```
+
+Result: "0/N Done" forever, a progress bar stuck at 0%, and strike-through
+styling that no state can trigger — plus cross-competition task bleed.
+
+**Fix.** Join the member's approved bonus submissions against
+`listActiveBonusTasks` per competition, and key the task list by entry.
+REQ-07, REQ-08.
+
+---
+
+## R3 — The profile experience demotes all member navigation to the avatar menu
+**Class:** Craft (discoverability) · **View:** [V2](views/V2-member-profile.md) · **Closes with:** `AC-V2-03`
+
+The member layout drops its header **and tab bar** for every `/me/*` route
+when the profile experience is active. The destinations stay reachable — the
+app-shell avatar menu links all of them, in both experiences, at all widths —
+but what was first-class tab navigation becomes dropdown-only.
+
+```
+src/app/(public)/(member)/me/layout.tsx:76-81
+  if (await getUiFlag('social_profile')) return bare container — no MeHeader,
+  no MeTabs, for all children (settings, votes, watching, contestant included).
+src/experiences/voter/chrome/menu.ts:182-194
+  buildV2Menu links /me/votes, /me/watching, /me/history, /me/transactions,
+  /me/settings (+ /me/contestant for contestants). Rendered on every route
+  through the app shell: (public)/layout.tsx:16 → AppNav (shell/nav.tsx:43)
+  → HeaderWidgets (shell/header-widgets.tsx:20,44) → the avatar dropdown.
+src/app/(public)/(member)/me/_components/tabs.tsx:19-26
+  the dashboard experience's tab bar — surface-level nav for /me/votes,
+  /me/watching, /me/settings; gone under the profile experience.
+src/components/nav/thumb-bar.tsx:15-20
+  mobile bar links /me, /discover, /notifications, /me/profile — nothing else.
+```
+
+Settings, My votes, and Watching sit two interactions away (open avatar menu
+→ click), and the profile page body itself offers only "Edit Profile".
+Reachability holds; discoverability of the primary member destinations is the
+finding.
+
+**Fix.** A design decision, recorded: either surface navigation on the
+profile experience (a compact nav row, quick links, per-page headers), or an
+explicit decision that the avatar menu is the intended primary navigation for
+member destinations. `AC-V2-03` guards the reachability floor either way.
+
+---
+
+## R4 — The editor captures fields the profile never renders
+**Class:** Defect · **Views:** [V3](views/V3-profile-editor.md), [V2](views/V2-member-profile.md) · **Closes with:** `AC-V3-03`
+
+Three fields round-trip through the editor and the data layer, then hit a
+dead end in the redesigned layout:
+
+```
+LinkedIn — collected (profile-edit.tsx:578), validated and saved
+  (src/lib/actions/profile.ts:82,116), served (public-profile.ts:92) —
+  and never rendered: src/components/profile/profile-hero.tsx renders chips
+  for instagram, tiktok, twitter (X), website, pinned link only (113-178).
+Cover image — editor upload field (profile-edit.tsx:444); the only renderer
+  was the pre-#158 hero (src/components/profile/hero.tsx:128-129), which is
+  now dead code. ProfilePageView never touches profile.coverImage.
+Occupation — stored and served on PublicProfile; the new hero takes headline,
+  not occupation (profile-hero.tsx props).
+```
+
+A member who fills these in sees them vanish. That is a data-honesty failure
+in the opposite direction from R6/R7: real data, silently dropped.
+
+**Fix.** For each field: render it in the new layout, or remove it from the
+editor and the payload. Per field, that is a product decision — record it.
+LinkedIn is presumably a straight omission (the icon-chip pattern is in the
+same file); cover image and occupation need an actual call given the
+single-axis design has no cover slot.
+
+---
+
+## R5 — Save errors are fieldless raw codes
+**Class:** Defect · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-01`
+
+The normalization half of the old P1 is fixed — `extractSocialHandle`
+(`src/lib/actions/profile.ts:39-58`) accepts pasted URLs for all four
+networks. What remains is the error contract:
+
+```
+src/lib/actions/profile.ts:100
   if (!parsed.success) return { ok: false, error: 'invalid_input' }
+src/experiences/voter/profile/profile-edit.tsx:760-768
+  {error && … Couldn't save: {error}}   — the raw code renders verbatim.
 ```
 
-The same four networks behave differently one tab away: the contestant editor
-(`/me/contestant`) advertises "@yourhandle or full URL" and accepts both. Two
-editors, the same columns, opposite rules.
+A member who trips any validation rule sees `Couldn't save: invalid_input`
+with no field marked. Other codes (`pinned_link_must_be_http_url`,
+`profile_update_failed`) also print raw.
 
-**Fix.** Normalize URL to handle server-side as the contestant form already
-does, and return per-field errors. Satisfies REQ-11 and REQ-12.
+**Fix.** Return per-field errors from `saveOwnProfile`; map codes to human
+copy in the form (the media path already has `MEDIA_ERROR_COPY` at
+profile-edit.tsx:125 — extend the pattern). REQ-11.
 
 ---
 
-## P2 — Intro video saves with an error, then renders as a black frame
-**Class:** Defect · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-04`, `AC-V3-05`
-
-Two independent bugs stacked into one confusing moment: the upload succeeded,
-the save reported failure, and the result displays black.
-
-```
-src/components/profile/panels.tsx:104
-  <video src={video}>  -- no poster attribute.
-src/experiences/voter/profile/profile-edit.tsx
-  onSubmit refuses while mediaMutationCount > 0:
-  "Finish the current media update before saving your profile."
-```
-
-The black frame is the missing poster: a `<video>` with no poster paints black
-until the first frame decodes. The error is the media interlock — uploads commit
-immediately and Save is deliberately blocked during that window, so a Save
-landing mid-upload reports failure even though nothing was lost.
-
-**Fix.** Set a poster (avatar, or a frame captured at upload). Then disable Save
-while media is in flight, or queue it — do not surface the interlock as an
-error. Satisfies REQ-13.
-
----
-
-## P3 — Competition history omits hosting entirely
-**Class:** Defect · **View:** [V5](views/V5-vote-records.md) · **Closes with:** `AC-V5-01`, `AC-V5-02`
-
-A host who has run competitions sees no trace of them in their own history.
-
-```
-src/lib/data/voter-history.ts
-  getMyCompetitionHistory reads votes (competitions voted in) and
-  notify_me_subscriptions (watching).
-  There is no organization-membership branch.
-```
-
-**Fix.** Add a third source keyed on org membership and carry a role onto each
-entry so the list distinguishes hosted, competed and voted. Shares a lookup with
-[G2](#g2--host-role-never-appears-on-a-profile).
-
----
-
-## P4 — "View as visitor" is a one-way trip
-**Class:** Defect · **View:** [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-01`, `AC-V8-02`
-
-The v3 profile offers "View as visitor", which navigates to the public page.
-That page has no link back and no awareness that the viewer owns it.
-
-```
-src/app/(public)/p/[voterId]/page.tsx
-  No /me reference anywhere in the file; renders identically for the owner
-  and a stranger apart from the fan button.
-```
-
-**Fix.** When the viewer resolves to the profile's own voter id, render a return
-affordance. A persistent "You are previewing your public profile — Back to your
-view" strip beats a bare link: it also explains why the page looks different.
-
----
-
-## D1 — "Gold member" is hardcoded for every member
+## R6 — "Gold member" is hardcoded for every member
 **Class:** Defect · **View:** [V1](views/V1-me-dashboard.md) · **Closes with:** `AC-V1-01`
 
-Tier is a string literal in two places. Every member is told they are Gold,
-which makes the tier meaningless the moment two people compare notes.
+Unchanged since the prior audit; reproduces verbatim in two places.
 
 ```
-src/app/(public)/(member)/me/page.tsx
+src/app/(public)/(member)/me/page.tsx:111
   <Stat label="Member tier" value="Gold" highlight />
-src/app/(public)/(member)/me/_components/header.tsx
-  "Gold member" badge, also literal.
+src/app/(public)/(member)/me/_components/header.tsx:75
+  ♔ Gold member    — literal badge in the member-area header.
 ```
 
 **Fix.** Derive tier from something real, or remove both until a tier model
-exists. REQ-08.
+exists. REQ-07.
 
 ---
 
-## D2 — "Active wins" is hardcoded to zero for non-hosts
+## R7 — "Active wins" is hardcoded to zero for non-hosts
 **Class:** Defect · **View:** [V1](views/V1-me-dashboard.md) · **Closes with:** `AC-V1-02`, `AC-V1-03`
 
-An actual past winner is shown zero wins. The same tile also changes meaning by
-role, so the grid reads differently depending on who is looking.
-
 ```
-src/app/(public)/(member)/me/page.tsx
+src/app/(public)/(member)/me/page.tsx:107-109
   label={isHost ? 'Orgs owned' : 'Active wins'}
   value={isHost ? orgs.length.toString() : '0'}
 ```
 
-**Fix.** Wire it to the crown count `loadPerformance` already computes — the v3
-hero uses exactly that. Give hosts their own tile rather than overloading this
-one.
+A crowned member is shown zero wins, and the tile changes meaning by role.
+The real number now exists twice over: `loadTrackRecord(...).crownsCount` and
+`loadMemberProfileExtras(...).counts.crowns` both count crowned entries from
+`loadPerformance`.
+
+**Fix.** Wire the tile to the crown count; give hosts a separate tile.
+REQ-07.
 
 ---
 
-## D3 — "Markets watched" counts something else
-**Class:** Defect · **Views:** [V1](views/V1-me-dashboard.md), [V6](views/V6-watching.md) · **Closes with:** `AC-V1-04`
+## R8 — "Markets watched" counts something else
+**Class:** Defect · **Views:** [V1](views/V1-me-dashboard.md), [V6](views/V6-watching.md) · **Closes with:** `AC-V1-04`, `AC-V6-01`
 
-The tile labelled "Markets watched" reports distinct competitions the member has
-*voted in*. The watch list is a different set, loaded by a different function,
-shown on a different tab.
+Half-fixed since the prior audit: the quick-action card is now real
+(`me/page.tsx:195-199` shows `listMyWatching().length` as "N saved"). The stat
+tile above it still reports distinct competitions the member has *voted in*:
 
 ```
-src/lib/data/voter.ts:122
-  const markets = new Set(data.map(v => v.competition_id))  -- rows from votes.
-src/lib/data/watching.ts
-  listMyWatching is what /me/watching and the v3 "Watching" count use.
+src/lib/data/voter.ts:188-196
+  const markets = new Set(data.map(v => v.competition_id))  — rows from votes;
+  returned as marketsWatched.
+src/app/(public)/(member)/me/page.tsx:102-104
+  <Stat label="Markets watched" value={stats.marketsWatched…} />
 ```
 
-**Fix.** Rename to "Competitions voted in", or point it at `listMyWatching`.
-REQ-09. Resolve alongside [X3](#x3--votes-cast-and-votes-received-belong-in-one-ledger).
+The same page can therefore show "Markets watched: 4" beside "0 saved".
+
+**Fix.** Rename the tile to "Competitions voted in", or point it at
+`listMyWatching`. Every watching number across the app (tile, quick action,
+hero "Watching" count) must agree on its source. REQ-08.
 
 ---
 
-## X1 — Account deletion has no host, contestant or winner guards
-**Class:** Policy · **View:** [V7](views/V7-settings.md) · **Closes with:** `AC-V7-03`, `AC-V7-04`, `AC-V7-05`
+## R9 — The story-card modal shares no card, and lets anyone be a WINNER
+**Class:** Defect · **Views:** [V2](views/V2-member-profile.md), [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-03`, `AC-V8-04`, `AC-V8-05`
 
-The deletion module is entirely execution — cascade, cache invalidation, storage
-sweep. None of the protections the product needs exist.
+#158's `ShareCardModal` is a good frame with three honesty gaps:
 
 ```
-src/lib/account-deletion.ts
-  finalizeAccountDeletion, finalizeDeletedOrganizationStorage,
-  hasPendingDeletedOrganizationStorage.
-  No precondition blocks a host mid-competition, no approval path for an
-  active contestant, no retention carve-out for a past winner.
+src/components/share/share-card-modal.tsx
+  - The "card" is a styled DOM preview; there is no image generation and no
+    download. "Share Story" calls navigator.share with title/text/url only —
+    despite the copy "Share your official 9:16 story card to Instagram,
+    TikTok or X". The real 1080×1920 renderer exists at
+    src/app/(public)/p/[voterId]/story-card/route.tsx and is reachable only
+    through the separate ShareSheet's "Download card".
+  - roleOptions renders all five tabs (NOMINATED / CONTESTANT / VOTING OPEN /
+    HOST / WINNER) for every member; nothing checks the record. REQ-10.
+  - competitionTitle defaults to the literal "Most Eligible"
+    (share-card-modal.tsx:38) — a brand name rendered as fact when no
+    competition is passed.
+```
+
+The hero also carries two overlapping share affordances — the gold "Story
+Card" button (this modal) and the "Share" ShareSheet — with different
+capabilities and no signposting.
+
+**Fix.** Make the modal's share/download path emit the actual story-card
+image (the route exists); constrain role tabs to states the member's record
+supports; drop the "Most Eligible" fallback; converge on one share surface or
+name the difference.
+
+---
+
+## R10 — Concluded hosted competitions read "CLOSES <past date>"
+**Class:** Defect · **Views:** [V2](views/V2-member-profile.md), [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-06`
+
+```
+src/lib/data/track-record.ts:210
+  dates: comp.voting_ends_at
+    ? `CLOSES ${new Date(comp.voting_ends_at).toLocaleDateString(…)}`
+    : "CONCLUDED",
+```
+
+Any hosted competition with a `voting_ends_at` — which is every competition
+that ran — shows "CLOSES Aug 12" forever, including long after it closed.
+Competed entries handle this correctly ("LIVE ROUND"/"CONCLUDED" by phase,
+line 169); hosted entries never check the phase or compare the date to now.
+
+**Fix.** Same phase/date logic as competed entries. REQ-07.
+
+---
+
+## R11 — Every below-top-10 result is labelled "FINALIST"
+**Class:** Defect · **Views:** [V2](views/V2-member-profile.md), [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-07`
+
+```
+src/lib/data/track-record.ts:65-75
+  derivePlacementLabel: WINNER / 2ND / 3RD / TOP 5 / TOP 10 … else "FINALIST".
+src/lib/data/track-record.ts:57-63
+  deriveTier: …placement <= 5 → bronze, else "finalist".
+```
+
+The medals grid restored achievement framing — the right direction, and
+"Eliminated" no longer appears anywhere in the track record. But the fallback
+overshoots: a contestant eliminated in round 1 of a 200-person field is
+labelled "FINALIST" on a section titled **Verified** Track Record. An
+inflated claim on a verification surface is the same class of problem as a
+hardcoded "Gold".
+
+**Fix.** Label the fallback by what is known — round reached
+(`roundsReached` is already threaded for live entries) or "COMPETED" — and
+reserve FINALIST for entries that actually reached a final. The exact ladder
+is a product decision; "the label never claims more than the record shows"
+is the requirement. REQ-07. Coordinate with R18 so both surfaces share one
+ladder.
+
+---
+
+## R12 — Competition history omits hosting
+**Class:** Defect · **View:** [V5](views/V5-vote-records.md) · **Closes with:** `AC-V5-01`
+
+The profile's track record now includes hosted competitions
+(`track-record.ts:84-113` reads `organization_members`) — but `/me/history`
+still builds from votes and watch subscriptions only:
+
+```
+src/lib/data/voter-history.ts:103,161
+  sources: votes, notify_me_subscriptions. No organization-membership branch.
+```
+
+A host sees their competitions on their profile but not in their own history
+page.
+
+**Fix.** Add the org-membership source with a role on each entry, or fold
+`/me/history` into the track record and retire the page. Share the lookup
+`loadTrackRecord` already has.
+
+---
+
+## R13 — "View as visitor" is still a one-way trip
+**Class:** Defect · **View:** [V2](views/V2-member-profile.md) · **Closes with:** `AC-V2-04`
+
+Mostly fixed: the owner strip now has an in-place **Preview Mode** toggle
+(`profile-page-view.tsx:94-100`) that flips the page to the visitor render
+without leaving `/me`. But the strip *also* keeps a "View as visitor" link to
+`/p/[voterId]` (lines 87-92), and that page still has no way back:
+
+```
+src/app/(public)/p/[voterId]/page.tsx:64
+  isOwner={false}   — unconditionally; the page never checks whether the
+  session's voter id matches, so no return affordance can render.
+```
+
+**Fix.** Either drop the redundant link (Preview Mode covers the need), or
+resolve ownership on `/p/[voterId]` and render a return strip.
+
+---
+
+## R14 — Account deletion has no host, contestant, or winner guards
+**Class:** Policy · **View:** [V7](views/V7-settings.md) · **Closes with:** `AC-V7-03`, `AC-V7-04`, `AC-V7-05`, `AC-V7-06`
+
+Unchanged since the prior audit. The deletion module is entirely execution —
+cascade, cache invalidation, storage sweep:
+
+```
+src/lib/account-deletion.ts — finalizeAccountDeletion et al.; no precondition
+  blocks a host mid-competition, no approval path for an active contestant,
+  no retention carve-out for a past winner.
 src/app/(public)/(member)/me/settings/account-danger-zone.tsx:25
-  Only ownership check surfaced is organization_lookup_failed, which verifies
-  during deletion rather than blocking it.
+  the only surfaced ownership failure is 'organization_lookup_failed', which
+  verifies during deletion rather than blocking it.
 ```
 
-The winner case is the sharp one: deleting a past winner destroys the
-competition's result record — the thing the platform exists to certify.
+Deleting a past winner destroys the result record the platform exists to
+certify.
 
-**Blocked on.** A written retention policy naming, per role, what is erased,
-tombstoned and retained, on what legal basis. Guards follow from that document;
-writing them first bakes in an answer nobody chose. REQ-14, REQ-15.
+**Blocked on** a written retention policy naming, per role, what is erased,
+tombstoned, and retained. Guards follow from that document. Retention
+carve-outs will need schema work — that lands in `eliterank-infra`
+migrations, coordinated with the PII work already open there. REQ-14.
 
 ---
 
-## X2 — Fan vs. watch: one concept, two names
-**Class:** Policy · **View:** [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-03`
+## R15 — "Fans" and "Watching" still coexist as concepts
+**Class:** Policy · **Views:** [V2](views/V2-member-profile.md), [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-02`
 
-Becoming a fan already works — it is the visibility that is missing, not the
-mechanism.
+The redesign made the collision more visible, not less: the hero counts row
+renders **Fans** and **Watching** side by side
+(`profile-hero.tsx:183-218`), and the fan community card sits at the bottom
+of the same page. They are different relationships (fan = follows this
+member; watching = member's own saved competitions) wearing labels that read
+as one.
 
-```
-src/app/(public)/p/[voterId]/fan-button.tsx  and  actions.ts
-  toggleFan, account required, same rule as voting.
-  Reachable only at /p/[voterId], which 404s while social_profile is off.
-```
-
-**Blocked on.** Pick the term, then apply it across profile, competition pages
-and digest email in one pass. Caution: fan rows drive the digest cron at
-`api/cron/fan-digest`, so confirm this is a rename at the label layer and not a
-change to what the rows mean. The code records that "Back" was rejected earlier
-as fan-funding jargon — keep that reasoning attached to whatever name wins.
-REQ-10.
+**Blocked on** the naming decision. Apply it across profile, competition
+pages, and the digest email in one pass; the fan rows drive
+`api/cron/fan-digest`, so this is a label-layer change only. Resolve together
+with R1 (the toggle re-mount fixes the mechanism; this fixes the words).
+REQ-09.
 
 ---
 
-## X3 — Votes cast and votes received belong in one ledger
-**Class:** Policy · **View:** [V5](views/V5-vote-records.md) · **Closes with:** `AC-V5-03`, `AC-V5-04`
+## R16 — Votes cast and votes received belong in one ledger
+**Class:** Policy · **View:** [V5](views/V5-vote-records.md) · **Closes with:** `AC-V5-02`, `AC-V5-03`
 
-`/me/votes` and `/me/transactions` are two views over the same rows —
-transactions is literally the vote history filtered to paid. Votes *received* do
-not exist anywhere.
+Unchanged: `/me/transactions` is the vote history filtered to paid —
 
 ```
-src/app/(public)/(member)/me/transactions/page.tsx
-  getMyVoteHistory(userId, 100).filter(v => v.amountPaidCents > 0)
-No votesReceived concept appears anywhere in the codebase.
+src/app/(public)/(member)/me/transactions/page.tsx:27-33
+  getMyVoteHistory(session.userId, 100) … filter(amountPaidCents > 0)
 ```
 
-**Blocked on.** The shape: one "My Votes" surface with cast and received as
-sections, paid status as a filter rather than a separate page. Received votes
-are net-new and want their own scope — who voted, for which entry, when, and
-whether a voter's identity is ever shown to the contestant.
+— and votes *received* exist nowhere in the member area, despite the profile
+now rendering per-entry vote totals.
+
+**Blocked on** the shape: one "My Votes" surface with cast and received as
+sections, paid as a filter. Received votes are net-new scope (who voted, for
+which entry, whether voter identity is ever shown).
 
 ---
 
-## G1 — Interests render but cannot be edited
-**Class:** Gap · **Views:** [V2](views/V2-me-social-profile.md), [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-06`
+## R17 — Interests still cannot be set
+**Class:** Product · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-06`
 
-The v3 profile devotes a sidebar panel to Interests. The editor has no field for
-it, so for any new member that panel can only ever be empty.
+The misleading half of the old finding is gone — the interests card renders
+only when tags exist (`interests-and-fans.tsx:32`), so no empty panel points
+at a missing control. But the control is still missing:
 
 ```
-src/experiences/voter/profile/profile-edit.tsx
-  "Interests do not yet have an editor; preserve the loaded value."
-Editor sections: Personal Information, Bio, Connect, Photo Gallery, Intro Video.
+src/experiences/voter/profile/profile-edit.tsx:303
+  // Interests do not yet have an editor; preserve the loaded value.
+src/lib/actions/profile.ts:84-86 — interests round-trip unchanged.
+src/lib/data/taxonomy-tags.ts — #158 added the approved-tag taxonomy and
+  cleanTagLabel; the render side is ready.
 ```
 
-Legacy is no better — it carries a `handleHobbiesChange` handler with no UI. A
-shared gap, not a regression, but v3 makes it visible by giving the empty panel
-a heading and empty-state copy pointing at a control that does not exist.
+For any member without imported tags, the interests feature does not exist.
 
-**Fix.** Add the field, or drop the panel and its copy.
+**Fix.** Ship the editor (chip picker over the taxonomy), or decide interests
+are out and remove the payload field and card.
 
 ---
 
-## G2 — Host role never appears on a profile
-**Class:** Gap · **View:** [V2](views/V2-me-social-profile.md) · **Closes with:** `AC-V2-01`
+## R18 — The contestant tab still reads "Eliminated" as the whole story
+**Class:** Product · **View:** [V4](views/V4-contestant.md) · **Closes with:** `AC-V4-01`, `AC-V4-02`
 
-Nothing on the profile marks someone as a host.
+The profile's medals grid frames every result as an achievement; the
+contestant self-service tab does not:
 
 ```
-src/components/profile/hero.tsx -- no role or organization prop.
-Host membership loads on the dashboard path only, via listMyOrgs,
-and is used to swap a call-to-action.
+src/app/(public)/(member)/me/contestant/page.tsx:175-182
+  Lifetime votes | Placement #n | Status: 'Eliminated' | 'Active'
+src/components/contestants/tier-badge.tsx — exists, unused on this surface.
 ```
 
-**Fix.** Pass org membership into the hero and render it as identity —
-organization name, not a generic badge. Shares a lookup with
-[P3](#p3--competition-history-omits-hosting-entirely).
+One product, two framings of the same result — and the harsher one is on the
+page the contestant themselves manages.
+
+**Fix.** Reuse the track-record tier/label derivation (or `tier-badge`) on
+this tab so both surfaces tell the same story. Coordinate the label ladder
+with R11.
 
 ---
 
-## G3 — Bonus tasks are visible only after the fact
-**Class:** Gap · **View:** [V2](views/V2-me-social-profile.md) · **Closes with:** `AC-V2-02`
+## R19 — Password, email, and phone are unreachable from the member area
+**Class:** Product · **View:** [V7](views/V7-settings.md) · **Closes with:** `AC-V7-01`, `AC-V7-02`
 
-The timeline reports bonuses already earned. The checklist of what remains lives
-on the competition page, so a contestant on their own profile is never shown the
-actions still open to them.
+Unchanged: settings offers profile links, a digest toggle, sign-out, and the
+danger zone. No link to `/account` (where password/email management lives, in
+the crossover group); phone has no representation; "Push and SMS preferences
+land in a later phase" is still the stub copy
+(`src/app/(public)/(member)/me/settings/page.tsx`).
 
-```
-src/lib/data/timeline.ts -- bonus_votes is an event kind, emitted after award.
-src/app/(public)/o/[orgSlug]/c/[competitionSlug]/_bonus-tasks-panel.tsx
-  -- the actionable checklist, on the competition page.
-Legacy renders it on the profile:
-  src/features/profile/components/ProfileBonusVotes.jsx
-```
+The settings page itself is reachable in both experiences through the
+app-shell avatar menu (`menu.ts:194`; R3 tracks the discoverability of that
+placement) — but from settings, password and email are still a dead end.
 
-**Fix.** Surface open tasks for a member's active entries on their own profile.
-This was legacy's strongest earned-vote driver and has no home in v2's member
-area.
+**Fix.** Link `/account` from settings now; fold those sections in when the
+crossover retires. Phone needs a product decision — SMS notification plans
+depend on it.
 
 ---
 
-## G4 — Achievement tier framing is gone
-**Class:** Gap · **View:** [V4](views/V4-contestant.md) · **Closes with:** `AC-V4-01`, `AC-V4-02`
+## R20 — Age on the profile is an undecided product question
+**Class:** Product decision · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-07`
 
-Legacy labels a contestant by the tier they reached — "Top 50 Contestant",
-"Entry Round" — and keeps that label after elimination, so the card reads as a
-record of how far someone got. The v2 contestant tab reports a placement number
-and a binary status.
+The redesigned hero shows a city badge and headline — no age, and birthdate
+is deliberately outside the editor (`src/lib/actions/profile.ts:5`). The
+prior packet framed this as a parity gap with the old product; that framing
+is retired. What remains owed is the decision itself: **does a member's age
+appear on their public profile?** It touches 18+ eligibility handling, so it
+should be decided deliberately and recorded, whichever way it goes.
 
-```
-src/app/(public)/(member)/me/contestant/page.tsx
-  Lifetime votes | Placement #n | Status: Active or Eliminated
-src/components/contestants/tier-badge.tsx exists, unused on this surface.
-Legacy derivation: ProfileView.jsx:190-207 and ProfileCompetitions.jsx,
-  from contestants_advance on the surviving round.
-```
-
-**Fix.** Reuse the existing tier badge on the contestant tab and in history.
-"Eliminated" as a bare status is the harshest possible reading of a result the
-legacy app framed as an achievement.
+**Fix.** A recorded decision. If "no", this closes with a line in the
+product notes; if "yes", it becomes an editor + hero + privacy scope.
 
 ---
 
-## G5 — Password, email and phone are unreachable from the member area
-**Class:** Gap · **View:** [V7](views/V7-settings.md) · **Closes with:** `AC-V7-01`, `AC-V7-02`
+## R21 — Host identity on the profile: decide whether the track record is enough
+**Class:** Product decision · **View:** [V2](views/V2-member-profile.md) · **Closes with:** `AC-V2-05`
 
-Settings offers profile links, a digest toggle and sign out. Nothing else.
+Partially superseded: hosting is now visible — the track record renders
+hosted entries with a Host badge and a "N Hosted" count
+(`profile-page-view.tsx:167-175`, `track-record-view.tsx:59-65`). The hero
+itself still carries no host identity (no organization name near the name).
 
-```
-src/app/(public)/(member)/me/settings/page.tsx
-  Panels: Profile (links to /me/profile, /me/history, /me/transactions),
-  Notifications, Sign out. No link to /account.
-Password and email live at src/experiences/voter/account/, reachable only via
-  the legacy-group /account route.
-Phone has no representation in v2 at all.
-Push and SMS are stubbed: "Push and SMS preferences land in a later phase."
-```
-
-**Fix.** Link `/account` from settings now; fold those sections into
-`/me/settings` when the legacy group retires. Phone needs a decision — legacy
-collects it and Twilio SMS depends on it.
+**Fix.** Decide: is track-record placement sufficient host identity, or does
+the hero name the organization? If the latter, `loadTrackRecord` already
+fetches org membership — pass it up rather than adding a second lookup.
 
 ---
 
-## G6 — Age, and video prompts, have no v2 equivalent
-**Class:** Gap · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-07`
+## R22 — "Link" and "Pinned Link" are still indistinguishable in the editor
+**Class:** Craft · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-05`
 
-Legacy renders "Chicago, 27" under the name. The v3 hero takes city and
-occupation; there is no age, and birthdate sits outside the editor by design.
-Legacy's video prompts have no counterpart anywhere in v2.
+Unchanged since the prior audit:
 
 ```
-src/features/profile/components/ProfileView.jsx:418
-  {city}{age ? ', ' + age : ''}
-src/experiences/voter/profile/profile-edit.tsx
-  "leaving occupation and birthdate untouched because they are outside
-   this editor."
+src/experiences/voter/profile/profile-edit.tsx:591-623
+  "Link"        placeholder https://yourwebsite.com   → globe icon chip
+  "Pinned Link" placeholder https://yourlink.com      → labelled hero CTA
+  "Pinned Link Label" — the button text, unexplained.
 ```
 
-**Fix.** Confirm both are intentional drops. Age on a public profile deserves a
-deliberate choice rather than an inherited one, given the 18+ work in
-[#586](https://github.com/eliterank-co/eliterank/issues/586).
+**Fix.** Relabel to what each produces — "Website", and "Featured link" with
+its label described as button text — or drop one.
 
 ---
 
-## S1 — Pinned Link and Link are indistinguishable in the editor
-**Class:** Craft · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-08`
+## R23 — Dead profile components left behind by the redesign
+**Class:** Craft · **View:** [V2](views/V2-member-profile.md) · **Closes with:** `AC-V2-06`
 
-They sit near each other with near-identical empty placeholders —
-`https://yourwebsite.com` against `https://yourlink.com` — and nothing explains
-the difference. Underneath they are genuinely different: `website` becomes an
-icon in the social row; `pinnedLink` becomes a labelled call-to-action in the
-hero, which is why it has a second field for its button text.
+#158 replaced components without retiring them, and the survivors are traps —
+two of them export the same name:
 
-**Fix.** Relabel to what each produces — "Website", and "Featured link" with its
-label field described as button text — or drop one.
+```
+src/components/profile/hero.tsx       exports ProfileHero — dead (the live one
+  is profile-hero.tsx; both export `ProfileHero`); also the only renderer the
+  cover image ever had (R4).
+src/components/vote/profile-vote-panel.tsx  — no consumers.
+src/app/(public)/p/[voterId]/fan-button.tsx — no consumers (R1: should be
+  re-mounted, not deleted).
+```
+
+**Fix.** After R1 and the R4 decisions land: delete `hero.tsx` and
+`profile-vote-panel.tsx` (with their tests), or mark them with a deprecation
+note naming the replacement. An import of the wrong `ProfileHero`
+type-checks today.
 
 ---
 
-## S2 — Share card design
-**Class:** Craft · **View:** [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-04`
+## R24 — The editor's video preview still paints a black frame
+**Class:** Defect · **View:** [V3](views/V3-profile-editor.md) · **Closes with:** `AC-V3-04`
 
-The card is generated server-side at 1080x1920 for Stories, drawing avatar, name
-and crown count.
+The public profile's black-frame bug is fixed — `FeaturedGallery` posters the
+video with the avatar (`featured-gallery.tsx:78`). The shared preview
+component the **editor** (and the Classic crossover view) render was not
+touched:
 
 ```
-src/app/(public)/p/[voterId]/story-card/route.tsx
-  ImageResponse, ShareCard, loadCardFont, loadCrown.  Gated on social_profile.
+src/components/profile/panels.tsx:104-112
+  <video src={video} controls loop playsInline preload="metadata" …>
+  — no poster attribute.
+Consumers: profile-edit.tsx:697 (editor preview), profile-view.tsx:358
+  (crossover profile).
 ```
 
-**Fix.** Design work on `ShareCard` alone; the pipeline needs no change. Compare
-against the legacy achievement card, which carried tier, competition, city,
-season, organization logo and a vote URL — a denser, more branded composition.
+A member who uploads a video still sees a black tile in the editor they just
+used, then a correct poster on their profile.
+
+**Fix.** Same poster fallback in `panels.tsx`. One-line class of fix; the
+criterion is that no surface renders an unpostered `<video>`.
 
 ---
 
-## S3 — Profile icon size and alignment
-**Class:** Craft · **Views:** [V1](views/V1-me-dashboard.md), [V2](views/V2-me-social-profile.md) · **Closes with:** `AC-V2-03`
+# Resolved since the prior audit
 
-The avatar reads small, and the text beneath it should be left-aligned rather
-than centred.
+Fixed by `6b665a8` (#158) unless noted. Recorded so nobody re-files them.
 
-```
-src/app/(public)/(member)/me/_components/header.tsx -- 44x44 avatar.
-Hero sizing lives in src/components/profile/hero.tsx.
-```
-
----
-
-## S4 — Social icon set
-**Class:** Craft · **View:** [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-05`
-
-The brand marks are hand-inlined SVGs, added because the project's lucide build
-dropped its brand icons.
-
-```
-src/experiences/voter/profile/profile-view.tsx:41-79
-  local TikTokIcon, InstagramIcon, LinkedInIcon, XIcon.
-```
-
-**Fix.** Replacing four local components in one file. Keep them inline SVG using
-`currentColor` — an external icon font would break REQ-05 and add a network
-dependency.
-
----
-
-## S5 — Mobile share affordance is unclear
-**Class:** Craft · **View:** [V8](views/V8-public-profile.md) · **Closes with:** `AC-V8-06`
-
-On mobile the share control reads as an unlabelled icon. The sheet behind it is
-good — native share, copy link, download card — but nothing signals that before
-the tap.
-
-```
-src/components/share/share-sheet.tsx:184-189
-```
-
-**Fix.** Give it a text label at mobile widths. The sheet is the strongest
-growth surface on the profile and is currently hidden behind a glyph.
-
----
-
-## S6 — Vote modal on the contestant profile
-**Class:** Verify · **View:** [V9](views/V9-contestant-public.md) · **Closes with:** `AC-V9-01`
-
-The vote panel exists and is wired to the public member profile. Confirm it also
-renders on the contestant profile, which is a different route.
-
-```
-src/components/vote/profile-vote-panel.tsx  <-  loadLiveEntries
-  rendered by src/app/(public)/p/[voterId]/page.tsx
-Contestant profile is /o/[orgSlug]/c/[competitionSlug]/[contestantSlug]
-  -- a separate page.
-```
-
-**Fix.** Live check with the flag on before filing; the component may simply
-need mounting on the contestant route.
-
----
-
-## Correction — already built in v3
-
-An earlier pass of this review listed these as missing. That reading treated the
-flag-off dashboard as the whole new profile. Recorded so nobody files them twice.
-
-| Capability | Where it lives |
-| --- | --- |
-| Achievement / share card | Share sheet, downloadable 1080x1920 story card |
-| Share profile | Native share, copy link, download — one sheet |
-| Fans | Fan list and count in the hero; toggle on the public profile |
-| Gallery and intro video | Present; editor is **ahead** of legacy (6 photos, drag-drop, YouTube embed) |
-| Competition entries | Timeline: entered, advanced, crowned, out, competing, voted, pick won, watching, reward |
-| Bonus votes | Earned bonuses appear as timeline events (only the forward-looking checklist is missing — G3) |
-| Inline voting | Vote panel on the public profile, where a visitor votes for you |
-
-v3 is outright ahead of legacy on: display name, cover image, pinned link with
-its own label, X handle, and YouTube embed — none of which the legacy editor can
-set.
+| Old ID | Was | Resolution |
+| --- | --- | --- |
+| P1 (normalization half) | Pasted social URLs rejected | `extractSocialHandle` normalizes all four networks server-side (`src/lib/actions/profile.ts:39-58`). Residual error contract → **R5**. |
+| P2 (profile render half) | Intro video renders black | `FeaturedGallery` posters with the avatar (`featured-gallery.tsx:78`). Editor preview residual → **R24**. The "save reports failure" half did not reproduce at `c2f45dd`: Save is disabled and relabelled "Updating media…" during media commits (`profile-edit.tsx:773-786`, unchanged since `3f6de99` — the prior packet overstated this half). |
+| P3 (profile half) | No hosting anywhere in member surfaces | Track record consolidates competed + hosted (`track-record.ts:84-113,180-220`). `/me/history` residual → **R12**. |
+| P4 (mechanism) | View-as-visitor one-way | In-place Preview Mode toggle (`profile-page-view.tsx:94-100`). Redundant one-way link residual → **R13**. |
+| G3 (visibility) | Bonus tasks visible only after the fact | Checklist now on the owner live-round module (`profile-vote-module.tsx:146-210`). Correctness defects → **R2**. |
+| G4 (framing) | Achievement framing gone | Medals grid with gold/silver/bronze tiers and WINNER/2ND/3RD/TOP-N labels (`track-record.ts:57-75`, `track-record-view.tsx`). Residuals → **R11**, **R18**. |
+| G1 (empty panel) | Interests panel misleads when empty | Card renders only when tags exist (`interests-and-fans.tsx:32`). Editor residual → **R17**. |
+| G2 (visibility) | Host role invisible on profile | Hosted entries + "N Hosted" count in track record. Hero decision → **R21**. |
+| S3 | Avatar small, text alignment | 136px avatar with gold ring (`profile-hero.tsx:55`). The "left-align" half of the old criterion is retired: the shipped design is deliberately centered single-axis, and specs follow the design. |
+| S4 (icon quality) | Ad-hoc social icon set | Token-driven inline-SVG chips in the hero (`profile-hero.tsx:113-166`). LinkedIn omission → **R4**. |
+| S5 | Mobile share affordance unlabelled | ShareSheet trigger renders a visible "Share" text label (`share-sheet.tsx:45,95`). |
+| S6 | Verify vote path on contestant profile | Verified in source: the contestant public page has its own `ContestantVoteCta` (`/o/…/[contestantSlug]/vote-cta.tsx`), and the profile carries `ProfileVoteModule` with free-vote + vote packs. Guard criterion `AC-V9-01` retained. |
+| D3 (quick action half) | Watch-count card mislabelled | Quick action now shows the real `listMyWatching` count (`me/page.tsx:195-199`). Stat tile residual → **R8**. |

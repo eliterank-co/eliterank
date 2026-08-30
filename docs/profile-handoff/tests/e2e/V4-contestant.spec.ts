@@ -1,50 +1,27 @@
 /**
- * V4 — Contestant self-service  (/me/contestant, flag OFF)
- * Findings: G4 · View doc: docs/profile-handoff/views/V4-contestant.md
+ * V4 — Contestant self-service. Finding: R18. View doc: views/V4-contestant.md
+ * Needs the dashboard experience — skipped until the app-owned off-selection
+ * helper exists (see DASHBOARD_TODO in _fixtures.ts).
  */
-import { test, expect, withFlag, FIXTURES } from './_fixtures';
+import {
+  test,
+  expect,
+  selectExperience,
+  FIXTURES,
+  BASE_URL,
+  CAN_SELECT_DASHBOARD,
+  DASHBOARD_TODO,
+} from './_fixtures';
 
-test.describe('V4 — contestant self-service', () => {
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'off');
-  });
+test.describe('V4 — eliminated contestant', () => {
+  test.skip(!CAN_SELECT_DASHBOARD, DASHBOARD_TODO);
+  test.use({ storageState: FIXTURES.MEMBER_CONTESTANT_OUT });
+  test.beforeEach(async ({ context }) => selectExperience(context, BASE_URL, 'dashboard'));
 
-  test.describe('active contestant', () => {
-    test.use({ storageState: FIXTURES.MEMBER_CONTESTANT_ACTIVE });
-
-    test.fixme('T-AC-V4-01 — a surviving contestant sees their tier label', async ({ page }) => {
-      await page.goto('/me/contestant');
-      // G4: today this surface shows Placement #n and Active/Eliminated only.
-      // Derivation to mirror: legacy ProfileView.jsx:190-207 (contestants_advance).
-      await expect(page.getByText(/Top \d+ Contestant|Entry Round/i)).toBeVisible();
-    });
-  });
-
-  test.describe('eliminated contestant', () => {
-    test.use({ storageState: FIXTURES.MEMBER_CONTESTANT_OUT });
-
-    test.fixme('T-AC-V4-02 — an eliminated contestant keeps the tier they earned', async ({ page }) => {
-      await page.goto('/me/contestant');
-      await expect(page.getByText(/Top \d+ Contestant|Entry Round/i)).toBeVisible();
-      // "Eliminated" must not be the only descriptor of the result.
-      const body = await page.locator('main').innerText();
-      const hasTier = /Top \d+ Contestant|Entry Round/i.test(body);
-      expect(hasTier).toBe(true);
-    });
-
-  });
-
-  test.describe('multi-competition contestant', () => {
-    test.use({ storageState: FIXTURES.MEMBER_CONTESTANT_MULTI });
-
-    test.fixme('T-AC-V4-03 — multi-competition contestants see tier per competition', async ({ page }) => {
-      await page.goto('/me/contestant');
-      const rows = page.getByTestId('contestant-competition-row'); // REQ-19
-      const count = await rows.count();
-      expect(count).toBeGreaterThan(1);
-      for (let i = 0; i < count; i++) {
-        await expect(rows.nth(i)).toContainText(/Top \d+|Entry Round|#\d+/);
-      }
-    });
+  test.fixme('T-AC-V4-01 — the result reads as an achievement, not "Eliminated"', async ({ page }) => {
+    await page.goto('/me/contestant');
+    // R18: contestant/page.tsx:175-182 renders the bare binary status.
+    await expect(page.getByText(/^Eliminated$/)).toHaveCount(0);
+    await expect(page.getByText(/winner|2nd|3rd|top \d+|round \d+|competed/i).first()).toBeVisible();
   });
 });

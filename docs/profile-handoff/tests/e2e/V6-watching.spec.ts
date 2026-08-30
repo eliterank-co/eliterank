@@ -1,37 +1,61 @@
 /**
- * V6 — Watch list  (/me/watching, flag OFF)
- * Findings: D3 · View doc: docs/profile-handoff/views/V6-watching.md
+ * V6 — Watch list. Finding: R8 (cross-surface consistency) + guard.
+ * View doc: views/V6-watching.md
  */
-import { test, expect, withFlag, FIXTURES } from './_fixtures';
+import {
+  test,
+  expect,
+  selectExperience,
+  FIXTURES,
+  statValue,
+  heroCountValue,
+  BASE_URL,
+  CAN_SELECT_DASHBOARD,
+  DASHBOARD_TODO,
+} from './_fixtures';
 
-test.describe('V6 — watch list', () => {
+test.describe('V6 — watching consistency (both experiences in one spec)', () => {
+  test.skip(!CAN_SELECT_DASHBOARD, DASHBOARD_TODO);
   test.use({ storageState: FIXTURES.MEMBER_PLAIN });
 
-  test.beforeEach(async ({ page }) => {
-    await withFlag(page, 'off');
-  });
-
-  test.fixme('T-AC-V6-01 — every watch count in the app agrees with this page', async ({ page }) => {
+  test.fixme('T-AC-V6-01 — every watching number agrees with the list', async ({ page, context }) => {
+    await selectExperience(context, BASE_URL, 'dashboard');
     await page.goto('/me/watching');
-    const heading = await page.getByText(/Saved markets \(\d+\)/).innerText();
-    const authoritative = heading.match(/\((\d+)\)/)?.[1] ?? '';
+    const rows = await page.locator('[data-testid="watching-row"]').count();
 
-    await withFlag(page, 'on');
     await page.goto('/me');
-    await expect(page.getByRole('link', { name: /watching/i })).toContainText(authoritative);
-  });
+    // Quick action shows "N saved" (real, me/page.tsx:195-199); the stat tile
+    // must agree or be renamed (R8: today it counts competitions voted in).
+    await expect(page.getByText(`${rows} saved`)).toBeVisible();
+    const tile = await statValue(page, 'Markets watched').catch(() => null);
+    if (tile !== null) expect(Number(tile)).toBe(rows);
 
-  test('T-AC-V6-02 — a case-mismatched email still resolves the watch list', async ({ page }) => {
-    // Regression guard: listMyWatching keys on the lowercased email. A mismatch
-    // returns an empty list rather than an error, so the failure is silent.
-    //
-    // PRECONDITION (or this test passes vacuously): the fixture's auth email
-    // must contain at least one uppercase letter while its notify_me rows were
-    // created lowercase. Seed it that way and set SS_MEMBER_MIXEDCASE, or this
-    // skips rather than pretending to guard.
-    test.skip(!process.env.SS_MEMBER_MIXEDCASE, 'seed a mixed-case-email fixture and set SS_MEMBER_MIXEDCASE');
+    await selectExperience(context, BASE_URL, 'profile');
+    await page.goto('/me');
+    expect(await heroCountValue(page, 'Watching')).toBe(rows);
+  });
+});
+
+test.describe('V6 — mixed-case email guard', () => {
+  // The loader (listMyWatching, keyed by lowercased email) runs identically
+  // under either experience; selecting profile keeps this guard runnable
+  // while the dashboard off-selection remains an app-owned TODO.
+  // Skips without its fixture — a vacuous pass is worse than a skip.
+  const EXPECTED = Number(process.env.MIXEDCASE_WATCH_COUNT ?? NaN);
+  test.skip(
+    !process.env.SS_MEMBER_MIXEDCASE || !Number.isInteger(EXPECTED) || EXPECTED < 1,
+    'needs SS_MEMBER_MIXEDCASE fixture and MIXEDCASE_WATCH_COUNT (its seeded watch count, >= 1)',
+  );
+  test.use({ storageState: process.env.SS_MEMBER_MIXEDCASE });
+
+  test('T-AC-V6-02 — guard: uppercase auth email still lists watches', async ({ page, context }) => {
+    await selectExperience(context, BASE_URL, 'profile');
     await page.goto('/me/watching');
-    const heading = await page.getByText(/Saved markets \((\d+)\)/).innerText();
-    expect(Number(heading.match(/\((\d+)\)/)?.[1] ?? '0')).toBeGreaterThan(0);
+    // The regression this guards (lowercasing moved out of the loader) yields
+    // an EMPTY list, not an error — so assert the seeded rows actually render.
+    // The panel title renders the real count today: "Saved markets (N)"
+    // (me/watching/page.tsx:42).
+    await expect(page.getByText(`Saved markets (${EXPECTED})`)).toBeVisible();
+    await expect(page.getByText(/couldn.t load|error/i)).toHaveCount(0);
   });
 });
