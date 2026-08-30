@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="578" viewBox="0 0 880 578" font-family="ui-sans-serif,system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="880" height="578" fill="#FFFFFF"/>
+<text x="24" y="34" font-size="17" font-weight="700" fill="#1A1814">V4 — Contestant self-service</text>
+<text x="24" y="56" font-size="12" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">/me/contestant  ·  claimed contestants only</text>
+<line x1="24" y1="72" x2="856" y2="72" stroke="#D9D4C7" stroke-width="1"/>
+<rect x="24" y="96" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="118" font-size="13" font-weight="600" fill="#1A1814">Page header</text>
+<text x="38" y="136" font-size="11" fill="#6E675C">display name · public path · multi-competition note</text>
+<rect x="24" y="160" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="182" font-size="13" font-weight="600" fill="#1A1814">Saved / error banner</text>
+<text x="38" y="200" font-size="11" fill="#6E675C">confirms broadcast across all competitions</text>
+<rect x="24" y="224" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="246" font-size="13" font-weight="600" fill="#1A1814">Live stats</text>
+<text x="38" y="264" font-size="11" fill="#6E675C">Lifetime votes · Placement #n · Status: Active | Eliminated</text>
+<rect x="810" y="240" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="254" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">G4</text>
+<rect x="24" y="288" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="310" font-size="13" font-weight="600" fill="#1A1814">Multi-competition rows</text>
+<text x="38" y="328" font-size="11" fill="#6E675C">one row per claim: votes · rank · status · external link</text>
+<rect x="810" y="304" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="318" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">G4</text>
+<rect x="24" y="352" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="374" font-size="13" font-weight="600" fill="#1A1814">Editor: identity</text>
+<text x="38" y="392" font-size="11" fill="#6E675C">display name · bio (400)</text>
+<rect x="24" y="416" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="438" font-size="13" font-weight="600" fill="#1A1814">Editor: photos</text>
+<text x="38" y="456" font-size="11" fill="#6E675C">avatar · cover</text>
+<rect x="24" y="480" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="502" font-size="13" font-weight="600" fill="#1A1814">Editor: socials</text>
+<text x="38" y="520" font-size="11" fill="#6E675C">Instagram · TikTok · X · Website — accepts “@handle or full URL”</text>
+<rect x="810" y="496" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="510" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">P1</text>
+<text x="24" y="566" font-size="10" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">Structural wireframe from source — not a visual mock. Tags mark findings; see findings.md</text>
+</svg>

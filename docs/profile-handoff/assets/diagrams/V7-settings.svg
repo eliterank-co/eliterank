@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="450" viewBox="0 0 880 450" font-family="ui-sans-serif,system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="880" height="450" fill="#FFFFFF"/>
+<text x="24" y="34" font-size="17" font-weight="700" fill="#1A1814">V7 — Settings and account</text>
+<text x="24" y="56" font-size="12" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">/me/settings  (+ /account crossover)</text>
+<line x1="24" y1="72" x2="856" y2="72" stroke="#D9D4C7" stroke-width="1"/>
+<rect x="24" y="96" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="118" font-size="13" font-weight="600" fill="#1A1814">Page header</text>
+<text x="38" y="136" font-size="11" fill="#6E675C">“Account.” — “Manage your profile, password, and notifications.”</text>
+<rect x="810" y="112" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="126" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">G5</text>
+<rect x="24" y="160" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="182" font-size="13" font-weight="600" fill="#1A1814">Profile panel</text>
+<text x="38" y="200" font-size="11" fill="#6E675C">links: /me/profile · /me/history · /me/transactions — no /account</text>
+<rect x="810" y="176" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="190" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">G5</text>
+<rect x="24" y="224" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="246" font-size="13" font-weight="600" fill="#1A1814">Notifications panel</text>
+<text x="38" y="264" font-size="11" fill="#6E675C">weekly digest toggle; push + SMS stubbed</text>
+<rect x="810" y="240" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="254" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">G5</text>
+<rect x="24" y="288" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="310" font-size="13" font-weight="600" fill="#1A1814">Sign out panel</text>
+<text x="38" y="328" font-size="11" fill="#6E675C">end this session</text>
+<rect x="24" y="352" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="374" font-size="13" font-weight="600" fill="#1A1814">Danger zone</text>
+<text x="38" y="392" font-size="11" fill="#6E675C">account deletion — no host / contestant / winner preconditions</text>
+<rect x="810" y="368" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="382" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">X1</text>
+<text x="24" y="438" font-size="10" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">Structural wireframe from source — not a visual mock. Tags mark findings; see findings.md</text>
+</svg>

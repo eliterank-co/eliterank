@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="386" viewBox="0 0 880 386" font-family="ui-sans-serif,system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="880" height="386" fill="#FFFFFF"/>
+<text x="24" y="34" font-size="17" font-weight="700" fill="#1A1814">V6 — Watch list</text>
+<text x="24" y="56" font-size="12" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">/me/watching</text>
+<line x1="24" y1="72" x2="856" y2="72" stroke="#D9D4C7" stroke-width="1"/>
+<rect x="24" y="96" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="118" font-size="13" font-weight="600" fill="#1A1814">Page header</text>
+<text x="38" y="136" font-size="11" fill="#6E675C">“Your watch list.” + phase-change notice copy</text>
+<rect x="24" y="160" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="182" font-size="13" font-weight="600" fill="#1A1814">Saved markets</text>
+<text x="38" y="200" font-size="11" fill="#6E675C">rows from listMyWatching, keyed on lowercased email</text>
+<rect x="810" y="176" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="190" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">D3</text>
+<rect x="24" y="224" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="246" font-size="13" font-weight="600" fill="#1A1814">Phase tint</text>
+<text x="38" y="264" font-size="11" fill="#6E675C">draft · nominations · voting · finals · ended · archived</text>
+<rect x="24" y="288" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="310" font-size="13" font-weight="600" fill="#1A1814">Empty state</text>
+<text x="38" y="328" font-size="11" fill="#6E675C">bookmark icon + prompt to discover</text>
+<text x="24" y="374" font-size="10" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">Structural wireframe from source — not a visual mock. Tags mark findings; see findings.md</text>
+</svg>

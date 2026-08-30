@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="642" viewBox="0 0 880 642" font-family="ui-sans-serif,system-ui,Segoe UI,Helvetica,Arial,sans-serif">
+<rect width="880" height="642" fill="#FFFFFF"/>
+<text x="24" y="34" font-size="17" font-weight="700" fill="#1A1814">V1 — Member dashboard</text>
+<text x="24" y="56" font-size="12" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">/me  ·  social_profile OFF</text>
+<line x1="24" y1="72" x2="856" y2="72" stroke="#D9D4C7" stroke-width="1"/>
+<rect x="24" y="96" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="118" font-size="13" font-weight="600" fill="#1A1814">Identity strip</text>
+<text x="38" y="136" font-size="11" fill="#6E675C">avatar 44px · display name · email · “Gold member” badge</text>
+<rect x="810" y="112" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="126" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">S3</text>
+<rect x="778" y="112" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="791.0" y="126" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">D1</text>
+<rect x="24" y="160" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="182" font-size="13" font-weight="600" fill="#1A1814">Tab bar</text>
+<text x="38" y="200" font-size="11" fill="#6E675C">Overview · My votes · Watching · [Contestant] · Profile · Settings</text>
+<rect x="24" y="224" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="246" font-size="13" font-weight="600" fill="#1A1814">Page header</text>
+<text x="38" y="264" font-size="11" fill="#6E675C">“Welcome back.” + subtitle</text>
+<rect x="24" y="288" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="310" font-size="13" font-weight="600" fill="#1A1814">Stat tiles × 4</text>
+<text x="38" y="328" font-size="11" fill="#6E675C">Votes cast · Markets watched · Orgs owned / Active wins · Member tier</text>
+<rect x="810" y="304" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="823.0" y="318" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">D3</text>
+<rect x="778" y="304" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="791.0" y="318" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">D2</text>
+<rect x="746" y="304" width="26" height="20" rx="3" fill="#B33240" opacity="0.10"/>
+<text x="759.0" y="318" font-size="11" font-weight="700" fill="#B33240" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">D1</text>
+<rect x="24" y="352" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="374" font-size="13" font-weight="600" fill="#1A1814">Host hero  /  org link</text>
+<text x="38" y="392" font-size="11" fill="#6E675C">become-a-host invitation, or link to the host dashboard</text>
+<rect x="24" y="416" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="438" font-size="13" font-weight="600" fill="#1A1814">Quick actions × 3</text>
+<text x="38" y="456" font-size="11" fill="#6E675C">Browse the floor · Tonight&#x27;s main card · Your watch list</text>
+<rect x="24" y="480" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="502" font-size="13" font-weight="600" fill="#1A1814">Live now</text>
+<text x="38" y="520" font-size="11" fill="#6E675C">up to 3 competitions in the voting phase</text>
+<rect x="24" y="544" width="832" height="54" rx="4" fill="#F5F3EE" stroke="#D9D4C7"/>
+<text x="38" y="566" font-size="13" font-weight="600" fill="#1A1814">Recent activity</text>
+<text x="38" y="584" font-size="11" fill="#6E675C">5 most recent votes, or an empty state</text>
+<text x="24" y="630" font-size="10" fill="#6E675C" font-family="ui-monospace,SFMono-Regular,Consolas,monospace">Structural wireframe from source — not a visual mock. Tags mark findings; see findings.md</text>
+</svg>
