@@ -16,14 +16,26 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
  *
  * Trigger options:
  *   - Cron via pg_cron + pg_net (see migration 042_fan_weekly_digest_cron.sql)
- *   - Manual invocation: POST with the service role key, optional { dry_run: true }
- *     returns the build summary without sending.
+ *   - Manual invocation: POST with the service role key. Body options:
+ *       { dry_run: true }   build the recipient list without sending
+ *       { offset, limit }   dispatch only that slice of the recipient queue
+ *
+ * Every recipient costs one invocation of send-onesignal-email, and Supabase
+ * rate-limits per function: an unpaced run sends the first ~60 emails and then
+ * fails the rest with "RateLimitError: Rate limit exceeded for function". Fans
+ * queue behind their contestant, so they absorbed nearly all of that loss. The
+ * dispatcher below paces sends, retries rate-limited ones honouring the
+ * server's retry-after hint, and returns `summary.next_offset` when it stops
+ * early so the caller can resume without exceeding the wall-clock limit.
  *
  * Required Supabase secrets:
  *   SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
  *   APP_URL              — e.g. https://eliterank.co (used for self-digest
  *                          unsubscribe link → /notifications settings page)
+ * Optional:
+ *   DIGEST_SEND_INTERVAL_MS — ms between sends (default 250)
+ *   DIGEST_MAX_RUNTIME_MS   — stop and return next_offset after this (default 110000)
  */
 
 const corsHeaders = {
@@ -112,12 +124,19 @@ serve(async (req) => {
       )
     }
 
-    // Optional { dry_run: true } for manual sanity-checks without sending.
+    // Optional { dry_run } for manual sanity-checks, { offset, limit } to
+    // dispatch one slice of the recipient queue (see the resume note above).
     let dryRun = false
+    let offset = 0
+    let limit: number | null = null
     if (req.method === 'POST') {
       try {
         const body = await req.json()
         dryRun = !!body?.dry_run
+        const parsedOffset = Number(body?.offset)
+        if (Number.isFinite(parsedOffset) && parsedOffset > 0) offset = Math.floor(parsedOffset)
+        const parsedLimit = Number(body?.limit)
+        if (Number.isFinite(parsedLimit) && parsedLimit > 0) limit = Math.floor(parsedLimit)
       } catch {
         // Empty body / non-JSON — treat as normal run.
       }
@@ -185,6 +204,9 @@ serve(async (req) => {
       .select('id, name, email, user_id, competition_id, rank, trend, votes, status, gender')
       .in('competition_id', compIds)
       .eq('status', 'active')
+      // Stable order: `offset` indexes into the queue built from this list, so
+      // a resumed invocation must rebuild it in exactly the same order.
+      .order('id', { ascending: true })
 
     if (contestantsErr) throw new Error(`contestants fetch: ${contestantsErr.message}`)
 
@@ -230,6 +252,7 @@ serve(async (req) => {
       .select('id, user_id, contestant_id, email_weekly_updates')
       .in('contestant_id', contestantIds)
       .eq('email_weekly_updates', true)
+      .order('id', { ascending: true })
 
     if (fansErr) throw new Error(`contestant_fans fetch: ${fansErr.message}`)
 
@@ -261,33 +284,14 @@ serve(async (req) => {
       }
     }
 
-    // 7. For each contestant, build payload and dispatch.
-    const results: SendResult[] = []
+    // 7. Build the full recipient queue (contestant + their opted-in fans).
+    //    Nothing is sent here — the queue is built in one deterministic pass so
+    //    that `offset` means the same thing across resumed invocations.
+    type QueueEntry =
+      | { kind: 'send'; payload: Record<string, unknown>; label: SendResult }
+      | { kind: 'skip'; label: SendResult }
 
-    const sendOne = async (payload: Record<string, unknown>, label: SendResult) => {
-      if (dryRun) {
-        results.push({ ...label, status: 'sent', reason: 'dry_run' })
-        return
-      }
-      try {
-        const res = await fetch(`${supabaseUrl}/functions/v1/send-onesignal-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceKey}`,
-          },
-          body: JSON.stringify(payload),
-        })
-        if (!res.ok) {
-          const text = await res.text()
-          results.push({ ...label, status: 'failed', reason: `${res.status} ${text.slice(0, 200)}` })
-          return
-        }
-        results.push({ ...label, status: 'sent' })
-      } catch (err) {
-        results.push({ ...label, status: 'failed', reason: String(err).slice(0, 200) })
-      }
-    }
+    const queue: QueueEntry[] = []
 
     for (const contestant of contestants as Contestant[]) {
       const competition = compById.get(contestant.competition_id)
@@ -322,60 +326,185 @@ serve(async (req) => {
         next_event_date: nextEvent?.date || null,
       }
 
-      // 7a. Send to the contestant themselves.
+      // 7a. The contestant themselves.
       const contestantEmail = contestant.email
         || (contestant.user_id ? profileEmailByUserId.get(contestant.user_id) : null)
           || null
       if (contestantEmail) {
-        await sendOne(
-          {
-            ...sharedPayload,
-            to_email: contestantEmail,
-            is_self: true,
-          },
-          { contestant_id: contestant.id, contestant_name: contestant.name, recipient: 'self', to_email: contestantEmail, status: 'sent' },
-        )
+        queue.push({
+          kind: 'send',
+          payload: { ...sharedPayload, to_email: contestantEmail, is_self: true },
+          label: { contestant_id: contestant.id, contestant_name: contestant.name, recipient: 'self', to_email: contestantEmail, status: 'sent' },
+        })
       } else {
-        results.push({
-          contestant_id: contestant.id,
-          contestant_name: contestant.name,
-          recipient: 'self',
-          to_email: '',
-          status: 'skipped',
-          reason: 'no email on file',
+        queue.push({
+          kind: 'skip',
+          label: {
+            contestant_id: contestant.id,
+            contestant_name: contestant.name,
+            recipient: 'self',
+            to_email: '',
+            status: 'skipped',
+            reason: 'no email on file',
+          },
         })
       }
 
-      // 7b. Send to each subscribed fan.
+      // 7b. Each subscribed fan.
       const fanRows = fansByContestant.get(contestant.id) || []
       for (const fan of fanRows) {
         const fanEmail = profileEmailByUserId.get(fan.user_id) || null
         if (!fanEmail) {
-          results.push({
-            contestant_id: contestant.id,
-            contestant_name: contestant.name,
-            recipient: 'fan',
-            to_email: '',
-            status: 'skipped',
-            reason: 'fan has no profile email',
+          queue.push({
+            kind: 'skip',
+            label: {
+              contestant_id: contestant.id,
+              contestant_name: contestant.name,
+              recipient: 'fan',
+              to_email: '',
+              status: 'skipped',
+              reason: 'fan has no profile email',
+            },
           })
           continue
         }
-        await sendOne(
-          {
-            ...sharedPayload,
-            to_email: fanEmail,
-            is_self: false,
-            fan_id: fan.id,
-          },
-          { contestant_id: contestant.id, contestant_name: contestant.name, recipient: 'fan', to_email: fanEmail, status: 'sent' },
-        )
+        queue.push({
+          kind: 'send',
+          payload: { ...sharedPayload, to_email: fanEmail, is_self: false, fan_id: fan.id },
+          label: { contestant_id: contestant.id, contestant_name: contestant.name, recipient: 'fan', to_email: fanEmail, status: 'sent' },
+        })
       }
     }
+
+    // 8. Dispatch the requested slice, paced so we stay under the per-function
+    //    rate limit and retrying the ones that trip it anyway.
+    const sendIntervalMs = Number(Deno.env.get('DIGEST_SEND_INTERVAL_MS')) || 250
+    const maxRuntimeMs = Number(Deno.env.get('DIGEST_MAX_RUNTIME_MS')) || 110_000
+    const MAX_ATTEMPTS = 4
+    const MAX_BACKOFF_MS = 30_000
+    const MAX_PACING_MS = 1_000
+    const startedAt = Date.now()
+
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+    const isRateLimited = (status: number, text: string) =>
+      status === 429 || /rate ?limit/i.test(text)
+
+    // The limit reports its own wait, inline in the message:
+    // "RateLimitError: Rate limit exceeded for function. Retry after 11417ms."
+    // Honour it — blind exponential backoff caps below that and keeps failing.
+    const retryAfterFromText = (text: string): number | null => {
+      const match = text.match(/retry after\s+(\d+)\s*ms/i)
+      if (match) return Math.min(Number(match[1]), MAX_BACKOFF_MS)
+      return null
+    }
+
+    const retryAfterFromResponse = (res: Response, text: string): number | null => {
+      const header = res.headers.get('retry-after')
+      if (header) {
+        const secs = Number(header)
+        if (Number.isFinite(secs) && secs >= 0) return Math.min(secs * 1000, MAX_BACKOFF_MS)
+      }
+      return retryAfterFromText(text)
+    }
+
+    const results: SendResult[] = []
+    let rateLimitHits = 0
+    // Pacing widens whenever we get rate-limited: the exact ceiling is not
+    // documented, so back off into a rate the project actually tolerates.
+    let pacingMs = sendIntervalMs
+
+    const dispatch = async (entry: Extract<QueueEntry, { kind: 'send' }>) => {
+      if (dryRun) {
+        results.push({ ...entry.label, status: 'sent', reason: 'dry_run' })
+        return
+      }
+      let lastReason = 'no attempt made'
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          const res = await fetch(`${supabaseUrl}/functions/v1/send-onesignal-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${serviceKey}`,
+            },
+            body: JSON.stringify(entry.payload),
+          })
+          if (res.ok) {
+            results.push({
+              ...entry.label,
+              status: 'sent',
+              ...(attempt > 1 ? { reason: `sent on attempt ${attempt}` } : {}),
+            })
+            return
+          }
+          const text = await res.text()
+          lastReason = `${res.status} ${text.slice(0, 200)}`
+          if (isRateLimited(res.status, text)) {
+            rateLimitHits++
+            pacingMs = Math.min(pacingMs + 100, MAX_PACING_MS)
+            if (attempt < MAX_ATTEMPTS) {
+              const wait = retryAfterFromResponse(res, text) ?? Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS)
+              // Jitter so a burst of retries does not re-collide.
+              await sleep(wait + Math.floor(Math.random() * 250))
+              continue
+            }
+          }
+          // Non-rate-limit failure (bad address, template error): do not retry.
+          break
+        } catch (err) {
+          // The per-function rate limit surfaces HERE, as a thrown
+          // RateLimitError on the outbound invocation rather than an HTTP
+          // response — which is exactly how 308 of 368 sends were lost on
+          // 2026-08-21 — so the retry-after hint has to be honoured on this
+          // path too, not just on a non-ok response.
+          const message = String(err)
+          lastReason = message.slice(0, 200)
+          if (isRateLimited(0, message)) {
+            rateLimitHits++
+            pacingMs = Math.min(pacingMs + 100, MAX_PACING_MS)
+          }
+          if (attempt < MAX_ATTEMPTS) {
+            const wait = retryAfterFromText(message) ?? Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS)
+            await sleep(wait + Math.floor(Math.random() * 250))
+            continue
+          }
+        }
+      }
+      results.push({ ...entry.label, status: 'failed', reason: lastReason })
+    }
+
+    const slice = queue.slice(offset, limit ? offset + limit : undefined)
+    let processed = 0
+    let stoppedEarly = false
+
+    for (const entry of slice) {
+      if (processed > 0 && Date.now() - startedAt > maxRuntimeMs) {
+        stoppedEarly = true
+        break
+      }
+      if (entry.kind === 'skip') {
+        results.push(entry.label)
+        processed++
+        continue
+      }
+      await dispatch(entry)
+      processed++
+      if (processed < slice.length) await sleep(pacingMs)
+    }
+
+    const consumed = offset + processed
+    const nextOffset = consumed < queue.length ? consumed : null
 
     const summary = {
       competitions: competitions.length,
       contestants: contestants.length,
+      recipients: queue.length,
+      offset,
+      processed,
+      next_offset: nextOffset,
+      stopped_early: stoppedEarly,
+      rate_limited: rateLimitHits,
       sent: results.filter(r => r.status === 'sent').length,
       skipped: results.filter(r => r.status === 'skipped').length,
       failed: results.filter(r => r.status === 'failed').length,

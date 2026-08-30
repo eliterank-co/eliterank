@@ -498,8 +498,24 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         ? `<div style="text-align:center;margin:16px 0;">${rankBlock}${votesBlock}</div>`
         : `<p style="color:#999;font-size:14px;text-align:center;margin:16px 0;">No activity this week — stay tuned!</p>`
 
+      // "Ends Sep 5, 2026" alone makes the reader do the arithmetic; the
+      // countdown is what actually drives a fan to go vote before the cutoff.
+      const daysLeft = (iso: string): number | null => {
+        const end = new Date(iso).getTime()
+        if (Number.isNaN(end)) return null
+        const days = Math.ceil((end - Date.now()) / 86400000)
+        return days < 0 ? null : days
+      }
+
+      const roundCountdown = (() => {
+        const days = req.voting_round_end ? daysLeft(req.voting_round_end) : null
+        if (days === null) return ''
+        if (days === 0) return ' &mdash; <strong style="color:#d4a843;">last day to vote</strong>'
+        return ` &mdash; <strong style="color:#d4a843;">${days} day${days === 1 ? '' : 's'} left to vote</strong>`
+      })()
+
       const roundEndLine = req.voting_round_end
-        ? `<p style="color:#ccc;font-size:14px;margin:8px 0;">Current voting round ends <strong style="color:#fff;">${formatShortDate(req.voting_round_end)}</strong></p>`
+        ? `<p style="color:#ccc;font-size:14px;margin:8px 0;">Current voting round ends <strong style="color:#fff;">${formatShortDate(req.voting_round_end)}</strong>${roundCountdown}</p>`
         : ''
 
       const nextEventLine = req.next_event_name && req.next_event_date

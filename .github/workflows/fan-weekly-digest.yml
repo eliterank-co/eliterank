@@ -4,10 +4,17 @@ name: Fan Weekly Digest
 #
 # GitHub Actions cron runs in UTC and does not follow daylight savings. To
 # keep the send at a true 10 AM America/Chicago wall-clock year-round, we
-# schedule BOTH 15:00 and 16:00 UTC every Friday, then the runtime check
-# below only proceeds when the Chicago hour is actually 10. During CDT
-# (Mar–Nov) only the 15:00 UTC run fires; during CST (Nov–Mar) only the
-# 16:00 UTC run fires. Exactly one send per Friday, year-round.
+# schedule BOTH 15:00 and 16:00 UTC every Friday and let exactly one of the
+# two ticks proceed: during CDT (Mar–Nov) 10 AM Chicago is 15:00 UTC, during
+# CST (Nov–Mar) it is 16:00 UTC.
+#
+# The gate compares the CRON EXPRESSION THAT SCHEDULED THIS RUN against the
+# one that currently means 10 AM Chicago — NOT the wall clock at execution
+# time. GitHub routinely delays scheduled runs under load, and the previous
+# wall-clock check ("proceed only if it is now hour 10 in Chicago") turned
+# every delayed run into a silent no-op: on 2026-08-28 both ticks landed
+# ~9 hours late, both failed the hour check, and nobody got a digest that
+# week while the workflow still reported success.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL                — https://<ref>.supabase.co
@@ -29,21 +36,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check wall-clock is 10 AM America/Chicago
+      - name: Select the tick that means 10 AM America/Chicago
         id: check
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "schedule" ]; then
             echo "Manual dispatch — proceeding."
             echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Which cron tick is 10 AM Chicago today? -0500 = CDT, -0600 = CST.
+          # This is delay-immune: github.event.schedule reports the tick the run
+          # was scheduled from, however late the runner actually picked it up.
+          OFFSET=$(TZ=America/Chicago date +%z)
+          case "$OFFSET" in
+            -0500) EXPECTED='0 15 * * 5' ;;
+            -0600) EXPECTED='0 16 * * 5' ;;
+            *)
+              echo "::warning::Unexpected America/Chicago UTC offset $OFFSET — falling back to the CST tick."
+              EXPECTED='0 16 * * 5'
+              ;;
+          esac
+
+          echo "Chicago UTC offset: $OFFSET"
+          echo "This run's cron tick: ${SCHEDULE:-<none>}"
+          echo "Tick that sends today: $EXPECTED"
+
+          if [ "${SCHEDULE:-}" = "$EXPECTED" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
           else
-            HOUR=$(TZ=America/Chicago date +%H)
-            echo "Current hour in America/Chicago: $HOUR"
-            if [ "$HOUR" = "10" ]; then
-              echo "proceed=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Not 10 AM Chicago — skipping this cron tick."
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-            fi
+            echo "Other tick handles today's send — skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Invoke send-fan-weekly-digest
@@ -58,30 +84,78 @@ jobs:
             echo "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY secret."
             exit 1
           fi
-          BODY=$(jq -n --argjson d "$DRY_RUN" '{dry_run: $d}')
-          echo "POST ${SUPABASE_URL}/functions/v1/send-fan-weekly-digest  body=$BODY"
-          # Capture status and body separately so the body is always visible,
-          # even on 5xx. Using --fail-with-body inside $() swallows the body
-          # under `set -e`, which is why prior failed runs only showed "exit 22".
-          HTTP_CODE=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "$BODY" \
-            "${SUPABASE_URL%/}/functions/v1/send-fan-weekly-digest")
-          echo "HTTP $HTTP_CODE"
-          jq . /tmp/resp.json || cat /tmp/resp.json
-          # Surface summary into the workflow step summary for easy triage.
+
+          ENDPOINT="${SUPABASE_URL%/}/functions/v1/send-fan-weekly-digest"
+          # The function stops before the edge runtime's wall-clock limit and
+          # hands back summary.next_offset; keep invoking until the queue drains.
+          MAX_CHUNKS=12
+          OFFSET=0
+          TOTAL_SENT=0
+          TOTAL_SKIPPED=0
+          TOTAL_FAILED=0
+          TOTAL_RECIPIENTS=0
+          DRAINED=false
+
+          for chunk in $(seq 1 "$MAX_CHUNKS"); do
+            BODY=$(jq -n --argjson d "$DRY_RUN" --argjson o "$OFFSET" '{dry_run: $d, offset: $o}')
+            echo "POST $ENDPOINT  body=$BODY"
+            # Capture status and body separately so the body is always visible,
+            # even on 5xx. Using --fail-with-body inside $() swallows the body
+            # under `set -e`, which is why prior failed runs only showed "exit 22".
+            HTTP_CODE=$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "$BODY" \
+              "$ENDPOINT")
+            echo "HTTP $HTTP_CODE"
+            jq '.summary // .' /tmp/resp.json || cat /tmp/resp.json
+
+            if [ "$HTTP_CODE" -ge 400 ]; then
+              echo "::error::Edge function returned HTTP $HTTP_CODE"
+              cat /tmp/resp.json
+              exit 1
+            fi
+            jq -e '.success == true' /tmp/resp.json > /dev/null
+
+            TOTAL_SENT=$((TOTAL_SENT + $(jq -r '.summary.sent // 0' /tmp/resp.json)))
+            TOTAL_SKIPPED=$((TOTAL_SKIPPED + $(jq -r '.summary.skipped // 0' /tmp/resp.json)))
+            TOTAL_FAILED=$((TOTAL_FAILED + $(jq -r '.summary.failed // 0' /tmp/resp.json)))
+            TOTAL_RECIPIENTS=$(jq -r '.summary.recipients // 0' /tmp/resp.json)
+
+            NEXT=$(jq -r '.summary.next_offset // empty' /tmp/resp.json)
+            if [ -z "$NEXT" ]; then
+              DRAINED=true
+              break
+            fi
+            echo "Queue not drained — resuming at offset $NEXT"
+            OFFSET="$NEXT"
+          done
+
+          ATTEMPTED=$((TOTAL_SENT + TOTAL_FAILED))
           {
             echo "## Fan weekly digest"
             echo ""
-            echo "HTTP $HTTP_CODE"
-            echo ""
-            echo '```json'
-            jq '.summary // .' /tmp/resp.json || cat /tmp/resp.json
-            echo '```'
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Recipients queued | $TOTAL_RECIPIENTS |"
+            echo "| Sent | $TOTAL_SENT |"
+            echo "| Skipped (no email on file) | $TOTAL_SKIPPED |"
+            echo "| Failed | $TOTAL_FAILED |"
+            echo "| Queue drained | $DRAINED |"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$HTTP_CODE" -ge 400 ]; then
-            echo "Edge function returned HTTP $HTTP_CODE"
+
+          if [ "$DRAINED" != "true" ]; then
+            echo "::error::Recipient queue still not drained after $MAX_CHUNKS chunks."
             exit 1
           fi
-          jq -e '.success == true' /tmp/resp.json > /dev/null
+
+          # A stray bounce should not fail the job, but a systemic failure must:
+          # rate limiting silently ate 308 of 368 sends on 2026-08-21 while the
+          # workflow reported success. Fail past 10% of attempted sends.
+          if [ "$TOTAL_FAILED" -gt 0 ]; then
+            echo "::warning::$TOTAL_FAILED of $ATTEMPTED digest emails failed."
+            if [ "$((TOTAL_FAILED * 10))" -gt "$ATTEMPTED" ]; then
+              echo "::error::Failure rate above 10% ($TOTAL_FAILED/$ATTEMPTED) — digest delivery is broken."
+              exit 1
+            fi
+          fi
