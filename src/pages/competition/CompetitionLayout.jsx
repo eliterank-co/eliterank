@@ -11,6 +11,7 @@ import { ProfileIcon, NotificationBell } from '../../components/ui';
 import { useIsJudge, useMyPerformance } from '../../hooks';
 import { colors, spacing, borderRadius, typography } from '../../styles/theme';
 import { transformSupabaseImage } from '../../lib/storageImage';
+import { getCompetitionPublicPath, resolveCompetitionAlias } from '../../config/competitionAliases';
 
 // Phase view components (lazy-loaded — only the active phase is needed)
 const ComingSoonPhase = lazy(() => import('./phases/ComingSoonPhase'));
@@ -564,6 +565,7 @@ export function CompetitionLayout() {
   const params = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const aliasResolution = resolveCompetitionAlias(location.pathname);
 
   // Determine format based on URL
   const isLegacyFormat = location.pathname.startsWith('/c/');
@@ -571,7 +573,11 @@ export function CompetitionLayout() {
 
   let orgSlug, competitionSlug, competitionId;
 
-  if (isIdFormat) {
+  if (aliasResolution) {
+    orgSlug = aliasResolution.orgSlug;
+    competitionSlug = aliasResolution.competitionSlug;
+    competitionId = null;
+  } else if (isIdFormat) {
     // ID format: /:orgSlug/id/:competitionId - lookup by ID
     orgSlug = params.orgSlug;
     competitionId = params.competitionId;
@@ -600,6 +606,10 @@ export function CompetitionLayout() {
       orgSlug={orgSlug}
       competitionSlug={competitionSlug}
       competitionId={competitionId}
+      publicBasePath={
+        aliasResolution?.path ||
+        (competitionSlug ? getCompetitionPublicPath(orgSlug, competitionSlug) : null)
+      }
       previewMode={previewMode}
     >
       <CompetitionLayoutInner />

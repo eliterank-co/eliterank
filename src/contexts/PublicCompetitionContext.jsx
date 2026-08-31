@@ -30,6 +30,7 @@ export function PublicCompetitionProvider({
   orgSlug,
   competitionSlug,
   competitionId,
+  publicBasePath,
   previewMode = null,
   children,
 }) {
@@ -249,6 +250,7 @@ export function PublicCompetitionProvider({
       // Route params
       orgSlug,
       competitionSlug,
+      publicBasePath,
 
       // Core data
       competition,
@@ -315,6 +317,7 @@ export function PublicCompetitionProvider({
     [
       orgSlug,
       competitionSlug,
+      publicBasePath,
       competition,
       organization,
       phase,

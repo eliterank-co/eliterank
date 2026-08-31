@@ -666,6 +666,7 @@ export function useCompetitionDashboard(competitionId) {
           // Additional fields for card generation and links
           slug: competition.slug || null,
           organizationName: competition.organization?.name || null,
+          organizationSlug: competition.organization?.slug || null,
           // Company-run ("house") org: Host Agreement is signed off-platform and
           // payouts settle to the company Stripe account, so the on-platform
           // agreement + Stripe-Connect/KYC launch gates don't apply.

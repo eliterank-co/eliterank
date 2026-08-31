@@ -13,6 +13,7 @@ import FanButton from '../../../components/ui/FanButton';
 import ProfileFans from './ProfileFans';
 import IntroVideoModal from '../../../components/modals/IntroVideoModal';
 import { transformSupabaseImage, avatarUrl } from '../../../lib/storageImage';
+import { getCompetitionShareUrl } from '../../../config/competitionAliases';
 
 /**
  * Click-through photo gallery. One image at a time with prev/next arrows and
@@ -214,6 +215,7 @@ export default function ProfileView({ hostProfile, onEdit, contestantId, isPrevi
         season: comp?.season?.toString(),
         orgName: org?.name || 'Most Eligible',
         orgLogoUrl: org?.logo_url,
+        orgSlug: org?.slug,
         slug: comp?.slug,
       });
     }).catch(console.error);
@@ -254,7 +256,7 @@ export default function ProfileView({ hostProfile, onEdit, contestantId, isPrevi
         season: cardInfo.season,
         organizationName: cardInfo.orgName,
         organizationLogoUrl: cardInfo.orgLogoUrl,
-        voteUrl: cardInfo.slug ? `eliterank.co/${cardInfo.slug}` : 'eliterank.co',
+        voteUrl: getCompetitionShareUrl(cardInfo.orgSlug, cardInfo.slug),
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

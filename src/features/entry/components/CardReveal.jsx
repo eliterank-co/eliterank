@@ -20,6 +20,7 @@ export default function CardReveal({
   votingRounds = [],
   about,
   phase,
+  publicBasePath,
 }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -30,6 +31,7 @@ export default function CardReveal({
   const cityName = getCityName(competition);
   const season = competition?.season;
   const accentColor = competition?.theme_primary || '#d4af37';
+  const voteUrl = publicBasePath ? `eliterank.co${publicBasePath}` : 'eliterank.co';
 
   // Trigger reveal animation on mount
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function CardReveal({
     season: String(season || ''),
     accentColor,
     organizationLogoUrl,
-    voteUrl: competition?.slug ? `eliterank.co/${competition.slug}` : 'eliterank.co',
+    voteUrl,
     votingStartDate: competition?.voting_start,
   };
 
@@ -148,7 +150,7 @@ export default function CardReveal({
           season={season}
           accentColor={accentColor}
           organizationLogoUrl={organizationLogoUrl}
-          voteUrl={competition?.slug ? `eliterank.co/${competition.slug}` : 'eliterank.co'}
+          voteUrl={voteUrl}
           votingStartDate={competition?.voting_start}
         />
       </div>

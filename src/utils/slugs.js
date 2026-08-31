@@ -1,3 +1,5 @@
+import { getCompetitionPublicPath } from '../config/competitionAliases';
+
 /**
  * Slug Generation Utilities
  *
@@ -119,7 +121,7 @@ export function generateShortCompetitionSlug({ name, code, season }) {
  */
 export function getCompetitionUrl(orgSlug, competitionSlug) {
   const org = orgSlug || 'most-eligible';
-  return `/${org}/${competitionSlug}`;
+  return getCompetitionPublicPath(org, competitionSlug) || `/${org}/${competitionSlug}`;
 }
 
 /**
