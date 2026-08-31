@@ -11,6 +11,7 @@ import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-
 // Route guards and utilities
 import ProtectedRoute, { ROLE } from './ProtectedRoute';
 import { isCompetitionSlug, isIdRoute, isReservedPath } from '../utils/slugs';
+import { resolveCompetitionAlias, toCanonicalAliasUrl } from '../config/competitionAliases';
 
 // Common components
 import ErrorBoundary from '../components/common/ErrorBoundary';
@@ -88,10 +89,13 @@ export default function AppRoutes() {
 
   // Check if this is a competition route
   const pathParts = location.pathname.split('/').filter(Boolean);
+  const competitionAlias = resolveCompetitionAlias(location.pathname);
+
   const isCompetitionRoute =
-    pathParts.length >= 2 &&
-    !isReservedPath(pathParts[0]) &&
-    (isIdRoute(pathParts[1]) || isCompetitionSlug(pathParts[1]));
+    Boolean(competitionAlias) ||
+    (pathParts.length >= 2 &&
+      !isReservedPath(pathParts[0]) &&
+      (isIdRoute(pathParts[1]) || isCompetitionSlug(pathParts[1])));
   const isLegacyCompetitionRoute = pathParts[0] === 'c' && pathParts.length >= 2;
 
   // Handlers for HomePage
@@ -120,6 +124,15 @@ export default function AppRoutes() {
     navigate('/login', { replace: true });
   }, [navigate]);
 
+  if (competitionAlias?.shouldRedirect) {
+    return (
+      <Navigate
+        to={`${toCanonicalAliasUrl(competitionAlias, location.search)}${location.hash || ''}`}
+        replace
+      />
+    );
+  }
+
   // Password reset flow - intercept before other routes
   if (isResetFlow) {
     return (
@@ -144,6 +157,8 @@ export default function AppRoutes() {
           {/* Legacy format: /c/:orgSlug/:citySlug/:year/* */}
           <Route path="/c/:orgSlug/:citySlug/:year/*" element={<CompetitionLayout />} />
           <Route path="/c/:orgSlug/:citySlug/*" element={<CompetitionLayout />} />
+          {/* One-segment customer aliases are resolved by the shared authority. */}
+          <Route path="/:alias/*" element={<CompetitionLayout />} />
         </Routes>
       </SuspenseWrapper>
     );

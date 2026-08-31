@@ -27,7 +27,7 @@ import { JudgesSection } from '../components/JudgesSection';
 export function NominationsPhase() {
   const {
     competition, orgSlug, competitionSlug, votingRounds, nominationPeriods,
-    about, events, isPreview,
+    about, events, isPreview, publicBasePath,
   } = usePublicCompetition();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -37,7 +37,9 @@ export function NominationsPhase() {
   // preview iframe) doesn't expose a slug, so we fall back to the ID route.
   // Without this the iframe's Nominate button would navigate to
   // "/<org>/null/enter" and bounce to the home page.
-  const entryPath = competitionSlug
+  const entryPath = publicBasePath
+    ? `${publicBasePath}/enter`
+    : competitionSlug
     ? `/${orgSlug}/${competitionSlug}/enter`
     : competition?.id
       ? `/${orgSlug}/id/${competition.id}/enter`
@@ -45,7 +47,9 @@ export function NominationsPhase() {
 
   // Path to the full Official Rules page, built the same way as the entry path
   // so it works across slug-based and ID-based URLs.
-  const rulesPath = competitionSlug
+  const rulesPath = publicBasePath
+    ? `${publicBasePath}/rules`
+    : competitionSlug
     ? `/${orgSlug}/${competitionSlug}/rules`
     : competition?.id
       ? `/${orgSlug}/id/${competition.id}/rules`

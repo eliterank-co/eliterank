@@ -17,6 +17,11 @@
 
     { "source": "/profile/:profileId", "destination": "/api/og?type=profile&profileId=:profileId&path=/profile/:profileId" },
 
+    { "source": "/FanClub/:rest*", "destination": "/api/og?type=competition-alias&path=/FanClub/:rest*" },
+    { "source": "/FanClub", "destination": "/api/og?type=competition-alias&path=/FanClub" },
+    { "source": "/fanclub/:rest*", "destination": "/api/og?type=competition-alias&path=/fanclub/:rest*" },
+    { "source": "/fanclub", "destination": "/api/og?type=competition-alias&path=/fanclub" },
+
     { "source": "/c/:orgSlug/:citySlug/:year/:rest*", "destination": "/api/og?type=competition-legacy&orgSlug=:orgSlug&slug=:citySlug&path=/c/:orgSlug/:citySlug/:year/:rest*" },
     { "source": "/c/:orgSlug/:citySlug/:year", "destination": "/api/og?type=competition-legacy&orgSlug=:orgSlug&slug=:citySlug&path=/c/:orgSlug/:citySlug/:year" },
     { "source": "/c/:orgSlug/:citySlug/:rest*", "destination": "/api/og?type=competition-legacy&orgSlug=:orgSlug&slug=:citySlug&path=/c/:orgSlug/:citySlug/:rest*" },

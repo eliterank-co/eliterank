@@ -41,6 +41,7 @@ export default function EntryFlow() {
     votingRounds,
     about,
     isPreview,
+    publicBasePath,
   } = usePublicCompetition();
   const { profile } = useSupabaseAuth();
 
@@ -211,6 +212,7 @@ export default function EntryFlow() {
           about,
           phase,
           organizationLogoUrl: organization?.logo_url,
+          publicBasePath,
         }, {
           showLogin,
           setShowLogin,
@@ -395,6 +397,7 @@ function renderStep(flow, competition, competitionTitle, handleDone, handleNomin
           votingRounds={guideContext.votingRounds}
           about={guideContext.about}
           phase={guideContext.phase}
+          publicBasePath={guideContext.publicBasePath}
         />
       );
 

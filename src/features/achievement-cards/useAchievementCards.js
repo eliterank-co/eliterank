@@ -5,6 +5,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { generateAchievementCard, ACHIEVEMENT_TYPES } from './generateAchievementCard';
+import { getCompetitionShareUrl } from '../../config/competitionAliases';
 
 /**
  * Hook to manage achievement cards for a contestant
@@ -70,7 +71,7 @@ export function useAchievementCards(contestantId) {
     try {
       // Build vote URL from competition
       const voteUrl = competition?.slug 
-        ? `eliterank.co/${competition.slug}`
+        ? getCompetitionShareUrl(organization?.slug, competition.slug)
         : 'eliterank.co';
 
       // Generate the card image

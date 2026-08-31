@@ -13,13 +13,15 @@ import { buildHostLinks } from './hostLinks';
  * Use, and Privacy Policy — are reachable in every phase and view.
  */
 export function CompetitionFooter() {
-  const { organization, orgSlug, competitionSlug, competition } = usePublicCompetition();
+  const { organization, orgSlug, competitionSlug, competition, publicBasePath } = usePublicCompetition();
   const hostLinks = buildHostLinks(organization);
   const orgLogo = getOrgLogo(organization);
 
   // Per-competition Official Rules path — built the same way across slug-based
   // and ID-based URLs so it resolves regardless of how the user arrived.
-  const rulesPath = competitionSlug
+  const rulesPath = publicBasePath
+    ? `${publicBasePath}/rules`
+    : competitionSlug
     ? `/${orgSlug}/${competitionSlug}/rules`
     : competition?.id
       ? `/${orgSlug}/id/${competition.id}/rules`

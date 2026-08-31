@@ -6,6 +6,8 @@ import { useResponsive } from '../../../hooks/useResponsive';
 import { formatPrizeRecipient, formatPrizeGender, interleaveByGender } from '../../../utils/formatters';
 import { PrizeGenderBadge } from '../../../components/ui/PrizeGenderBadge';
 import { transformSupabaseImage } from '../../../lib/storageImage';
+import { getPrizeValueSummary } from '../../../lib/prizeValue';
+import { formatCurrency } from '../../../utils/formatters';
 
 const styles = {
   container: {
@@ -87,8 +89,9 @@ export function PrizesView() {
   const { prizes, competition } = usePublicCompetition();
   const splitByGender = !!competition?.winners_split_by_gender;
   const { isMobile, breakpoint } = useResponsive();
+  const prizeValues = getPrizeValueSummary(competition, prizes);
 
-  const hasPrizes = prizes && prizes.length > 0;
+  const hasPrizes = (prizes && prizes.length > 0) || prizeValues.cash > 0;
 
   // Alternate men/women within each section so it reads "male prize, female
   // prize, male prize…" in gender-split competitions.
@@ -103,6 +106,41 @@ export function PrizesView() {
 
   return (
     <div style={isMobile ? styles.containerMobile : styles.container}>
+      {prizeValues.cash > 0 && (
+        <section style={styles.sectionSpacing} aria-label="Prize value summary">
+          <h3 style={styles.sectionHeader}>
+            <Trophy size={18} style={{ color: colors.gold.primary }} />
+            Prize Value
+          </h3>
+          <div style={getGridStyle(breakpoint)}>
+            {[
+              ['Cash prize', prizeValues.cash],
+              ...(prizeValues.inKind > 0 ? [['In-kind prizes (ARV)', prizeValues.inKind]] : []),
+              ...(prizeValues.inKind > 0 ? [['Combined value', prizeValues.combined]] : []),
+            ].map(([label, amount]) => (
+              <div key={label} style={{
+                background: colors.background.card,
+                border: `1px solid ${colors.border.primary}`,
+                borderRadius: borderRadius.lg,
+                padding: spacing.lg,
+              }}>
+                <div style={{ color: colors.text.secondary, fontSize: typography.fontSize.sm }}>
+                  {label}
+                </div>
+                <div style={{
+                  color: colors.gold.primary,
+                  fontSize: typography.fontSize.xxl,
+                  fontWeight: typography.fontWeight.bold,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {formatCurrency(amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Contestant Rewards */}
       {contestantRewards.length > 0 && (
         <div style={styles.sectionSpacing}>

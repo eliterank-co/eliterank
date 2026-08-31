@@ -240,6 +240,7 @@ export function OfficialRulesView() {
     prizes,
     judges,
     judgingCriteria,
+    publicBasePath,
     bonusTasks,
     doubleVoteDays,
     votingRounds,
@@ -248,11 +249,11 @@ export function OfficialRulesView() {
 
   // Deterministic "back to competition" target — the rules page is deep-linkable
   // (footer link, shared URL), so navigate(-1) could leave the site entirely.
-  const basePath = competitionSlug
+  const basePath = publicBasePath || (competitionSlug
     ? `/${orgSlug}/${competitionSlug}`
     : competition?.id
       ? `/${orgSlug}/id/${competition.id}`
-      : null;
+      : null);
   const handleBack = () => (basePath ? navigate(basePath) : navigate(-1));
 
   const { sections } = buildOfficialRules(competition, {
