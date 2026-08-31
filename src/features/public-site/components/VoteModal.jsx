@@ -8,7 +8,7 @@ import { colors, spacing, borderRadius, typography, gradients, shadows } from '.
 import { formatNumber } from '../../../utils/formatters';
 import { VOTE_PRESETS } from '../../../constants';
 import { calculateVotePrice } from '../../../types/competition';
-import { hasUsedFreeVoteToday, submitFreeVote, getTodaysVote, getTimeUntilReset, createVotePaymentIntent, recordPaidVote } from '../../../lib/votes';
+import { hasUsedFreeVoteToday, submitFreeVote, getTodaysVote, getTimeUntilReset, createVotePaymentIntent, waitForPaidVoteFulfillment } from '../../../lib/votes';
 import { useToast } from '../../../contexts/ToastContext';
 import { useIsPreview } from '../../../contexts/PublicCompetitionContext';
 import { getStripe, isStripeConfigured } from '../../../lib/stripe';
@@ -34,6 +34,7 @@ export default function VoteModal({
   voteCount,
   onVoteCountChange,
   forceDoubleVoteDay,
+  voteMultiplier,
   isAuthenticated = false,
   onLogin,
   competitionId,
@@ -71,6 +72,9 @@ export default function VoteModal({
   serverTaxLabel = null,
 }) {
   const userId = user?.id;
+  const activeMultiplier = Number.isInteger(voteMultiplier) && voteMultiplier >= 1
+    ? voteMultiplier
+    : forceDoubleVoteDay ? 2 : 1;
   const toast = useToast();
   const isPreview = useIsPreview();
   const hasActiveRound = currentRound?.isActive && !isPreview;
@@ -80,12 +84,15 @@ export default function VoteModal({
   const [checkingVoteStatus, setCheckingVoteStatus] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [votesAdded, setVotesAdded] = useState(1);
+  const [paidFulfillmentPending, setPaidFulfillmentPending] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   // Payment states
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [clientSecret, setClientSecret] = useState(null);
   const [paymentIntentId, setPaymentIntentId] = useState(null);
+  const [intentMultiplier, setIntentMultiplier] = useState(1);
+  const [intentCreditedVoteCount, setIntentCreditedVoteCount] = useState(null);
   // Connected account the PaymentIntent lives on (direct charge). Drives which
   // Stripe.js instance is used to confirm.
   const [connectedAccountId, setConnectedAccountId] = useState(preloadedConnectedAccountId);
@@ -157,6 +164,7 @@ export default function VoteModal({
   useEffect(() => {
     if (!isOpen) {
       setShowSuccess(false);
+      setPaidFulfillmentPending(false);
       setLinkCopied(false);
       setShowPaymentForm(false);
       setClientSecret(null);
@@ -228,7 +236,7 @@ export default function VoteModal({
     };
 
     checkVoteStatus();
-  }, [isOpen, userId, competitionId]);
+  }, [isOpen, user?.id, competitionId]);
 
   // Auto-initiate the Stripe purchase flow when the modal opens in
   // autoCheckout mode (invoked from the inline card's "Purchase" CTA).
@@ -289,6 +297,7 @@ export default function VoteModal({
 
       if (result.success) {
         setVotesAdded(result.votesAdded || 1);
+        setPaidFulfillmentPending(false);
         setFreeVoteUsed(true);
         setVotedContestantId(contestant.id);
         setShowSuccess(true);
@@ -338,6 +347,8 @@ export default function VoteModal({
       if (result.success && result.clientSecret) {
         setClientSecret(result.clientSecret);
         setPaymentIntentId(result.paymentIntentId);
+        setIntentMultiplier(result.voteMultiplier || 1);
+        setIntentCreditedVoteCount(result.creditedVoteCount || null);
         setConnectedAccountId(result.connectedAccountId);
         if (result.amount != null) setConfirmedAmount(result.amount);
         if (result.subtotal != null) setConfirmedSubtotal(result.subtotal);
@@ -362,56 +373,62 @@ export default function VoteModal({
   };
 
   // Handle successful payment
-  const handlePaymentSuccess = async () => {
-    // Pre-double the count for double-vote days so the values we write
-    // here are correct regardless of whether the webhook gets a chance to
-    // run. The webhook would compute the same numbers, but it short-
-    // circuits the moment it sees an existing row matching this
-    // payment_intent_id — so for authenticated voters this client write
-    // is effectively the source of truth.
-    const creditedVoteCount = forceDoubleVoteDay
-      ? selectedVoteCount * 2
-      : selectedVoteCount;
-
-    // For authenticated voters we record the vote client-side for immediate
-    // feedback; the webhook will dedup on payment_intent_id. For anonymous
-    // voters we let the webhook be the source of truth so voter_email is
-    // populated from Stripe's billing details instead of left null.
-    if (userId) {
-      const recorded = await recordPaidVote({
-        paymentIntentId,
-        competitionId,
-        contestantId: contestant.id,
-        voteCount: creditedVoteCount,
-        amountPaid: displayedTotal,
-        taxAmount: confirmedTax != null ? confirmedTax / 100 : 0,
-        voterEmail: user?.email,
-        isDoubleVote: !!forceDoubleVoteDay,
-      });
-      if (recorded && !recorded.success) {
-        // The card is already charged; the stripe-webhook dedups on
-        // payment_intent_id and remains the backstop writer, so don't block
-        // the buyer — but this failure must reach Sentry, otherwise a
-        // simultaneous webhook outage loses the vote with no signal anywhere.
-        Sentry.captureException(
-          new Error(`recordPaidVote failed: ${recorded.error || 'unknown'}`),
-          {
-            tags: { stage: 'record-paid-vote' },
-            extra: {
-              paymentIntentId,
-              competitionId,
-              contestantId: contestant?.id,
-              voteCount: creditedVoteCount,
-            },
-          },
+  const handlePaymentSuccess = async (confirmedPaymentIntent) => {
+    // A browser must never write a paid vote. Stripe success proves the charge;
+    // only the webhook-authored votes row proves fulfillment.
+    const confirmedMetadata = confirmedPaymentIntent?.metadata || {};
+    const confirmedCreditedCount = Number(confirmedMetadata.credited_vote_count);
+    const confirmedMultiplier = Number(confirmedMetadata.vote_multiplier);
+    const expectedVoteCount = Number.isInteger(confirmedCreditedCount) && confirmedCreditedCount > 0
+      ? confirmedCreditedCount
+      : intentCreditedVoteCount
+        || selectedVoteCount * (
+          Number.isInteger(confirmedMultiplier) && confirmedMultiplier >= 1 && confirmedMultiplier <= 10
+            ? confirmedMultiplier
+            : intentMultiplier
         );
-      }
-    }
+    const authoritativePaymentIntentId = confirmedPaymentIntent?.id || paymentIntentId;
+    const requestVersion = requestVersionRef.current;
 
-    setVotesAdded(creditedVoteCount);
+    setVotesAdded(expectedVoteCount);
+    setPaidFulfillmentPending(true);
     setShowPaymentForm(false);
     setShowSuccess(true);
-    onVoteSuccess?.(creditedVoteCount);
+
+    if (!authoritativePaymentIntentId) {
+      Sentry.captureMessage('Paid vote fulfillment cannot be polled without a PaymentIntent id', {
+        level: 'error',
+        tags: { stage: 'record-paid-vote-return' },
+        extra: { competitionId, contestantId: contestant?.id },
+      });
+      return;
+    }
+
+    const fulfillment = await waitForPaidVoteFulfillment({
+      paymentIntentId: authoritativePaymentIntentId,
+      competitionId,
+      contestantId: contestant.id,
+    });
+
+    if (requestVersion !== requestVersionRef.current) return;
+
+    if (fulfillment.fulfilled) {
+      setVotesAdded(fulfillment.voteCount);
+      setPaidFulfillmentPending(false);
+      onVoteSuccess?.(fulfillment.voteCount);
+      return;
+    }
+
+    Sentry.captureMessage('Paid vote fulfillment still pending after checkout confirmation', {
+      level: 'warning',
+      tags: { stage: 'record-paid-vote-return' },
+      extra: {
+        paymentIntentId: authoritativePaymentIntentId,
+        competitionId,
+        contestantId: contestant.id,
+        fulfillmentError: fulfillment.error || null,
+      },
+    });
   };
 
   // Handle back from payment form
@@ -728,7 +745,9 @@ export default function VoteModal({
                 border: `3px solid ${colors.background.card}`,
               }}
             >
-              <Check size={18} style={{ color: 'white' }} />
+              {paidFulfillmentPending
+                ? <Clock size={18} style={{ color: 'white' }} />
+                : <Check size={18} style={{ color: 'white' }} />}
             </div>
           </div>
 
@@ -741,14 +760,24 @@ export default function VoteModal({
               marginBottom: spacing.xs,
             }}
           >
-            Vote Submitted!
+            {paidFulfillmentPending ? 'Payment Received' : 'Vote Submitted!'}
           </h2>
           <p style={{ fontSize: typography.fontSize.md, color: colors.text.secondary, marginBottom: spacing.xl }}>
-            <span>You gave </span><span style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.semibold }}>{contestant.name}</span><span>{` ${votesAdded} ${votesAdded > 1 ? 'votes' : 'vote'}`}</span>
+            {paidFulfillmentPending ? (
+              <>
+                Stripe confirmed your payment. We are waiting for the vote ledger to confirm{' '}
+                <span style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.semibold }}>
+                  {votesAdded} {votesAdded > 1 ? 'votes' : 'vote'} for {contestant.name}
+                </span>
+                . You can close this window while fulfillment continues.
+              </>
+            ) : (
+              <><span>You gave </span><span style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.semibold }}>{contestant.name}</span><span>{` ${votesAdded} ${votesAdded > 1 ? 'votes' : 'vote'}`}</span></>
+            )}
           </p>
 
           {/* Become a Fan prompt for logged-in users */}
-          {isAuthenticated && contestant?.id && (
+          {!paidFulfillmentPending && isAuthenticated && contestant?.id && (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -781,11 +810,13 @@ export default function VoteModal({
           )}
 
           {/* Share card */}
-          <VoteShareCard
-            contestant={contestant}
-            competition={{ name: 'Most Eligible' }}
-            voteCount={votesAdded}
-          />
+          {!paidFulfillmentPending && (
+            <VoteShareCard
+              contestant={contestant}
+              competition={{ name: 'Most Eligible' }}
+              voteCount={votesAdded}
+            />
+          )}
 
           {/* Done button */}
           <button
@@ -809,14 +840,14 @@ export default function VoteModal({
     );
   }
 
-  const effectiveVotes = forceDoubleVoteDay ? voteCount * 2 : voteCount;
-  const freeVoteValue = forceDoubleVoteDay ? 2 : 1;
+  const effectiveVotes = voteCount * activeMultiplier;
+  const freeVoteValue = activeMultiplier;
   const alreadyVotedForThis = votedContestantId === contestant.id;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Cast Your Vote" maxWidth="360px" centered variant="gold">
       {/* Double Vote Day Banner - Compact */}
-      {forceDoubleVoteDay && (
+      {activeMultiplier > 1 && (
         <div
           style={{
             background: 'linear-gradient(135deg, rgba(212,175,55,0.2), rgba(251,191,36,0.1))',
@@ -833,7 +864,7 @@ export default function VoteModal({
           <Sparkles size={16} style={{ color: colors.gold.primary, flexShrink: 0 }} />
           <div>
             <p style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.bold, fontSize: typography.fontSize.sm }}>
-              DOUBLE VOTE DAY - All votes count 2x!
+              {activeMultiplier}× VOTE BOOST - All votes count {activeMultiplier}×!
             </p>
           </div>
         </div>
@@ -880,7 +911,7 @@ export default function VoteModal({
           <>
             <p style={{ color: colors.text.secondary, fontSize: typography.fontSize.xs, marginBottom: spacing.sm, textAlign: 'center' }}>
               <span>Sign in for a </span><span style={{ color: colors.status.success, fontWeight: typography.fontWeight.semibold }}>free daily vote</span>
-              {forceDoubleVoteDay && <span style={{ color: colors.status.success }}> (2x!)</span>}
+              {activeMultiplier > 1 && <span style={{ color: colors.status.success }}> ({activeMultiplier}×!)</span>}
             </p>
             <Button
               variant="approve"
@@ -914,7 +945,7 @@ export default function VoteModal({
               ) : (
                 <>
                   <span>Use your </span><span style={{ color: colors.status.success, fontWeight: typography.fontWeight.semibold }}>free daily vote</span>
-                  {forceDoubleVoteDay && <span style={{ color: colors.status.success }}> (2x!)</span>}
+                  {activeMultiplier > 1 && <span style={{ color: colors.status.success }}> ({activeMultiplier}×!)</span>}
                 </>
               )}
             </p>
@@ -1010,9 +1041,9 @@ export default function VoteModal({
             flexDirection: 'column',
             gap: '4px',
             padding: `${spacing.sm} ${spacing.md}`,
-            background: forceDoubleVoteDay ? 'linear-gradient(135deg, rgba(212,175,55,0.2), rgba(34,197,94,0.1))' : 'rgba(212,175,55,0.15)',
+            background: activeMultiplier > 1 ? 'linear-gradient(135deg, rgba(212,175,55,0.2), rgba(34,197,94,0.1))' : 'rgba(212,175,55,0.15)',
             borderRadius: borderRadius.md,
-            border: `1px solid ${forceDoubleVoteDay ? 'rgba(34,197,94,0.3)' : 'rgba(212,175,55,0.2)'}`,
+            border: `1px solid ${activeMultiplier > 1 ? 'rgba(34,197,94,0.3)' : 'rgba(212,175,55,0.2)'}`,
           }}
         >
           {hasTaxBreakdown && (
@@ -1029,15 +1060,15 @@ export default function VoteModal({
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: colors.text.light, fontSize: typography.fontSize.sm }}>
-              Total{forceDoubleVoteDay && <span style={{ color: colors.status.success, marginLeft: '4px' }}>(2x)</span>}
+              Total{activeMultiplier > 1 && <span style={{ color: colors.status.success, marginLeft: '4px' }}>({activeMultiplier}×)</span>}
             </span>
             <span style={{ fontSize: typography.fontSize.xl, fontWeight: typography.fontWeight.bold, color: colors.gold.primary }}>
               {isCreatingPayment && confirmedAmount == null
                 ? 'Verifying price…'
                 : formatPrice(displayedTotal)}
-              {forceDoubleVoteDay && (
+              {activeMultiplier > 1 && (
                 <span style={{ color: colors.status.success, fontSize: typography.fontSize.xs, marginLeft: '4px' }}>
-                  = {formatNumber(selectedVoteCount * 2)}
+                  = {formatNumber(selectedVoteCount * activeMultiplier)}
                 </span>
               )}
             </span>
@@ -1149,7 +1180,8 @@ export function PaymentCheckoutForm({ onSuccess, onCancel, amount, currency = 'U
 
       if (error) {
         setErrorMessage(error.message);
-      } else if (paymentIntent && paymentIntent.status === 'succeeded') {        onSuccess();
+      } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+        await onSuccess(paymentIntent);
       } else if (paymentIntent && paymentIntent.status === 'processing') {
         // Payment is processing, show appropriate message
         setErrorMessage('Payment is processing. Please wait...');

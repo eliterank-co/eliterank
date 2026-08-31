@@ -11,7 +11,7 @@ const { supabaseMock } = vi.hoisted(() => ({
 
 vi.mock('./supabase', () => ({ supabase: supabaseMock }));
 
-import { submitAnonymousVote, submitFreeVote } from './votes';
+import { submitAnonymousVote, submitFreeVote, waitForPaidVoteFulfillment } from './votes';
 
 describe('submitAnonymousVote', () => {
   const baseInput = {
@@ -139,8 +139,9 @@ describe('submitFreeVote', () => {
 
     // Default rpc behavior; overridden per test.
     supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
       if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
-      if (name === 'is_double_vote_day') return Promise.resolve({ data: false, error: null });
+      if (name === 'effective_vote_multiplier') return Promise.resolve({ data: 1, error: null });
       if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });
       return Promise.resolve({ data: null, error: null });
     });
@@ -151,6 +152,10 @@ describe('submitFreeVote', () => {
   });
 
   it('errors out when no voting round is active', async () => {
+    supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') return Promise.resolve({ data: { active: false }, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
     supabaseMock.from.mockImplementation((table) => {
       if (table === 'voting_rounds') {
         return makeChain({ data: [], error: null });
@@ -170,10 +175,11 @@ describe('submitFreeVote', () => {
     expect(voteInsertSpy).not.toHaveBeenCalled();
   });
 
-  it('inserts vote_count = 2 when is_double_vote_day RPC returns true', async () => {
+  it('inserts vote_count = 2 when the authoritative multiplier is 2', async () => {
     supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
       if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
-      if (name === 'is_double_vote_day') return Promise.resolve({ data: true, error: null });
+      if (name === 'effective_vote_multiplier') return Promise.resolve({ data: 2, error: null });
       if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });
       return Promise.resolve({ data: null, error: null });
     });
@@ -193,8 +199,7 @@ describe('submitFreeVote', () => {
     );
   });
 
-  it('inserts vote_count = 1 when is_double_vote_day RPC returns false', async () => {
-    // Default rpc behavior already returns false for is_double_vote_day.
+  it('inserts vote_count = 1 when no boost is active', async () => {
 
     const result = await submitFreeVote({
       userId: 'voter-1',
@@ -213,8 +218,9 @@ describe('submitFreeVote', () => {
   it('ignores a caller-supplied isDoubleVoteDay hint and trusts the RPC', async () => {
     // Caller claims it's a double day; RPC says no. Server-side decides.
     supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
       if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
-      if (name === 'is_double_vote_day') return Promise.resolve({ data: false, error: null });
+      if (name === 'effective_vote_multiplier') return Promise.resolve({ data: 1, error: null });
       if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });
       return Promise.resolve({ data: null, error: null });
     });
@@ -232,5 +238,112 @@ describe('submitFreeVote', () => {
     expect(voteInsertSpy).toHaveBeenCalledWith(
       expect.objectContaining({ vote_count: 1, is_double_vote: false })
     );
+  });
+
+  it('credits 3 votes only when the authoritative multiplier is 3', async () => {
+    supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
+      if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
+      if (name === 'effective_vote_multiplier') return Promise.resolve({ data: 3, error: null });
+      if (name === 'increment_profile_votes') return Promise.resolve({ data: null, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    const result = await submitFreeVote({
+      userId: 'voter-1', voterEmail: 'v@e.com', competitionId: 'comp-1', contestantId: 'contestant-1',
+    });
+
+    expect(result).toMatchObject({ success: true, votesAdded: 3 });
+    expect(voteInsertSpy).toHaveBeenCalledWith(expect.objectContaining({ vote_count: 3, is_double_vote: true }));
+  });
+
+  it('fails closed without inserting when multiplier authority errors', async () => {
+    supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') return Promise.resolve({ data: { active: true, round: { id: 'round-1' } }, error: null });
+      if (name === 'has_voted_today') return Promise.resolve({ data: false, error: null });
+      if (name === 'effective_vote_multiplier') return Promise.resolve({ data: null, error: { message: 'rpc unavailable' } });
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    const result = await submitFreeVote({
+      userId: 'voter-1', voterEmail: 'v@e.com', competitionId: 'comp-1', contestantId: 'contestant-1',
+    });
+
+    expect(result).toMatchObject({ success: false, retryable: true });
+    expect(voteInsertSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('waitForPaidVoteFulfillment', () => {
+  beforeEach(() => {
+    supabaseMock.from.mockReset();
+  });
+
+  it('returns the authoritative webhook-authored vote count', async () => {
+    const chain = makeChain({
+      data: {
+        id: 'vote-1',
+        competition_id: 'comp-1',
+        contestant_id: 'contestant-1',
+        vote_count: 30,
+        payment_intent_id: 'pi_123',
+      },
+      error: null,
+    });
+    supabaseMock.from.mockReturnValue(chain);
+
+    const result = await waitForPaidVoteFulfillment({
+      paymentIntentId: 'pi_123',
+      competitionId: 'comp-1',
+      contestantId: 'contestant-1',
+      maxAttempts: 1,
+      pollIntervalMs: 0,
+    });
+
+    expect(result).toEqual({
+      fulfilled: true,
+      pending: false,
+      voteId: 'vote-1',
+      voteCount: 30,
+    });
+    expect(chain.eq).toHaveBeenNthCalledWith(1, 'payment_intent_id', 'pi_123');
+    expect(chain.eq).toHaveBeenNthCalledWith(2, 'competition_id', 'comp-1');
+    expect(chain.eq).toHaveBeenNthCalledWith(3, 'contestant_id', 'contestant-1');
+  });
+
+  it('reports pending rather than claiming success when no ledger row exists', async () => {
+    supabaseMock.from.mockImplementation(() => makeChain({ data: null, error: null }));
+
+    const result = await waitForPaidVoteFulfillment({
+      paymentIntentId: 'pi_delayed',
+      competitionId: 'comp-1',
+      contestantId: 'contestant-1',
+      maxAttempts: 2,
+      pollIntervalMs: 0,
+    });
+
+    expect(result).toEqual({ fulfilled: false, pending: true });
+    expect(supabaseMock.from).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves the lookup failure while leaving fulfillment retryable', async () => {
+    supabaseMock.from.mockImplementation(() => makeChain({
+      data: null,
+      error: { message: 'temporarily unavailable' },
+    }));
+
+    const result = await waitForPaidVoteFulfillment({
+      paymentIntentId: 'pi_error',
+      competitionId: 'comp-1',
+      contestantId: 'contestant-1',
+      maxAttempts: 1,
+      pollIntervalMs: 0,
+    });
+
+    expect(result).toEqual({
+      fulfilled: false,
+      pending: true,
+      error: 'temporarily unavailable',
+    });
   });
 });

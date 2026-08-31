@@ -7,6 +7,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, stripe-signature',
 }
 
+function parseCapturedVoteMultiplier(metadata: Record<string, string>): number | null {
+  const raw = metadata.vote_multiplier
+  if (raw === undefined || raw === '') {
+    return metadata.is_double_vote_day === 'true' ? 2 : 1
+  }
+
+  const multiplier = Number(raw)
+  return Number.isInteger(multiplier) && multiplier >= 1 && multiplier <= 10
+    ? multiplier
+    : null
+}
+
 /**
  * Live standing rank for a contestant: their position by votes WITHIN their
  * gender when the competition splits winners by gender, or overall otherwise.
@@ -400,8 +412,18 @@ serve(async (req) => {
           // The vote is recorded (likely by the client), but for taxed purchases
           // the compliant receipt is only ever sent from here — send it once.
           if (isTaxed && !existingVote.receipt_sent_at && resolvedVoterEmail) {
-            const isDoubled = paymentIntent.metadata.is_double_vote_day === 'true'
-            const creditedCount = isDoubled ? purchasedVoteCount * 2 : purchasedVoteCount
+            // Terms are immutable after intent creation. Existing intents may
+            // predate the 3x scheduling cap, so fulfil their persisted 1–10x
+            // multiplier rather than silently under-crediting captured money.
+            const multiplier = parseCapturedVoteMultiplier(paymentIntent.metadata)
+            if (multiplier === null) {
+              return new Response(
+                JSON.stringify({ error: 'Invalid captured vote multiplier' }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            }
+            const isDoubled = multiplier > 1
+            const creditedCount = purchasedVoteCount * multiplier
             claimAndSendTaxReceipt(supabase, supabaseUrl, supabaseServiceKey, existingVote.id, paymentIntent.id, {
               voterEmail: resolvedVoterEmail,
               contestantId: contestant_id,
@@ -426,15 +448,17 @@ serve(async (req) => {
           )
         }
 
-        // Check if today is a host-scheduled double vote day for this competition.
-        // is_double_vote_day uses the competition's stored timezone, so a host
-        // in LA picking April 28 gets activation across the LA calendar day,
-        // not UTC's. See migration 051_competition_timezone_and_helpers.sql.
-        const { data: isDoubleRpc } = await supabase.rpc('is_double_vote_day', {
-          p_competition_id: competition_id,
-        })
-        const isDoubleVoteDay = isDoubleRpc === true
-        const voteCount = isDoubleVoteDay ? purchasedVoteCount * 2 : purchasedVoteCount
+        // Persist intent-time terms; never recalculate a boost at webhook time.
+        // A promotion can end between checkout and Stripe delivery.
+        const multiplier = parseCapturedVoteMultiplier(paymentIntent.metadata)
+        if (multiplier === null) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid captured vote multiplier' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        const isDoubleVoteDay = multiplier > 1
+        const voteCount = purchasedVoteCount * multiplier
 
         // Record the paid votes
         const { data: insertedVote, error: voteError } = await supabase

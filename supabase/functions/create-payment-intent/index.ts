@@ -177,14 +177,22 @@ serve(async (req) => {
     // Important: metadata.vote_count stays as the raw purchase count.
     // stripe-webhook reads it and applies its own doubling at insert time;
     // doubling it here would compound to 4×.
-    const { data: isDoubleRpc } = await supabase.rpc('is_double_vote_day', {
+    const { data: multiplierRpc, error: multiplierError } = await supabase.rpc('effective_vote_multiplier', {
       p_competition_id: competitionId,
     })
-    const isDoubleVoteDay = isDoubleRpc === true
-    const creditedVoteCount = isDoubleVoteDay ? voteCount * 2 : voteCount
+    if (multiplierError || ![1, 2, 3].includes(multiplierRpc)) {
+      console.error('Could not resolve vote multiplier:', multiplierError?.message || 'invalid RPC result')
+      return new Response(
+        JSON.stringify({ error: 'Vote boost status is temporarily unavailable. Please retry.' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const multiplier = multiplierRpc
+    const isDoubleVoteDay = multiplier > 1
+    const creditedVoteCount = voteCount * multiplier
     const compName = competition.name || `Season ${competition.season}`
     const description = isDoubleVoteDay
-      ? `${creditedVoteCount} points (2× Double Vote Day) for ${contestant.name} in ${compName}`
+      ? `${creditedVoteCount} points (${multiplier}× Vote Boost) for ${contestant.name} in ${compName}`
       : `${creditedVoteCount} point${creditedVoteCount > 1 ? 's' : ''} for ${contestant.name} in ${compName}`
 
     // Initialize Stripe
@@ -230,6 +238,7 @@ serve(async (req) => {
           competition_name: compName,
           contestant_name: contestant.name,
           is_double_vote_day: isDoubleVoteDay ? 'true' : 'false',
+          vote_multiplier: multiplier.toString(),
           credited_vote_count: creditedVoteCount.toString(),
           organization_id: competition.organization_id,
           connected_account_id: connectedAccountId,
@@ -258,6 +267,8 @@ serve(async (req) => {
         taxLabel,
         currency,
         voteCount,
+        voteMultiplier: multiplier,
+        creditedVoteCount,
         contestantName: contestant.name,
         connectedAccountId,
       }),

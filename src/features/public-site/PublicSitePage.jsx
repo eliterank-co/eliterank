@@ -168,15 +168,16 @@ export default function PublicSitePage({
 
       try {
         // Fetch only dynamic data - sponsors, host, and voting rounds come from cached hooks.
-        // is_double_vote_day RPC consults the competition's stored timezone, so the
-        // (2x) badge follows the host's calendar day, not UTC. See migration 051.
-        const [contestantsResult, eventsResult, announcementsResult, judgesResult, doubleDayResult] = await Promise.all([
+        // The effective multiplier is the authoritative UTC-window and
+        // competition-timezone calculation; render labels are never a second
+        // pricing or credit authority.
+        const [contestantsResult, eventsResult, announcementsResult, judgesResult, multiplierResult] = await Promise.all([
           // Join with profiles to get full profile data when contestant is linked to a user
           supabase.from('contestants').select(`*, profile:profiles!user_id(${PROFILE_PUBLIC_COLS})`).eq('competition_id', competitionId).order('votes', { ascending: false }),
           supabase.from('events').select('*').eq('competition_id', competitionId).order('date'),
           supabase.from('announcements').select('*').eq('competition_id', competitionId).order('pinned', { ascending: false }).order('published_at', { ascending: false }),
           supabase.rpc('get_competition_judges', { p_competition_id: competitionId }),
-          supabase.rpc('is_double_vote_day', { p_competition_id: competitionId }),
+          supabase.rpc('effective_vote_multiplier', { p_competition_id: competitionId }),
         ]);
 
         setFetchedData({
@@ -198,7 +199,8 @@ export default function PublicSitePage({
           announcements: (announcementsResult.data || []).map(a => ({
             id: a.id, title: a.title, content: a.content, date: a.published_at, pinned: a.pinned,
           })),
-          isDoubleVoteDay: doubleDayResult.data === true,
+          voteMultiplier: Number.isInteger(multiplierResult.data) ? multiplierResult.data : 1,
+          isDoubleVoteDay: multiplierResult.data > 1,
           judges: (judgesResult.data || []).map(j => {
             // Merge profile data with judge data (profile has more fields)
             const profile = j.profile || {};
@@ -279,7 +281,7 @@ export default function PublicSitePage({
     };
   }, [competition?.id]);
 
-  // Realtime: keep isDoubleVoteDay in sync if the host edits the schedule
+  // Realtime: keep the numeric multiplier in sync if the host edits the schedule
   // mid-session. Without this the badge would stay stale until refresh while
   // the server is already doubling (or not).
   useEffect(() => {
@@ -297,10 +299,14 @@ export default function PublicSitePage({
           filter: `competition_id=eq.${competitionId}`,
         },
         async () => {
-          const { data } = await supabase.rpc('is_double_vote_day', {
+          const { data } = await supabase.rpc('effective_vote_multiplier', {
             p_competition_id: competitionId,
           });
-          setFetchedData((prev) => ({ ...prev, isDoubleVoteDay: data === true }));
+          setFetchedData((prev) => ({
+            ...prev,
+            voteMultiplier: Number.isInteger(data) ? data : 1,
+            isDoubleVoteDay: data > 1,
+          }));
         }
       )
       .subscribe();
@@ -367,6 +373,9 @@ export default function PublicSitePage({
   const isDoubleVoteDay = forceDoubleVoteDayProp !== undefined
     ? forceDoubleVoteDayProp
     : !!fetchedData.isDoubleVoteDay;
+  const voteMultiplier = forceDoubleVoteDayProp !== undefined
+    ? forceDoubleVoteDayProp ? 2 : 1
+    : fetchedData.voteMultiplier || 1;
 
   // Compute current voting/judging round and its end date
   const currentRound = useMemo(() => {
@@ -822,6 +831,7 @@ export default function PublicSitePage({
         voteCount={voteCount}
         onVoteCountChange={setVoteCount}
         forceDoubleVoteDay={isDoubleVoteDay}
+        voteMultiplier={voteMultiplier}
         isAuthenticated={isAuthenticated}
         onLogin={onLogin}
         competitionId={competition?.id}
