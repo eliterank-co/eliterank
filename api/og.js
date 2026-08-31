@@ -226,7 +226,7 @@ function getQueryParam(url, name) {
 }
 
 const INTERNAL_REWRITE_PARAMS = new Set([
-  'type', 'orgSlug', 'slug', 'profileId', 'competitionId', 'path',
+  'type', 'orgSlug', 'slug', 'profileId', 'competitionId', 'path', 'rest',
 ]);
 
 function getPublicSearch(url) {

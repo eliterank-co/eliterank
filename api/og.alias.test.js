@@ -6,7 +6,7 @@ describe('competition alias Open Graph routing', () => {
   it('permanently redirects the old nested URL and preserves public query params', async () => {
     const response = await handler(
       new Request(
-        'https://eliterank.co/api/og?type=competition-slug&orgSlug=creator-social-llc&slug=chicago-creator-of-the-year-chi-26&path=%2Fcreator-social-llc%2Fchicago-creator-of-the-year-chi-26%2Frules&ref=partner',
+        'https://eliterank.co/api/og?type=competition-slug&orgSlug=creator-social-llc&slug=chicago-creator-of-the-year-chi-26&path=%2Fcreator-social-llc%2Fchicago-creator-of-the-year-chi-26%2Frules&ref=partner&rest=rules',
       ),
     );
 
@@ -19,7 +19,7 @@ describe('competition alias Open Graph routing', () => {
   it('normalizes lowercase aliases permanently', async () => {
     const response = await handler(
       new Request(
-        'https://eliterank.co/api/og?type=competition-alias&path=%2Ffanclub%2Fenter&apply=self',
+        'https://eliterank.co/api/og?type=competition-alias&path=%2Ffanclub%2Fenter&apply=self&rest=enter',
       ),
     );
 
