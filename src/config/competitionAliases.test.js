@@ -68,6 +68,9 @@ describe('competition aliases', () => {
     expect(getCompetitionPublicPath('another-org', 'another-competition')).toBe(
       '/another-org/another-competition',
     );
+    expect(
+      getCompetitionShareUrl('another-org', 'another-competition'),
+    ).toBe('eliterank.co/another-org/another-competition');
     expect(getCompetitionPublicPath('another-org', null)).toBeNull();
     expect(getCompetitionPublicPath(null, 'another-competition')).toBeNull();
   });
