@@ -9,6 +9,10 @@
  */
 
 import { indexHtml } from './_index-template.mjs';
+import {
+  resolveCompetitionAlias,
+  toCanonicalAliasUrl,
+} from '../src/config/competitionAliases.js';
 
 export const config = { runtime: 'edge' };
 
@@ -52,9 +56,18 @@ function buildMetaBlock({ title, description, image, url }) {
   // profile shares). Anything else (undefined, '', etc.) falls back to default.
   const includeDescription = description !== null;
   const d = includeDescription ? escapeHtml(truncate(description || DEFAULT_DESCRIPTION, 200)) : '';
+  const structuredData = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    url: url || SITE_URL,
+    name: title || DEFAULT_TITLE,
+    ...(includeDescription ? { description: truncate(description || DEFAULT_DESCRIPTION, 200) } : {}),
+    primaryImageOfPage: image || DEFAULT_IMAGE,
+  }).replace(/</g, '\\u003c');
 
   const tags = [
     `<title>${t}</title>`,
+    `<link rel="canonical" href="${u}" />`,
     includeDescription && `<meta name="description" content="${d}" />`,
     `<meta property="og:url" content="${u}" />`,
     `<meta property="og:type" content="website" />`,
@@ -67,6 +80,7 @@ function buildMetaBlock({ title, description, image, url }) {
     `<meta name="twitter:title" content="${t}" />`,
     includeDescription && `<meta name="twitter:description" content="${d}" />`,
     `<meta name="twitter:image" content="${img}" />`,
+    `<script type="application/ld+json">${structuredData}</script>`,
   ];
   return tags.filter(Boolean).join('\n    ');
 }
@@ -211,6 +225,19 @@ function getQueryParam(url, name) {
   return url.searchParams.get(name) || undefined;
 }
 
+const INTERNAL_REWRITE_PARAMS = new Set([
+  'type', 'orgSlug', 'slug', 'profileId', 'competitionId', 'path',
+]);
+
+function getPublicSearch(url) {
+  const search = new URLSearchParams();
+  for (const [name, value] of url.searchParams) {
+    if (!INTERNAL_REWRITE_PARAMS.has(name)) search.append(name, value);
+  }
+  const value = search.toString();
+  return value ? `?${value}` : '';
+}
+
 export default async function handler(req) {
   const url = new URL(req.url);
   const type = getQueryParam(url, 'type');
@@ -220,7 +247,17 @@ export default async function handler(req) {
   const competitionId = getQueryParam(url, 'competitionId');
   const pathParam = getQueryParam(url, 'path');
 
-  const canonicalPath = pathParam && pathParam.startsWith('/') ? pathParam : '/';
+  const requestedPath = pathParam && pathParam.startsWith('/') ? pathParam : '/';
+  const aliasResolution = resolveCompetitionAlias(requestedPath);
+  if (aliasResolution?.shouldRedirect) {
+    const redirectPath = toCanonicalAliasUrl(aliasResolution, getPublicSearch(url));
+    return new Response(null, {
+      status: 308,
+      headers: { location: new URL(redirectPath, SITE_URL).toString() },
+    });
+  }
+
+  const canonicalPath = aliasResolution?.canonicalPath || requestedPath;
   // og:url stays on the production canonical so social platforms attribute
   // shares to the real domain. og:image gets the request origin so preview
   // deploys (vercel.app) render against themselves instead of pulling from
@@ -230,7 +267,14 @@ export default async function handler(req) {
 
   let meta = null;
   try {
-    if (type === 'profile' && profileId) {
+    if (aliasResolution) {
+      meta = await fetchCompetitionBySlugMeta(
+        aliasResolution.orgSlug,
+        aliasResolution.competitionSlug,
+        canonicalUrl,
+        origin,
+      );
+    } else if (type === 'profile' && profileId) {
       meta = await fetchProfileMeta(profileId, canonicalUrl, origin);
     } else if (
       type === 'competition-id' &&

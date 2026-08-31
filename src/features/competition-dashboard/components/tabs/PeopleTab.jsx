@@ -19,6 +19,7 @@ import { getNominationWindow, isLive } from '../../../../utils/competitionPhase'
 import WinnersManager from '../WinnersManager';
 import CustomQuestionAnswers from '../CustomQuestionAnswers';
 import { resolveNominationFormConfig, countAnsweredCustomQuestions } from '../../../../utils/nominationFormDefaults';
+import { getCompetitionShareUrl } from '../../../../config/competitionAliases';
 
 // Normalize an instagram handle that may be a bare username, "@name", or full URL
 const parseInstagram = (raw) => {
@@ -319,7 +320,9 @@ export default function PeopleTab({
         organizationName: competition?.organizationName || 'Most Eligible',
         organizationLogoUrl: competition?.organizationLogoUrl,
         accentColor: competition?.themePrimary || '#d4af37',
-        voteUrl: competition?.slug ? `eliterank.co/${competition.slug}` : 'eliterank.co',
+        voteUrl: competition?.slug
+          ? getCompetitionShareUrl(competition.organizationSlug, competition.slug)
+          : 'eliterank.co',
         votingStartDate: competition?.votingStart,
       });
 

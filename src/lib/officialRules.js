@@ -63,6 +63,8 @@
  * ───────────────────────────────────────────────────────────────────────────
  */
 
+import { getPrizeValueSummary } from './prizeValue';
+
 const GENDER = {
   all: 'all genders',
   female: 'women',
@@ -630,23 +632,26 @@ export function buildOfficialRules(competition, context = {}) {
     })
     .filter(Boolean);
 
-  const prizeListItems = [...prizeItems];
-  // Approximate total retail value across all listed prizes —
-  // a Competition Act §74.06 disclosure item. (Cash prize pool removed — the
-  // competition's prizes are the sponsor prize package only.)
-  const prizeArvTotal = (prizes || []).reduce((sum, p) => {
-    const n = Number(p.value);
-    return sum + (Number.isFinite(n) && n > 0 ? n : 0);
-  }, 0);
+  const prizeValues = getPrizeValueSummary(c, prizes);
+  const prizeListItems = [
+    ...(prizeValues.cash > 0 ? [`${formatMoney(prizeValues.cash)} cash prize`] : []),
+    ...prizeItems,
+  ];
   const arvTotalLine =
-    prizeArvTotal > 0
-      ? `The approximate total retail value of all prizes is ${formatMoney(prizeArvTotal)}. Individual values shown are approximate retail values (ARV) and may vary.`
+    prizeValues.cash > 0 && prizeValues.inKind > 0
+      ? `The cash prize is ${formatMoney(prizeValues.cash)} cash. The existing in-kind prizes have an approximate retail value (ARV) of ${formatMoney(prizeValues.inKind)}. The combined value is ${formatMoney(prizeValues.combined)}. Individual in-kind values are approximate and may vary.`
+      : prizeValues.cash > 0
+        ? `The total cash prize is ${formatMoney(prizeValues.cash)}.`
+        : prizeValues.inKind > 0
+      ? `The approximate total retail value of all in-kind prizes is ${formatMoney(prizeValues.inKind)}. Individual values shown are approximate retail values (ARV) and may vary.`
       : null;
   const prizeBlocks = [
     {
       kind: 'p',
       text: prizeListItems.length
-        ? 'The prizes currently set for the Competition are listed below, each with its approximate retail value (ARV). Prizes may change — the competition’s Prizes page always shows the current prizes:'
+        ? prizeValues.cash > 0
+          ? 'The exact cash prize and the in-kind prizes currently set for the Competition are listed below. Values shown for in-kind prizes are approximate retail values (ARV). Prizes may change — the competition’s Prizes page always shows the current lineup:'
+          : 'The in-kind prizes currently set for the Competition are listed below, each with its approximate retail value (ARV). Prizes may change — the competition’s Prizes page always shows the current prizes:'
         : 'The prizes for the Competition are shown on the competition’s Prizes page and may be updated by the Host.',
     },
   ];

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Crown, Gift, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
-import { formatPrizeRecipient, interleaveByGender } from '../../../utils/formatters';
+import { formatCurrency, formatPrizeRecipient, interleaveByGender } from '../../../utils/formatters';
 import { PrizeGenderBadge } from '../../../components/ui/PrizeGenderBadge';
 import { transformSupabaseImage } from '../../../lib/storageImage';
+import { getPrizeValueSummary } from '../../../lib/prizeValue';
 
 // Default rewards when no prizes are uploaded by the host
 const DEFAULT_REWARDS = [
@@ -161,13 +162,15 @@ function PrizeCarousel({ prizes, title, splitByGender }) {
 export function Rewards() {
   const { prizes, competition } = usePublicCompetition();
   const splitByGender = !!competition?.winners_split_by_gender;
+  const prizeValues = getPrizeValueSummary(competition, prizes);
 
-  const hasPrizes = prizes && prizes.length > 0;
+  const hasInKindPrizes = prizes && prizes.length > 0;
+  const hasPrizes = hasInKindPrizes || prizeValues.cash > 0;
 
   // Split prizes by type, then alternate men/women within each so it reads
   // "male prize, female prize, male prize…" in gender-split competitions.
-  const winnerPrizes = hasPrizes ? interleaveByGender(prizes.filter(p => (p.prize_type || 'winner') === 'winner')) : [];
-  const contestantRewards = hasPrizes ? interleaveByGender(prizes.filter(p => p.prize_type === 'contestant')) : [];
+  const winnerPrizes = hasInKindPrizes ? interleaveByGender(prizes.filter(p => (p.prize_type || 'winner') === 'winner')) : [];
+  const contestantRewards = hasInKindPrizes ? interleaveByGender(prizes.filter(p => p.prize_type === 'contestant')) : [];
 
   // Static fallback — same as before
   if (!hasPrizes) {
@@ -194,6 +197,29 @@ export function Rewards() {
 
   return (
     <div className={hasBoth ? 'rewards-dual-layout' : undefined}>
+      {prizeValues.cash > 0 && (
+        <div className="rewards-section" style={{ textAlign: 'center' }}>
+          <div className="rewards-header" style={{ justifyContent: 'center' }}>
+            <h3 className="rewards-title">Prize Value</h3>
+          </div>
+          <div className="rewards-grid">
+            {[
+              ['Cash prize', prizeValues.cash],
+              ...(prizeValues.inKind > 0 ? [['In-kind prizes (ARV)', prizeValues.inKind]] : []),
+              ...(prizeValues.inKind > 0 ? [['Combined value', prizeValues.combined]] : []),
+            ].map(([label, amount]) => (
+              <div key={label} className="reward-card">
+                <div className="reward-icon"><Gift size={24} /></div>
+                <h4 className="reward-name" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {formatCurrency(amount)}
+                </h4>
+                <p className="reward-description">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {winnerPrizes.length > 0 && (
         <PrizeCarousel
           prizes={winnerPrizes}

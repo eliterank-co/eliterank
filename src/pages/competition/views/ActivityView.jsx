@@ -48,9 +48,12 @@ export function ActivityView() {
     about,
     orgSlug,
     competitionSlug,
+    publicBasePath,
   } = usePublicCompetition();
 
-  const rulesPath = competitionSlug
+  const rulesPath = publicBasePath
+    ? `${publicBasePath}/rules`
+    : competitionSlug
     ? `/${orgSlug}/${competitionSlug}/rules`
     : competition?.id
       ? `/${orgSlug}/id/${competition.id}/rules`

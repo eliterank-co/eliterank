@@ -19,6 +19,7 @@ import {
   buildHostFinancialSummary,
   sortHostContestantsByRound,
 } from '../../../../utils/hostDashboardMetrics';
+import { getCompetitionShareUrl } from '../../../../config/competitionAliases';
 
 const MOST_ELIGIBLE_ORG_ID = 'ac3e2a10-fc35-419e-9b14-f279f9d93467';
 
@@ -73,7 +74,9 @@ export default function OverviewTab({
         organizationName: competition?.organizationName || 'Most Eligible',
         organizationLogoUrl: competition?.organizationLogoUrl,
         accentColor: competition?.themePrimary || '#d4af37',
-        voteUrl: competition?.slug ? `eliterank.co/${competition.slug}` : 'eliterank.co',
+        voteUrl: competition?.slug
+          ? getCompetitionShareUrl(competition.organizationSlug, competition.slug)
+          : 'eliterank.co',
         votingStartDate: competition?.votingStart,
       });
 

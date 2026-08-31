@@ -30,6 +30,7 @@ import {
   getPlacementTitle,
 } from '../features/achievement-cards';
 import './AchievementsPage.css';
+import { getCompetitionUrl } from '../utils/slugs';
 
 export default function AchievementsPage() {
   const navigate = useNavigate();
@@ -316,7 +317,7 @@ export default function AchievementsPage() {
       organizationLogoUrl: organization?.logo_url,
       accentColor: competition?.theme_primary || '#d4af37',
       voteUrl: competition?.slug
-        ? `eliterank.co/${organization?.slug || 'most-eligible'}/${competition.slug}`
+        ? `eliterank.co${getCompetitionUrl(organization?.slug || 'most-eligible', competition.slug)}`
         : 'eliterank.co',
       rank: cardOption.rank,
       votingStartDate: competition?.voting_start
