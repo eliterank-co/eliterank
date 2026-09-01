@@ -1,22 +1,14 @@
 name: Fan Weekly Digest
 
-# Weekly performance digest for contestants and their fans.
-#
-# GitHub Actions cron runs in UTC and does not follow daylight savings. To
-# keep the send at a true 10 AM America/Chicago wall-clock year-round, we
-# schedule BOTH 15:00 and 16:00 UTC every Friday, then the runtime check
-# below only proceeds when the Chicago hour is actually 10. During CDT
-# (Mar–Nov) only the 15:00 UTC run fires; during CST (Nov–Mar) only the
-# 16:00 UTC run fires. Exactly one send per Friday, year-round.
+# Disabled delivery-candidate harness. The worker evaluates Thursday 10:00 in
+# each competition's IANA timezone and claims a bounded durable batch. A later
+# release dispatch may add a polling schedule; this delivery PR cannot.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL                — https://<ref>.supabase.co
 #   SUPABASE_SERVICE_ROLE_KEY   — the service role key from Supabase
 
 on:
-  schedule:
-    - cron: '0 15 * * 5'   # 10 AM CDT (America/Chicago during DST)
-    - cron: '0 16 * * 5'   # 10 AM CST (America/Chicago outside DST)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -26,28 +18,11 @@ on:
 
 jobs:
   send:
+    if: ${{ vars.FAN_EMAIL_SCHEDULER_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check wall-clock is 10 AM America/Chicago
-        id: check
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Manual dispatch — proceeding."
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
-            HOUR=$(TZ=America/Chicago date +%H)
-            echo "Current hour in America/Chicago: $HOUR"
-            if [ "$HOUR" = "10" ]; then
-              echo "proceed=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Not 10 AM Chicago — skipping this cron tick."
-              echo "proceed=false" >> "$GITHUB_OUTPUT"
-            fi
-          fi
-
       - name: Invoke send-fan-weekly-digest
-        if: steps.check.outputs.proceed == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

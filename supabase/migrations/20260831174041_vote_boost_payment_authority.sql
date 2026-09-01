@@ -20,13 +20,15 @@ RETURNS integer
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = pg_catalog, public, app_private
+SET search_path = ''
 AS $$
-  SELECT CASE WHEN COALESCE((
-    SELECT (s.value->>'enabled')::boolean
-    FROM public.app_settings s
-    WHERE s.key = 'vote_boost_evaluation'
-  ), false) THEN greatest(
+  SELECT greatest(
+    -- Compatibility double-days. These are LIVE IN PRODUCTION today and carry
+    -- real rows. Before this migration nothing gated them, so putting the
+    -- default-off switch in front of them would mean that merely APPLYING this
+    -- migration stops crediting 2x on a real double-vote day for real paying
+    -- voters. A rollback seam for new work must not switch off shipped work, so
+    -- this half stays ungated and applying the migration is behaviour-preserving.
     CASE WHEN EXISTS (
       SELECT 1 FROM public.competition_double_days d
       WHERE d.competition_id = p_competition_id
@@ -34,13 +36,21 @@ AS $$
           SELECT c.timezone FROM public.competitions c WHERE c.id = p_competition_id
         ), 'UTC'))::date
     ) THEN 2 ELSE 1 END,
-    COALESCE((
+    -- Scheduled 2x/3x Vote Boosts are the NEW capability, so they are the half
+    -- the kill switch governs: inert until vote_boost_evaluation is enabled.
+    CASE WHEN COALESCE((
+      SELECT (s.value->>'enabled')::boolean
+      FROM public.app_settings s
+      WHERE s.key = 'vote_boost_evaluation'
+    ), false)
+    THEN COALESCE((
       SELECT max(b.multiplier) FROM public.competition_vote_boosts b
       WHERE b.competition_id = p_competition_id
         AND b.cancelled_at IS NULL
         AND p_now >= b.starts_at AND p_now < b.ends_at
     ), 1)
-  ) ELSE 1 END;
+    ELSE 1 END
+  );
 $$;
 
 INSERT INTO public.app_settings (key, value)
@@ -61,7 +71,7 @@ RETURNS integer
 LANGUAGE sql
 STABLE
 SECURITY INVOKER
-SET search_path = pg_catalog, public, app_private
+SET search_path = ''
 AS $$
   SELECT app_private.effective_vote_multiplier(p_competition_id, p_now);
 $$;
@@ -71,6 +81,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY INVOKER
+SET search_path = ''
 AS $$
   SELECT public.effective_vote_multiplier(p_competition_id, now()) > 1;
 $$;
@@ -86,6 +97,7 @@ CREATE OR REPLACE FUNCTION public.validate_free_vote_count()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY INVOKER
+SET search_path = ''
 AS $$
 DECLARE
   v_expected integer;
