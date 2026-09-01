@@ -76,6 +76,23 @@ AS $$
   SELECT app_private.effective_vote_multiplier(p_competition_id, p_now);
 $$;
 
+-- The browser-facing overload takes no timestamp. The two-argument form wraps a
+-- SECURITY DEFINER reader of competition_vote_boosts, whose RLS otherwise
+-- restricts reads to the host and co-hosts; exposing a caller-supplied p_now to
+-- anon lets anyone binary-search it and recover the entire unreleased boost
+-- schedule — start, end and multiplier — for any competition id. The client
+-- (src/lib/votes.js) only ever passes p_competition_id, so pinning the browser
+-- overload to now() costs nothing and closes the oracle.
+CREATE OR REPLACE FUNCTION public.effective_vote_multiplier(p_competition_id uuid)
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+  SELECT app_private.effective_vote_multiplier(p_competition_id, pg_catalog.now());
+$$;
+
 CREATE OR REPLACE FUNCTION public.is_double_vote_day(p_competition_id uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -83,11 +100,15 @@ STABLE
 SECURITY INVOKER
 SET search_path = ''
 AS $$
-  SELECT public.effective_vote_multiplier(p_competition_id, now()) > 1;
+  SELECT public.effective_vote_multiplier(p_competition_id) > 1;
 $$;
 
 REVOKE ALL ON FUNCTION public.effective_vote_multiplier(uuid, timestamptz) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.effective_vote_multiplier(uuid, timestamptz)
+REVOKE EXECUTE ON FUNCTION public.effective_vote_multiplier(uuid, timestamptz)
+  FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.effective_vote_multiplier(uuid, timestamptz) TO service_role;
+REVOKE ALL ON FUNCTION public.effective_vote_multiplier(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.effective_vote_multiplier(uuid)
   TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_double_vote_day(uuid) TO anon, authenticated, service_role;
 
@@ -105,9 +126,18 @@ BEGIN
   IF auth.role() = 'service_role' THEN
     RETURN NEW;
   END IF;
-  v_expected := public.effective_vote_multiplier(NEW.competition_id, now());
-  IF NEW.vote_count <> v_expected OR NEW.vote_count NOT IN (1, 2, 3) THEN
-    RAISE EXCEPTION 'free vote count must equal the active 1x, 2x, or 3x multiplier'
+  -- One-argument overload: this trigger is SECURITY INVOKER and runs as the
+  -- inserting browser role, which no longer holds EXECUTE on the two-argument
+  -- form (see the grants above).
+  v_expected := public.effective_vote_multiplier(NEW.competition_id);
+  -- The guard exists to stop a client claiming MORE credit than the live
+  -- authority allows. Requiring exact equality also rejects a client claiming
+  -- LESS, which is not an exploit and is routine: a tab loaded before the boost
+  -- opened, or a race between the client's effective_vote_multiplier read and
+  -- this insert, submits 1 on a 2x day. Rejecting that loses the vote outright
+  -- instead of counting it, so the ceiling is enforced and the floor is not.
+  IF NEW.vote_count > v_expected OR NEW.vote_count NOT IN (1, 2, 3) THEN
+    RAISE EXCEPTION 'free vote count may not exceed the active 1x, 2x, or 3x multiplier'
       USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;

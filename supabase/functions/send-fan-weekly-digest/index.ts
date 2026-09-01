@@ -97,6 +97,7 @@ function buildOccurrences(
   now: Date,
   rounds: Round[],
   windows: PromotionWindow[],
+  doubleDayDates: readonly string[],
 ): Occurrence[] {
   const timezone = competition.timezone || 'UTC'
   const occurrences: Occurrence[] = []
@@ -127,7 +128,9 @@ function buildOccurrences(
       window.competition_id === competition.id
       && starts <= now.getTime()
       && starts >= recentFloor
-      && isEffectivePromotionStart(window, windows)
+      && isEffectivePromotionStart(window, windows, {
+        dates: doubleDayDates, timezone,
+      })
     ) {
       occurrences.push({
         kind: 'vote_boost',
@@ -186,7 +189,10 @@ serve(async (request) => {
 
     const weekFloor = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const promotionFloor = new Date(now.getTime() - 5 * 60 * 60 * 1000).toISOString()
-    const [contestantsResult, fansResult, roundsResult, boostsResult, votesResult, standingsResult] = await Promise.all([
+    const [
+      contestantsResult, fansResult, roundsResult, boostsResult, votesResult,
+      standingsResult, doubleDaysResult,
+    ] = await Promise.all([
       db.from('contestants')
         .select('id, name, competition_id, votes, trend, gender')
         .in('competition_id', competitionIds)
@@ -209,10 +215,17 @@ serve(async (request) => {
       db.from('mv_leaderboard')
         .select('contestant_id, rank')
         .in('competition_id', competitionIds),
+      // Compatibility double-vote days are part of the effective multiplier,
+      // so a boost-start check that cannot see them announces a 2x on a day
+      // that was already 2x.
+      db.from('competition_double_days')
+        .select('competition_id, date')
+        .in('competition_id', competitionIds),
     ])
     for (const [name, result] of [
       ['contestants', contestantsResult], ['fans', fansResult], ['rounds', roundsResult],
       ['boosts', boostsResult], ['weekly votes', votesResult], ['standings', standingsResult],
+      ['double days', doubleDaysResult],
     ] as const) {
       if (result.error) throw new Error(`${name}: ${result.error.message}`)
     }
@@ -239,6 +252,16 @@ serve(async (request) => {
 
     const rounds = (roundsResult.data || []) as Round[]
     const windows = (boostsResult.data || []) as PromotionWindow[]
+    const doubleDayRows = (doubleDaysResult.data || []) as Array<{
+      competition_id: string
+      date: string
+    }>
+    const doubleDaysByCompetition = new Map<string, string[]>()
+    for (const row of doubleDayRows) {
+      const existing = doubleDaysByCompetition.get(row.competition_id)
+      if (existing) existing.push(row.date)
+      else doubleDaysByCompetition.set(row.competition_id, [row.date])
+    }
     const queueRows: Record<string, unknown>[] = []
     for (const competition of competitions) {
       const organization = one(competition.organization)
@@ -246,7 +269,10 @@ serve(async (request) => {
       // fallback may silently send another organization's identity.
       if (!organization?.id || !organization.name || !organization.slug || !competition.name || !competition.slug) continue
       const competitionUrl = `${appUrl.replace(/\/$/, '')}/${organization.slug}/${competition.slug}`
-      const occurrences = buildOccurrences(competition, now, rounds, windows)
+      const occurrences = buildOccurrences(
+        competition, now, rounds, windows,
+        doubleDaysByCompetition.get(competition.id) ?? [],
+      )
       for (const occurrence of occurrences) {
         for (const contestant of contestants.filter(row => row.competition_id === competition.id)) {
           const purchaseVotesUrl = `${competitionUrl}?voteFor=${encodeURIComponent(contestant.id)}`

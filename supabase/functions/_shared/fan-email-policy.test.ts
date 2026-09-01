@@ -36,6 +36,17 @@ describe('fan email occurrence policy', () => {
     expect(isEffectivePromotionStart(windows[2]!, windows)).toBe(false)
   })
 
+  it('suppresses a 2x boost scheduled on a day that is already a double-vote day', () => {
+    // Compatibility double-vote days are part of the effective multiplier. A
+    // 2x boost opening on one is 2 -> 2, not 1 -> 2, so announcing it would
+    // promise a change no voter can observe. 2026-08-31 is the local date of
+    // the `two` window's start in America/Chicago.
+    const compat = { dates: ['2026-08-31'], timezone: 'America/Chicago' }
+    expect(isEffectivePromotionStart(windows[0]!, windows, compat)).toBe(false)
+    // 3x still clears it: the effective value really does rise from 2 to 3.
+    expect(isEffectivePromotionStart(windows[1]!, windows, compat)).toBe(true)
+  })
+
   it('uses deterministic capped retry backoff', () => {
     expect(retryAt(new Date('2026-08-31T00:00:00Z'), 1)).toBe('2026-08-31T00:05:00.000Z')
     expect(retryAt(new Date('2026-08-31T00:00:00Z'), 20)).toBe('2026-09-01T00:00:00.000Z')

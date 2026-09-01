@@ -34,12 +34,30 @@ export function isWeeklyDigestDue(now: Date, timezone: string): boolean {
   return local.weekday === 'Thu' && local.hour === 10
 }
 
+/**
+ * Compatibility double-vote days for one competition: the local dates it is
+ * live on, plus the zone those dates are read in. This mirrors the SQL
+ * authority, which resolves `d.date = (p_now AT TIME ZONE tz)::date`.
+ */
+export interface CompatibilityDoubleDays {
+  readonly dates: readonly string[]
+  readonly timezone: string
+}
+
 export function effectivePromotionMultiplier(
   competitionId: string,
   at: Date,
   windows: readonly PromotionWindow[],
+  compat?: CompatibilityDoubleDays,
 ): number {
   let result = 1
+  // A live double-vote day already puts the competition at 2x. Omitting it
+  // makes every comparison below blind to it, so a 2x boost scheduled on top
+  // of a double day looks like 1 -> 2 and announces a promotion that changes
+  // nothing a voter would notice.
+  if (compat && compat.dates.includes(localOccurrenceDate(at, compat.timezone).date)) {
+    result = 2
+  }
   for (const window of windows) {
     if (
       window.competition_id === competitionId
@@ -54,12 +72,17 @@ export function effectivePromotionMultiplier(
 export function isEffectivePromotionStart(
   target: PromotionWindow,
   windows: readonly PromotionWindow[],
+  compat?: CompatibilityDoubleDays,
 ): boolean {
   if (target.cancelled_at !== null || ![2, 3].includes(target.multiplier)) return false
   const startsAt = new Date(target.starts_at)
   const before = new Date(startsAt.getTime() - 1)
-  const beforeMultiplier = effectivePromotionMultiplier(target.competition_id, before, windows)
-  const afterMultiplier = effectivePromotionMultiplier(target.competition_id, startsAt, windows)
+  const beforeMultiplier = effectivePromotionMultiplier(
+    target.competition_id, before, windows, compat,
+  )
+  const afterMultiplier = effectivePromotionMultiplier(
+    target.competition_id, startsAt, windows, compat,
+  )
   return afterMultiplier > beforeMultiplier && afterMultiplier === target.multiplier
 }
 
