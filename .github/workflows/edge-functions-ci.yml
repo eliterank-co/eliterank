@@ -37,4 +37,7 @@ jobs:
       - name: deno test
         env:
           DENO_TESTING: '1'
-        run: deno test --allow-all supabase/functions/email-template-escaping_test.ts
+        # --no-check: types are covered by the deno check step above; checking
+        # here again drags in esm.sh's `npm:@types/node` reference, which needs
+        # a node_modules directory CI does not have.
+        run: deno test --allow-all --no-check supabase/functions/email-template-escaping_test.ts
