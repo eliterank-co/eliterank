@@ -251,7 +251,7 @@ serve(async (req) => {
       // Retry with email_token fallback
       if (subscriptionId) {
         const fallbackPayload = { ...oneSignalPayload, include_email_tokens: [body.to_email] }
-        delete fallbackPayload.include_subscription_ids
+        delete (fallbackPayload as Record<string, unknown>).include_subscription_ids
 
         const fallbackRes = await fetch('https://api.onesignal.com/notifications', {
           method: 'POST',

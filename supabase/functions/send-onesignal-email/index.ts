@@ -345,7 +345,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You've Been Invited to Judge</h1>
-            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name || 'your competition'}</p>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name || 'your competition')}</p>
             <p style="color:#ccc;font-size:15px;">
               You've been selected as a judge${req.city_name ? ` for ${escapeHtml(req.city_name)}` : ''}. Your scores will help decide who advances and who wins.
             </p>
