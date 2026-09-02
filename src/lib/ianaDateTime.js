@@ -82,8 +82,19 @@ export function resolveIanaLocalDateTime(localValue, timeZone) {
   return { instantIso: new Date(instant).toISOString(), ambiguous: candidates.length > 1 };
 }
 
+// Component options only: ECMA-402 rejects dateStyle/timeStyle combined with
+// timeZoneName ("Invalid option"), and this runs inside a render, so a throw
+// takes the whole Engagement tab down. Fall back to the ISO instant rather
+// than ever throwing.
 export function formatInIanaTimezone(instantIso, timeZone) {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone, dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short',
-  }).format(new Date(instantIso));
+  const date = new Date(instantIso);
+  try {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+    }).format(date);
+  } catch {
+    return Number.isNaN(date.getTime()) ? String(instantIso) : date.toISOString();
+  }
 }
