@@ -172,7 +172,10 @@ serve(async (req) => {
     }), 404)
   }
 
-  const contestantName = fanRow.contestant?.name || 'this contestant'
+  const contestant = Array.isArray(fanRow.contestant)
+    ? fanRow.contestant[0]
+    : fanRow.contestant
+  const contestantName = contestant?.name || 'this contestant'
 
   const { error: updateErr } = await supabase
     .from('contestant_fans')

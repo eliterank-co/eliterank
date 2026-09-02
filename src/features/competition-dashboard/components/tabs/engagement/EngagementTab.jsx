@@ -24,11 +24,14 @@ export default function EngagementTab({
   focusSection,
   events = [],
   doubleDays = [],
+  voteBoosts = [],
   onRefresh,
   onDeleteEvent,
   onOpenEventModal,
   onAddDoubleDay,
   onDeleteDoubleDay,
+  onAddVoteBoost,
+  onCancelVoteBoost,
   onUpdateTimezone,
 }) {
   const { isMobile } = useResponsive();
@@ -87,6 +90,7 @@ export default function EngagementTab({
 
       <DoubleVoteDaysSection
         doubleDays={doubleDays}
+        voteBoosts={voteBoosts}
         isMobile={isMobile}
         focusId={focusId}
         focusNonce={focusNonce}
@@ -94,6 +98,8 @@ export default function EngagementTab({
         timezoneGroups={timezoneGroups}
         onAddDoubleDay={onAddDoubleDay}
         onDeleteDoubleDay={onDeleteDoubleDay}
+        onAddVoteBoost={onAddVoteBoost}
+        onCancelVoteBoost={onCancelVoteBoost}
         onUpdateTimezone={onUpdateTimezone}
       />
 

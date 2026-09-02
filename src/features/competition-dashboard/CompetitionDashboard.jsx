@@ -152,6 +152,8 @@ export default function CompetitionDashboard({
     deleteEvent,
     addDoubleDay,
     deleteDoubleDay,
+    addVoteBoost,
+    cancelVoteBoost,
     updateCompetitionTimezone,
     addAnnouncement,
     updateAnnouncement,
@@ -743,11 +745,14 @@ export default function CompetitionDashboard({
       focusSection={setupFocus}
       events={data.events}
       doubleDays={data.doubleDays}
+      voteBoosts={data.voteBoosts}
       onRefresh={refresh}
       onDeleteEvent={deleteEvent}
       onOpenEventModal={(event) => setEventModal({ isOpen: true, event })}
       onAddDoubleDay={addDoubleDay}
       onDeleteDoubleDay={deleteDoubleDay}
+      onAddVoteBoost={addVoteBoost}
+      onCancelVoteBoost={cancelVoteBoost}
       onUpdateTimezone={updateCompetitionTimezone}
     />
   );

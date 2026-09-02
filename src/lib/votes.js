@@ -169,15 +169,20 @@ export async function submitFreeVote({
       return { success: false, error: 'You have already used your free vote today' };
     }
 
-    // 3. Re-verify double-vote-day status against the source of truth.
-    // is_double_vote_day RPC compares against the competition's local
-    // timezone (see migration 051), so we don't trust the caller-supplied
-    // hint or the client's clock.
-    const { data: rpcDouble } = await supabase.rpc('is_double_vote_day', {
+    // 3. Re-resolve the effective multiplier at the authoritative server
+    // boundary.  A caller can neither select nor compound a boost.
+    const { data: rpcMultiplier, error: multiplierError } = await supabase.rpc('effective_vote_multiplier', {
       p_competition_id: competitionId,
     });
-    const isDoubleVoteDay = rpcDouble === true;
-    const voteValue = isDoubleVoteDay ? 2 : 1;
+    if (multiplierError || ![1, 2, 3].includes(rpcMultiplier)) {
+      return {
+        success: false,
+        error: 'Vote boost status is temporarily unavailable. Please retry.',
+        retryable: true,
+      };
+    }
+    const voteValue = rpcMultiplier;
+    const isDoubleVoteDay = voteValue > 1;
 
     // 4. Insert the vote record
     const { error: voteError } = await supabase
@@ -379,6 +384,7 @@ export async function createVotePaymentIntent({
   contestantId,
   voteCount,
   voterEmail,
+  voterId,
 }) {
   if (!supabase) {
     return { success: false, error: 'Database not configured' };
@@ -406,6 +412,10 @@ export async function createVotePaymentIntent({
         contestantId,
         voteCount,
         voterEmail,
+        // The webhook stamps votes.voter_id from this so the buyer can see
+        // their own paid-vote row under RLS; without it the checkout poll
+        // never resolves for signed-in voters.
+        voterId,
       },
     });
 
@@ -443,6 +453,8 @@ export async function createVotePaymentIntent({
       taxLabel: data.taxLabel,
       currency: data.currency,
       voteCount: data.voteCount,
+      voteMultiplier: data.voteMultiplier,
+      creditedVoteCount: data.creditedVoteCount,
       contestantName: data.contestantName,
       connectedAccountId: data.connectedAccountId,
     };
@@ -453,85 +465,61 @@ export async function createVotePaymentIntent({
 }
 
 /**
- * Record a paid vote after successful payment
- * Note: This is called client-side for immediate UI feedback.
- * The webhook will also record the vote, so we use idempotency checks.
+ * Wait for Stripe's webhook to materialize a paid-vote ledger row.
  *
- * IMPORTANT: this client-side write almost always wins the race against
- * the webhook (network round-trip from Stripe). Whatever values we pass
- * here become the final values stored in the votes row, because the
- * webhook short-circuits as soon as it sees an existing row matching the
- * payment_intent_id. So `voteCount` MUST be pre-doubled when applicable
- * and `isDoubleVote` MUST be set correctly — otherwise the webhook's
- * doubling logic is dead code for authenticated voters.
- *
- * @param {Object} params - Vote parameters
- * @param {string} params.paymentIntentId - The Stripe payment intent ID
- * @param {string} params.competitionId - The competition ID
- * @param {string} params.contestantId - The contestant ID
- * @param {number} params.voteCount - Number of votes to credit (pre-doubled when isDoubleVote)
- * @param {number} params.amountPaid - Amount paid in dollars
- * @param {string} params.voterEmail - The voter's email
- * @param {boolean} params.isDoubleVote - True if today is a host-scheduled double-vote day
- * @returns {Promise<{success: boolean, error?: string}>}
+ * The PaymentIntent only proves that Stripe accepted money. The votes row is
+ * the authoritative fulfillment outcome, so callers must not present a
+ * successful vote until this lookup finds the webhook-authored row.
  */
-export async function recordPaidVote({
+export async function waitForPaidVoteFulfillment({
   paymentIntentId,
   competitionId,
   contestantId,
-  voteCount,
-  amountPaid,
-  taxAmount = 0,
-  voterEmail,
-  isDoubleVote = false,
+  maxAttempts = 20,
+  pollIntervalMs = 500,
 }) {
-  if (!supabase) {
-    return { success: false, error: 'Database not configured' };
+  if (!supabase || !paymentIntentId || !competitionId || !contestantId) {
+    return { fulfilled: false, pending: false, error: 'Missing fulfillment parameters' };
   }
 
-  try {
-    // Check if already recorded (idempotency - webhook may have already recorded it).
-    // maybeSingle returns {data: null} instead of a 406 error when there's no row,
-    // which is the expected case on the first try.
-    const { data: existingVote } = await supabase
-      .from('votes')
-      .select('id')
-      .eq('payment_intent_id', paymentIntentId)
-      .maybeSingle();
+  const attempts = Number.isInteger(maxAttempts) && maxAttempts > 0 ? maxAttempts : 1;
+  const interval = Number.isFinite(pollIntervalMs) && pollIntervalMs >= 0 ? pollIntervalMs : 0;
+  let lastError = null;
 
-    if (existingVote) {
-      // Already recorded by webhook, return success
-      return { success: true, alreadyRecorded: true };
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    let data = null;
+    let error = null;
+    try {
+      ({ data, error } = await supabase
+        .from('votes')
+        .select('id, competition_id, contestant_id, vote_count, payment_intent_id')
+        .eq('payment_intent_id', paymentIntentId)
+        .eq('competition_id', competitionId)
+        .eq('contestant_id', contestantId)
+        .maybeSingle());
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'Fulfillment lookup failed';
     }
 
-    // Insert the vote record
-    const { error: voteError } = await supabase
-      .from('votes')
-      .insert({
-        voter_email: voterEmail || null,
-        competition_id: competitionId,
-        contestant_id: contestantId,
-        vote_count: voteCount,
-        amount_paid: amountPaid,
-        tax_amount: taxAmount || 0,
-        payment_intent_id: paymentIntentId,
-        is_double_vote: isDoubleVote,
-      });
-
-    if (voteError) {
-      // If it's a duplicate (webhook beat us), that's fine
-      if (voteError.code === '23505') {
-        return { success: true, alreadyRecorded: true };
-      }
-      console.error('Vote insert error:', voteError);
-      return { success: false, error: voteError.message };
+    if (!error && data && Number.isInteger(data.vote_count) && data.vote_count > 0) {
+      return {
+        fulfilled: true,
+        pending: false,
+        voteId: data.id,
+        voteCount: data.vote_count,
+      };
     }
 
-    // The on_vote_insert DB trigger updates contestants.votes and
-    // competitions.total_votes atomically with the insert above.
-    return { success: true };
-  } catch (err) {
-    console.error('Error recording paid vote:', err);
-    return { success: false, error: 'An unexpected error occurred' };
+    if (error) lastError = error.message || 'Fulfillment lookup failed';
+
+    if (attempt + 1 < attempts && interval > 0) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
   }
+
+  return {
+    fulfilled: false,
+    pending: true,
+    ...(lastError ? { error: lastError } : {}),
+  };
 }

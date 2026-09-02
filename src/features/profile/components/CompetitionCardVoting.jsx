@@ -244,6 +244,9 @@ export default function CompetitionCardVoting({
       contestantId,
       voteCount,
       voterEmail: user?.email,
+      // Webhook stamps votes.voter_id from this so the buyer's own paid-vote
+      // row is visible under RLS and the checkout poll can confirm it.
+      voterId: user?.id,
     });
 
     // If the modal was closed (or another Send was clicked) while this

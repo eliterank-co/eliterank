@@ -65,6 +65,7 @@ export function useCompetitionDashboard(competitionId) {
     rules: [],
     prizes: [],
     doubleDays: [],
+    voteBoosts: [],
     bonusTasks: [],
     host: null,
     coHosts: [],
@@ -102,6 +103,7 @@ export function useCompetitionDashboard(competitionId) {
         rulesResult,
         prizesResult,
         doubleDaysResult,
+        voteBoostsResult,
         competitionResult,
         paidVotesResult,
         coHostsResult,
@@ -186,6 +188,14 @@ export function useCompetitionDashboard(competitionId) {
           .eq('competition_id', competitionId)
           .order('date'),
 
+        // Numeric 2x/3x promotion windows. UTC instants retain the IANA zone
+        // used to resolve host-local input so they are never reinterpreted.
+        supabase
+          .from('competition_vote_boosts')
+          .select('id, starts_at, ends_at, timezone, multiplier, label, cancelled_at')
+          .eq('competition_id', competitionId)
+          .order('starts_at'),
+
         // Get competition info with category, demographic, city, organization, and host joins
         supabase
           .from('competitions')
@@ -239,6 +249,7 @@ export function useCompetitionDashboard(competitionId) {
         rulesResult.error,
         prizesResult.error,
         doubleDaysResult.error,
+        voteBoostsResult.error,
         competitionResult.error,
         paidVotesResult.error,
         coHostsResult.error,
@@ -564,6 +575,15 @@ export function useCompetitionDashboard(competitionId) {
         id: d.id,
         date: d.date,
       }));
+      const voteBoosts = (voteBoostsResult.data || []).map((boost) => ({
+        id: boost.id,
+        startsAt: boost.starts_at,
+        endsAt: boost.ends_at,
+        timezone: boost.timezone,
+        multiplier: boost.multiplier,
+        label: boost.label,
+        cancelledAt: boost.cancelled_at,
+      }));
 
       // Paid-vote revenue (Stripe) — scalar from get_competition_revenue RPC
       const voteRevenue = parseFloat(paidVotesResult.data) || 0;
@@ -593,6 +613,7 @@ export function useCompetitionDashboard(competitionId) {
         rules,
         prizes,
         doubleDays,
+        voteBoosts,
         bonusTasks: bonusTasksResult.data || [],
         host,
         coHosts,
@@ -1882,6 +1903,56 @@ export function useCompetitionDashboard(competitionId) {
     }
   }, [competitionId, fetchDashboardData]);
 
+  const addVoteBoost = useCallback(async ({ startsAt, endsAt, timezone, multiplier, label }) => {
+    if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
+    if (![2, 3].includes(multiplier)) return { success: false, error: 'Choose a 2x or 3x boost.' };
+
+    const durationMs = new Date(endsAt).getTime() - new Date(startsAt).getTime();
+    if (!Number.isFinite(durationMs) || durationMs <= 0) {
+      return { success: false, error: 'The end must be after the start.' };
+    }
+    if (durationMs > 4 * 60 * 60 * 1000) {
+      return { success: false, error: 'A Vote Boost may run for at most four elapsed hours.' };
+    }
+
+    try {
+      const { error } = await supabase.from('competition_vote_boosts').insert({
+        competition_id: competitionId,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        timezone,
+        multiplier,
+        label: label?.trim() || null,
+      });
+      if (error) throw error;
+      await fetchDashboardData();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Could not schedule Vote Boost.' };
+    }
+  }, [competitionId, fetchDashboardData]);
+
+  const cancelVoteBoost = useCallback(async (id) => {
+    if (!supabase) return { success: false, error: 'Missing configuration' };
+    try {
+      const { data: userResult, error: userError } = await supabase.auth.getUser();
+      if (userError || !userResult?.user?.id) {
+        return { success: false, error: 'Your session could not be verified.' };
+      }
+      const { error } = await supabase
+        .from('competition_vote_boosts')
+        .update({ cancelled_at: new Date().toISOString(), cancelled_by: userResult.user.id })
+        .eq('id', id)
+        .eq('competition_id', competitionId)
+        .is('cancelled_at', null);
+      if (error) throw error;
+      await fetchDashboardData();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Could not cancel Vote Boost.' };
+    }
+  }, [competitionId, fetchDashboardData]);
+
   const updateHiddenSetupSections = useCallback(async (sections) => {
     if (!supabase || !competitionId) return { success: false, error: 'Missing configuration' };
 
@@ -2366,6 +2437,8 @@ export function useCompetitionDashboard(competitionId) {
     // Double vote day operations
     addDoubleDay,
     deleteDoubleDay,
+    addVoteBoost,
+    cancelVoteBoost,
     updateCompetitionTimezone,
     updateHiddenSetupSections,
     // Announcement operations

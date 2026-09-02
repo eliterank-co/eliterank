@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, Clock } from 'lucide-react';
 import * as Sentry from '@sentry/react';
 import { Modal, VoteShareCard } from './ui';
 import FanButton from './ui/FanButton';
 import { colors, spacing, borderRadius, typography, gradients, shadows } from '../styles/theme';
 import { getStripe, isStripeConfigured } from '../lib/stripe';
-import { recordPaidVote } from '../lib/votes';
+import { waitForPaidVoteFulfillment } from '../lib/votes';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores';
 import { useToast } from '../contexts/ToastContext';
@@ -20,15 +20,14 @@ const STRIPE_RETURN_PARAMS = ['payment_intent', 'payment_intent_client_secret', 
  * point the VoteModal has unmounted and its `showSuccess` state is gone, so
  * the buyer never sees the share card. This handler runs at the app shell
  * level, detects the return, retrieves the PaymentIntent's metadata to learn
- * which contestant/vote count was bought, records the vote (idempotent —
- * webhook may have beaten us), and renders the same success popup the
- * VoteModal would have shown for an in-page card payment.
+ * which contestant/vote count was bought, waits for the webhook-authored vote
+ * ledger row, and only then renders the same success popup the VoteModal would
+ * show for an in-page card payment.
  */
 export default function VotePaymentReturnHandler() {
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
-  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const [successData, setSuccessData] = useState(null);
@@ -103,11 +102,12 @@ export default function VotePaymentReturnHandler() {
           return;
         }
 
-        const isDoubleVoteDay = metadata.is_double_vote_day === 'true';
         const rawVoteCount = parseInt(metadata.vote_count, 10) || 1;
-        const creditedVoteCount =
-          parseInt(metadata.credited_vote_count, 10) ||
-          (isDoubleVoteDay ? rawVoteCount * 2 : rawVoteCount);
+        const intentMultiplier = parseInt(metadata.vote_multiplier, 10);
+        const multiplier = Number.isInteger(intentMultiplier) && intentMultiplier >= 1 && intentMultiplier <= 10
+          ? intentMultiplier
+          : metadata.is_double_vote_day === 'true' ? 2 : 1;
+        const creditedVoteCount = parseInt(metadata.credited_vote_count, 10) || rawVoteCount * multiplier;
 
         const { data: contestant } = await supabase
           .from('contestants')
@@ -126,31 +126,31 @@ export default function VotePaymentReturnHandler() {
           .eq('id', competitionId)
           .maybeSingle();
 
-        // Mirror VoteModal.handlePaymentSuccess: authenticated voters get a
-        // client-side write for instant feedback; anonymous voters rely on
-        // the stripe-webhook so voter_email comes from billing details.
-        if (isAuthenticated && user?.id && paymentIntent.status === 'succeeded') {
-          const recorded = await recordPaidVote({
+        // Stripe's idempotent webhook is the only paid-vote writer. A succeeded
+        // PaymentIntent proves the charge, not the vote; poll the ledger before
+        // saying the vote was submitted.
+        let fulfillmentPending = false;
+        let authoritativeVoteCount = creditedVoteCount;
+        if (paymentIntent.status === 'succeeded') {
+          const fulfillment = await waitForPaidVoteFulfillment({
             paymentIntentId: paymentIntent.id,
             competitionId,
             contestantId,
-            voteCount: creditedVoteCount,
-            amountPaid: (paymentIntent.amount || 0) / 100,
-            taxAmount: (parseInt(metadata.tax_amount, 10) || 0) / 100,
-            voterEmail: user?.email,
-            isDoubleVote: isDoubleVoteDay,
           });
-          if (recorded && !recorded.success) {
-            // Charge already succeeded; the webhook is the backstop writer.
-            // Surface the client-write failure so it can't pair silently
-            // with a webhook outage.
-            Sentry.captureException(
-              new Error(`recordPaidVote failed: ${recorded.error || 'unknown'}`),
-              {
-                tags: { stage: 'record-paid-vote-return' },
-                extra: { paymentIntentId: paymentIntent.id, competitionId, contestantId },
+          if (fulfillment.fulfilled) {
+            authoritativeVoteCount = fulfillment.voteCount;
+          } else {
+            fulfillmentPending = true;
+            Sentry.captureMessage('Paid vote fulfillment still pending after redirect return', {
+              level: 'warning',
+              tags: { stage: 'vote-payment-return' },
+              extra: {
+                paymentIntentId: paymentIntent.id,
+                competitionId,
+                contestantId,
+                fulfillmentError: fulfillment.error || null,
               },
-            );
+            });
           }
         }
 
@@ -159,8 +159,9 @@ export default function VotePaymentReturnHandler() {
         setSuccessData({
           contestant,
           competition,
-          votesAdded: creditedVoteCount,
+          votesAdded: authoritativeVoteCount,
           processing: paymentIntent.status === 'processing',
+          fulfillmentPending,
         });
       } catch (err) {
         Sentry.captureException(err, { tags: { stage: 'vote-payment-return' } });
@@ -169,11 +170,11 @@ export default function VotePaymentReturnHandler() {
     };
 
     run();
-  }, [location.pathname, location.search, location.hash, navigate, toast, isAuthenticated, user?.id, user?.email]);
+  }, [location.pathname, location.search, location.hash, navigate, toast]);
 
   if (!successData) return null;
 
-  const { contestant, competition, votesAdded, processing } = successData;
+  const { contestant, competition, votesAdded, processing, fulfillmentPending } = successData;
   const handleClose = () => setSuccessData(null);
 
   return (
@@ -229,7 +230,9 @@ export default function VotePaymentReturnHandler() {
               border: `3px solid ${colors.background.card}`,
             }}
           >
-            <Check size={18} style={{ color: 'white' }} />
+            {processing || fulfillmentPending
+              ? <Clock size={18} style={{ color: 'white' }} />
+              : <Check size={18} style={{ color: 'white' }} />}
           </div>
         </div>
 
@@ -241,7 +244,7 @@ export default function VotePaymentReturnHandler() {
             marginBottom: spacing.xs,
           }}
         >
-          {processing ? 'Payment Processing' : 'Vote Submitted!'}
+          {processing ? 'Payment Processing' : fulfillmentPending ? 'Payment Received' : 'Vote Submitted!'}
         </h2>
         <p style={{ fontSize: typography.fontSize.md, color: colors.text.secondary, marginBottom: spacing.xl }}>
           {processing ? (
@@ -251,6 +254,14 @@ export default function VotePaymentReturnHandler() {
                 {contestant.name}
               </span>{' '}
               {votesAdded} {votesAdded > 1 ? 'votes' : 'vote'} once it clears.
+            </>
+          ) : fulfillmentPending ? (
+            <>
+              Stripe confirmed your payment. We are waiting for the vote ledger to confirm{' '}
+              <span style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.semibold }}>
+                {votesAdded} {votesAdded > 1 ? 'votes' : 'vote'} for {contestant.name}
+              </span>
+              . You can close this window while fulfillment continues.
             </>
           ) : (
             <>
@@ -263,7 +274,7 @@ export default function VotePaymentReturnHandler() {
           )}
         </p>
 
-        {isAuthenticated && contestant?.id && (
+        {!processing && !fulfillmentPending && isAuthenticated && contestant?.id && (
           <div
             style={{
               display: 'flex',
@@ -286,11 +297,13 @@ export default function VotePaymentReturnHandler() {
           </div>
         )}
 
-        <VoteShareCard
-          contestant={contestant}
-          competition={competition || { name: 'Most Eligible' }}
-          voteCount={votesAdded}
-        />
+        {!processing && !fulfillmentPending && (
+          <VoteShareCard
+            contestant={contestant}
+            competition={competition || { name: 'Most Eligible' }}
+            voteCount={votesAdded}
+          />
+        )}
 
         <button
           onClick={handleClose}

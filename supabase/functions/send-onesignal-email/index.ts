@@ -6,7 +6,37 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-/** Escape relationship-derived values before interpolating them into HTML. */
+/**
+ * OneSignal transport base. Defaults to production, so unset behaviour is
+ * byte-for-byte what it was; setting ONESIGNAL_API_BASE_URL redirects every
+ * call site to an explicitly controlled sink.
+ *
+ * This exists so the REAL sender path can be exercised in acceptance. Capturing
+ * mail in Mailpit or a Resend sandbox proves nothing here: this function does
+ * not speak SMTP and does not use Resend — it POSTs to OneSignal's HTTP API. A
+ * hard-coded hostname is therefore an untestable transport, and the send path is
+ * the half most worth testing.
+ *
+ * Production never sets this. It must stay a redirect-only knob: it changes
+ * where the request goes, never whether one is made.
+ */
+const ONESIGNAL_API_BASE = (
+  Deno.env.get('ONESIGNAL_API_BASE_URL') || 'https://api.onesignal.com'
+).replace(/\/+$/, '')
+
+/**
+ * Escape a relationship-derived string for interpolation into email HTML.
+ *
+ * Contestant, organization and competition names are attacker-influenced: a
+ * nominee types their own name, a host names their competition. These templates
+ * build HTML by string concatenation, so nothing escapes for us.
+ *
+ * `&` MUST be replaced first — escaping `<` before `&` turns `<` into
+ * `&amp;lt;`, which the reader then sees literally.
+ *
+ * Apply to the HTML body only. Subject headers and plain-text parts are NOT
+ * markup: emitting `&lt;` there is a visible rendering bug, not a fix.
+ */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -49,7 +79,7 @@ function escapeHtml(value: string): string {
  */
 
 export interface EmailRequest {
-  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'contestant_promoted' | 'fan_confirmation' | 'fan_weekly_digest' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
+  type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'contestant_promoted' | 'fan_confirmation' | 'fan_weekly_digest' | 'fan_round_closing' | 'fan_vote_boost' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
   to_email: string
   to_name?: string
   // When set, the send is recorded in email_logs so the host of this
@@ -58,9 +88,11 @@ export interface EmailRequest {
   nominee_name?: string
   nominator_name?: string
   competition_name?: string
+  organization_name?: string
   city_name?: string
   claim_url?: string
   competition_url?: string
+  purchase_votes_url?: string
   reason?: string
   gender?: string | null
   nomination_end?: string | null
@@ -76,10 +108,14 @@ export interface EmailRequest {
   rank?: number | null
   trend?: 'up' | 'down' | 'same' | null
   total_votes?: number | null
+  weekly_votes?: number | null
   voting_round_end?: string | null
   next_event_name?: string | null
   next_event_date?: string | null
   is_self?: boolean
+  vote_multiplier?: number | null
+  timezone?: string
+  delivery_id?: string
   // vote_receipt fields
   vote_count?: number | null
   amount_paid?: number | null
@@ -305,11 +341,11 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
 
     case 'judge_invite': {
       return {
-        subject: `You've been invited to judge ${req.competition_name || 'Most Eligible'}`,
+        subject: `You've been invited to judge ${req.competition_name || 'your competition'}`,
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You've Been Invited to Judge</h1>
-            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name || 'Most Eligible')}</p>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name || 'your competition'}</p>
             <p style="color:#ccc;font-size:15px;">
               You've been selected as a judge${req.city_name ? ` for ${escapeHtml(req.city_name)}` : ''}. Your scores will help decide who advances and who wins.
             </p>
@@ -441,14 +477,16 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
     }
 
     case 'fan_confirmation': {
+      // Raw for the Subject header, escaped for the HTML body.
       const contestantName = req.contestant_name || 'your contestant'
+      const safeContestant = escapeHtml(contestantName)
       const competitionLine = req.competition_name
         ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">in <strong>${escapeHtml(req.competition_name)}</strong></p>`
         : ''
       const ctaUrl = req.profile_url || req.competition_url
       const unsubLine = req.unsubscribe_url
         ? `<p style="color:#666;font-size:12px;margin-top:16px;">
-             Not interested in weekly updates for ${escapeHtml(contestantName)}?
+             Not interested in weekly updates for ${safeContestant}?
              <a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a>.
            </p>`
         : `<p style="color:#666;font-size:12px;margin-top:16px;">
@@ -459,12 +497,12 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You're a Fan!</h1>
-            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(contestantName)}</p>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${safeContestant}</p>
             ${competitionLine}
             <p style="color:#ccc;font-size:15px;margin-top:16px;">
-              We'll send you a <strong>weekly competition update</strong> so you can follow how ${escapeHtml(contestantName)} is doing — round standings, performance and ways to support.
+              We'll send you a <strong>weekly competition update</strong> so you can follow how ${safeContestant} is doing — round standings, performance and ways to support.
             </p>
-            ${ctaUrl ? goldButton(`View ${contestantName}'s Profile`, ctaUrl) : ''}
+            ${ctaUrl ? goldButton(`View ${safeContestant}'s Profile`, escapeHtml(ctaUrl)) : ''}
             ${unsubLine}
           </div>
         `),
@@ -472,11 +510,12 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
     }
 
     case 'fan_weekly_digest': {
+      // Raw for the Subject header, escaped for the HTML body.
       const contestantName = req.contestant_name || 'your contestant'
       const isSelf = !!req.is_self
-      const competitionName = req.competition_name || 'Most Eligible'
-      const safeContestantName = escapeHtml(contestantName)
-      const safeCompetitionName = escapeHtml(competitionName)
+      const competitionName = req.competition_name || 'your competition'
+      const safeContestant = escapeHtml(contestantName)
+      const safeCompetition = escapeHtml(competitionName)
 
       const formatShortDate = (iso: string) => {
         try {
@@ -506,6 +545,10 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
            </div>`
         : ''
 
+      const weeklyVotesLine = typeof req.weekly_votes === 'number'
+        ? `<p style="color:#ccc;font-size:14px;margin:8px 0;"><strong style="color:#fff;">${req.weekly_votes.toLocaleString()}</strong> votes credited this week</p>`
+        : ''
+
       const statsRow = (rankBlock || votesBlock)
         ? `<div style="text-align:center;margin:16px 0;">${rankBlock}${votesBlock}</div>`
         : `<p style="color:#999;font-size:14px;text-align:center;margin:16px 0;">No activity this week — stay tuned!</p>`
@@ -519,20 +562,20 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
         : ''
 
       const intro = isSelf
-        ? `Here's your weekly performance snapshot for <strong>${safeCompetitionName}</strong>.`
-        : `Here's how <strong>${safeContestantName}</strong> is doing this week in <strong>${safeCompetitionName}</strong>.`
+        ? `Here's your weekly performance snapshot for <strong>${safeCompetition}</strong>.`
+        : `Here's how <strong>${safeContestant}</strong> is doing this week in <strong>${safeCompetition}</strong>.`
 
-      const heading = isSelf ? 'Your Weekly Update' : `Weekly Update: ${safeContestantName}`
+      const heading = isSelf ? 'Your Weekly Update' : `Weekly Update: ${safeContestant}`
       const subject = isSelf
         ? `Your weekly update — ${competitionName}`
         : `Weekly update on ${contestantName}`
 
-      const ctaUrl = req.profile_url || req.competition_url
-      const ctaLabel = isSelf ? 'View My Profile' : `View ${contestantName}'s Profile`
+      const ctaUrl = isSelf ? (req.profile_url || req.competition_url) : (req.purchase_votes_url || req.competition_url)
+      const ctaLabel = isSelf ? 'View My Profile' : `Purchase votes for ${safeContestant}`
 
       const unsubLine = !isSelf && req.unsubscribe_url
         ? `<p style="color:#666;font-size:12px;margin-top:16px;">
-             Not interested in weekly updates for ${safeContestantName}?
+             Not interested in weekly updates for ${safeContestant}?
              <a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a>.
            </p>`
         : ''
@@ -544,10 +587,49 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
             <h1 style="color:#d4a843;font-size:26px;margin:0 0 8px;">${heading}</h1>
             <p style="color:#ccc;font-size:15px;margin:8px 0 16px;">${intro}</p>
             ${statsRow}
+            ${weeklyVotesLine}
             ${roundEndLine}
             ${nextEventLine}
-            ${ctaUrl ? goldButton(ctaLabel, ctaUrl) : ''}
+            ${ctaUrl ? goldButton(ctaLabel, escapeHtml(ctaUrl)) : ''}
             ${unsubLine}
+          </div>
+        `),
+      }
+    }
+
+    case 'fan_round_closing': {
+      // Raw for the Subject header, escaped for the HTML body.
+      const contestantName = req.contestant_name || 'your contestant'
+      const competitionName = req.competition_name || 'your competition'
+      const safeContestant = escapeHtml(contestantName)
+      const safeCompetition = escapeHtml(competitionName)
+      return {
+        subject: `24 hours left in ${competitionName}`,
+        body: wrapper(`
+          <div style="text-align:center;">
+            <h1 style="color:#d4a843;font-size:26px;margin:0 0 8px;">The round is closing</h1>
+            <p style="color:#ccc;font-size:15px;line-height:1.5;">${safeContestant}'s round in <strong>${safeCompetition}</strong> ends in about 24 hours.</p>
+            ${req.purchase_votes_url ? goldButton(`Purchase votes for ${safeContestant}`, escapeHtml(req.purchase_votes_url)) : ''}
+            ${req.unsubscribe_url ? `<p style="color:#666;font-size:12px;margin-top:16px;"><a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from fan updates.</p>` : ''}
+          </div>
+        `),
+      }
+    }
+
+    case 'fan_vote_boost': {
+      // Raw for the Subject header, escaped for the HTML body.
+      const contestantName = req.contestant_name || 'your contestant'
+      const competitionName = req.competition_name || 'your competition'
+      const safeContestant = escapeHtml(contestantName)
+      const multiplier = req.vote_multiplier === 3 ? 3 : 2
+      return {
+        subject: `${multiplier}× Vote Boost is live — ${competitionName}`,
+        body: wrapper(`
+          <div style="text-align:center;">
+            <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">${multiplier}× Vote Boost</h1>
+            <p style="color:#ccc;font-size:15px;line-height:1.5;">Votes purchased for <strong>${safeContestant}</strong> now receive ${multiplier}× vote credit. The price does not change.</p>
+            ${req.purchase_votes_url ? goldButton(`Purchase votes for ${safeContestant}`, escapeHtml(req.purchase_votes_url)) : ''}
+            ${req.unsubscribe_url ? `<p style="color:#666;font-size:12px;margin-top:16px;"><a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from fan updates.</p>` : ''}
           </div>
         `),
       }
@@ -556,7 +638,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
     case 'vote_receipt': {
       const contestantName = req.contestant_name || 'the contestant'
       const firstName = contestantName.split(' ')[0]
-      const competitionName = req.competition_name || 'Most Eligible'
+      const competitionName = req.competition_name || 'your competition'
       const voteCount = req.vote_count || 0
       const amountPaid = req.amount_paid || 0
       const purchasedVoteCount = req.purchased_vote_count || 0
@@ -679,7 +761,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
     }
 
     case 'subscriber_confirmation': {
-      const competitionName = req.competition_name || 'Most Eligible'
+      const competitionName = req.competition_name || 'your competition'
       const cityLine = req.city_name
         ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">${escapeHtml(req.city_name)}</p>`
         : ''
@@ -708,7 +790,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
     }
 
     case 'nominations_open_subscriber': {
-      const competitionName = req.competition_name || 'Most Eligible'
+      const competitionName = req.competition_name || 'your competition'
       const cityLine = req.city_name
         ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">${escapeHtml(req.city_name)}</p>`
         : ''
@@ -745,41 +827,56 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
 }
 
 /**
- * Ensure the email address has a OneSignal subscription and return its
- * subscription ID. Creates the user+subscription if it doesn't exist.
+ * Resolve a OneSignal email subscription. Fan updates never create or
+ * re-enable one: provider suppression is a veto, not an obstacle to bypass.
  */
 async function ensureEmailSubscription(
   appId: string,
   apiKey: string,
   email: string,
-): Promise<{ subscriptionId: string | null; error?: string }> {
+  allowCreate = true,
+): Promise<{ subscriptionId: string | null; suppressed?: boolean; error?: string }> {
   const headers = {
     'Content-Type': 'application/json',
     'Authorization': `Key ${apiKey}`,
   }
 
   // 1. Try to look up existing user by external_id (we use email as external_id)
+  let lookupFailed = false
   try {
     const lookupRes = await fetch(
-      `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(email)}`,
+      `${ONESIGNAL_API_BASE}/apps/${appId}/users/by/external_id/${encodeURIComponent(email)}`,
       { headers },
     )
 
     if (lookupRes.ok) {
       const userData = await lookupRes.json()
       const emailSub = userData?.subscriptions?.find(
-        (s: { type?: string; token?: string }) =>
+        (s: { type?: string; token?: string; enabled?: boolean }) =>
           s.type === 'Email' && s.token?.toLowerCase() === email.toLowerCase()
       )
+      if (emailSub?.enabled === false) {
+        return { subscriptionId: null, suppressed: true, error: 'provider_suppressed' }
+      }
       if (emailSub?.id) {
         console.log('Found existing OneSignal subscription:', emailSub.id)
         return { subscriptionId: emailSub.id }
       }
-      // User exists but no email subscription — fall through to create one
-      console.log('OneSignal user exists but no email subscription, will add one')
+      if (!allowCreate) {
+        return { subscriptionId: null, suppressed: true, error: 'no_active_provider_subscription' }
+      }
     }
   } catch (lookupErr) {
+    lookupFailed = true
     console.warn('OneSignal user lookup failed:', lookupErr)
+  }
+
+  if (!allowCreate) {
+    return {
+      subscriptionId: null,
+      error: lookupFailed ? 'provider_subscription_lookup_failed' : 'provider_user_not_found',
+      ...(!lookupFailed ? { suppressed: true } : {}),
+    }
   }
 
   // 2. Create user with email subscription
@@ -798,7 +895,7 @@ async function ensureEmailSubscription(
   }
 
   try {
-    const createRes = await fetch(`https://api.onesignal.com/apps/${appId}/users`, {
+    const createRes = await fetch(`${ONESIGNAL_API_BASE}/apps/${appId}/users`, {
       method: 'POST',
       headers,
       body: JSON.stringify(createPayload),
@@ -825,15 +922,18 @@ async function ensureEmailSubscription(
     if (createRes.status === 409) {
       console.log('User already exists (409), retrying lookup...')
       const retryLookup = await fetch(
-        `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(email)}`,
+        `${ONESIGNAL_API_BASE}/apps/${appId}/users/by/external_id/${encodeURIComponent(email)}`,
         { headers },
       )
       if (retryLookup.ok) {
         const retryData = await retryLookup.json()
         const retrySub = retryData?.subscriptions?.find(
-          (s: { type?: string; token?: string }) =>
+          (s: { type?: string; token?: string; enabled?: boolean }) =>
             s.type === 'Email' && s.token?.toLowerCase() === email.toLowerCase()
         )
+        if (retrySub?.enabled === false) {
+          return { subscriptionId: null, suppressed: true, error: 'provider_suppressed' }
+        }
         if (retrySub?.id) {
           return { subscriptionId: retrySub.id }
         }
@@ -856,10 +956,13 @@ async function ensureEmailSubscription(
  * than blocking the send.
  */
 async function resolveSenderName(
+  organizationName?: string | null,
   competitionName?: string | null,
   competitionId?: string | null,
 ): Promise<string> {
   const fallback = Deno.env.get('DEFAULT_BRAND_NAME') || 'EliteRank'
+  const organization = typeof organizationName === 'string' ? organizationName.trim() : ''
+  if (organization) return organization
   const passed = typeof competitionName === 'string' ? competitionName.trim() : ''
   if (passed) return passed
   if (!competitionId) return fallback
@@ -956,8 +1059,16 @@ serve(async (req) => {
     // (the contestant_fans row id); the fan-unsubscribe function verifies
     // the matching signature. Skipped when the caller already supplied an
     // unsubscribe_url (e.g. contestant-self digests point at settings).
+    const fanDeliveryTypes = ['fan_weekly_digest', 'fan_round_closing', 'fan_vote_boost']
+    const isFanDelivery = fanDeliveryTypes.includes(body.type)
+    if (isFanDelivery && !body.delivery_id) {
+      return new Response(
+        JSON.stringify({ error: 'delivery_id is required for idempotent fan delivery' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     const needsFanUnsubLink =
-      (body.type === 'fan_confirmation' || body.type === 'fan_weekly_digest') &&
+      (body.type === 'fan_confirmation' || isFanDelivery) &&
       body.fan_id && !body.unsubscribe_url
     if (needsFanUnsubLink) {
       const unsubSecret = Deno.env.get('FAN_UNSUBSCRIBE_SECRET')
@@ -966,7 +1077,10 @@ serve(async (req) => {
         const token = await signFanToken(body.fan_id!, unsubSecret)
         body.unsubscribe_url = `${supabaseUrl}/functions/v1/fan-unsubscribe?token=${encodeURIComponent(token)}`
       } else {
-        console.warn(`${body.type}: missing FAN_UNSUBSCRIBE_SECRET or SUPABASE_URL — unsubscribe link will not be included`)
+        return new Response(
+          JSON.stringify({ error: 'fan unsubscribe is not configured' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        )
       }
     }
 
@@ -992,17 +1106,34 @@ serve(async (req) => {
 
     // Sender display name = the competition the recipient signed up for (falls
     // back to the platform name for platform-level emails with no competition).
-    const fromName = await resolveSenderName(body.competition_name, body.competition_id)
+    const fromName = await resolveSenderName(
+      body.organization_name,
+      body.competition_name,
+      body.competition_id,
+    )
 
     // Step 1: Ensure the recipient has a OneSignal email subscription.
     // This is critical — include_email_tokens silently fails for unknown
     // emails. By ensuring the subscription exists first and targeting by
     // subscription ID, we guarantee delivery.
-    const { subscriptionId, error: subError } = await ensureEmailSubscription(
+    const { subscriptionId, suppressed, error: subError } = await ensureEmailSubscription(
       appId,
       apiKey,
       body.to_email,
+      !isFanDelivery,
     )
+    if (isFanDelivery && suppressed) {
+      return new Response(
+        JSON.stringify({ success: false, suppressed: true, reason: subError || 'provider_suppressed' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    if (isFanDelivery && !subscriptionId) {
+      return new Response(
+        JSON.stringify({ error: subError || 'provider_subscription_lookup_failed' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
 
     // Build the notification payload — prefer targeting by subscription ID
     // (guaranteed to work) with fallback to email token (works for existing
@@ -1018,6 +1149,7 @@ serve(async (req) => {
       // Reply-To configured on the OneSignal sender.
       email_from_address: 'info@mail.eliterank.co',
       disable_email_click_tracking: true,
+      ...(body.delivery_id ? { idempotency_key: body.delivery_id } : {}),
       data: {
         type: body.type,
         to_email: body.to_email,
@@ -1036,7 +1168,7 @@ serve(async (req) => {
 
     console.log('Sending OneSignal email:', JSON.stringify({ subject, to: body.to_email, method: subscriptionId ? 'subscription_id' : 'email_token' }))
 
-    const osResponse = await fetch('https://api.onesignal.com/notifications', {
+    const osResponse = await fetch(`${ONESIGNAL_API_BASE}/notifications`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1057,15 +1189,15 @@ serve(async (req) => {
       console.error('OneSignal send failed:', JSON.stringify(osResult))
 
       // If we used subscription_id and it still failed, try email_token as last resort
-      if (subscriptionId) {
+      if (subscriptionId && !isFanDelivery) {
         console.log('Subscription ID send failed, retrying with email_token...')
-        const fallbackPayload = {
+        const fallbackPayload: Record<string, unknown> = {
           ...oneSignalPayload,
           include_email_tokens: [body.to_email],
         }
         delete fallbackPayload.include_subscription_ids
 
-        const fallbackRes = await fetch('https://api.onesignal.com/notifications', {
+        const fallbackRes = await fetch(`${ONESIGNAL_API_BASE}/notifications`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

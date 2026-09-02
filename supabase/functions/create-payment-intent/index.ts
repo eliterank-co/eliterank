@@ -12,6 +12,11 @@ interface PaymentRequest {
   contestantId: string
   voteCount: number
   voterEmail?: string
+  // Auth user id (profiles.id) when the buyer is signed in. Carried into the
+  // intent's metadata so the webhook can stamp votes.voter_id — without it the
+  // webhook-authored row is invisible to the buyer under votes RLS
+  // (auth.uid() = voter_id) and the checkout poll can never resolve.
+  voterId?: string
 }
 
 // Mirror of PRICE_BUNDLER_TIERS in src/types/competition.js. Kept inline
@@ -42,7 +47,7 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const { competitionId, contestantId, voteCount, voterEmail }: PaymentRequest = await req.json()
+    const { competitionId, contestantId, voteCount, voterEmail, voterId }: PaymentRequest = await req.json()
 
     // Validate required fields
     if (!competitionId || !contestantId || !voteCount) {
@@ -177,14 +182,22 @@ serve(async (req) => {
     // Important: metadata.vote_count stays as the raw purchase count.
     // stripe-webhook reads it and applies its own doubling at insert time;
     // doubling it here would compound to 4×.
-    const { data: isDoubleRpc } = await supabase.rpc('is_double_vote_day', {
+    const { data: multiplierRpc, error: multiplierError } = await supabase.rpc('effective_vote_multiplier', {
       p_competition_id: competitionId,
     })
-    const isDoubleVoteDay = isDoubleRpc === true
-    const creditedVoteCount = isDoubleVoteDay ? voteCount * 2 : voteCount
+    if (multiplierError || ![1, 2, 3].includes(multiplierRpc)) {
+      console.error('Could not resolve vote multiplier:', multiplierError?.message || 'invalid RPC result')
+      return new Response(
+        JSON.stringify({ error: 'Vote boost status is temporarily unavailable. Please retry.' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const multiplier = multiplierRpc
+    const isDoubleVoteDay = multiplier > 1
+    const creditedVoteCount = voteCount * multiplier
     const compName = competition.name || `Season ${competition.season}`
     const description = isDoubleVoteDay
-      ? `${creditedVoteCount} points (2× Double Vote Day) for ${contestant.name} in ${compName}`
+      ? `${creditedVoteCount} points (${multiplier}× Vote Boost) for ${contestant.name} in ${compName}`
       : `${creditedVoteCount} point${creditedVoteCount > 1 ? 's' : ''} for ${contestant.name} in ${compName}`
 
     // Initialize Stripe
@@ -227,9 +240,14 @@ serve(async (req) => {
           contestant_id: contestantId,
           vote_count: voteCount.toString(),
           voter_email: voterEmail || '',
+          // Captured buyer identity (see PaymentRequest.voterId): the webhook
+          // writes votes.voter_id from this so the row is visible to the
+          // buyer under RLS. Absent for anonymous checkout, like voter_email.
+          voter_id: voterId || '',
           competition_name: compName,
           contestant_name: contestant.name,
           is_double_vote_day: isDoubleVoteDay ? 'true' : 'false',
+          vote_multiplier: multiplier.toString(),
           credited_vote_count: creditedVoteCount.toString(),
           organization_id: competition.organization_id,
           connected_account_id: connectedAccountId,
@@ -258,6 +276,8 @@ serve(async (req) => {
         taxLabel,
         currency,
         voteCount,
+        voteMultiplier: multiplier,
+        creditedVoteCount,
         contestantName: contestant.name,
         connectedAccountId,
       }),
