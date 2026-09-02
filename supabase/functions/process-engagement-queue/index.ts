@@ -6,11 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/** Escape relationship-derived values before interpolating them into HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // =============================================================================
 // TEMPLATE DATA INTERFACE
 // =============================================================================
 
-interface TemplateData {
+export interface TemplateData {
   nominee_name?: string
   nominator_name?: string
   competition_name?: string
@@ -79,7 +89,16 @@ function renderSmsTemplate(type: string, data: TemplateData): string {
 // EMAIL TEMPLATES
 // =============================================================================
 
-function renderEmailTemplate(type: string, data: TemplateData): { subject: string; html: string; text: string } {
+export function renderEmailTemplate(type: string, data: TemplateData): { subject: string; html: string; text: string } {
+  const htmlNomineeName = escapeHtml(data.nominee_name || '')
+  const htmlNominatorName = escapeHtml(data.nominator_name || 'there')
+  const htmlCompetitionName = escapeHtml(data.competition_name || '')
+  const htmlCityName = escapeHtml(data.city_name || '')
+  const htmlClaimUrl = escapeHtml(data.claim_url || '')
+  const htmlProfileUrl = escapeHtml(data.profile_url || '')
+  const htmlCompetitionUrl = escapeHtml(data.competition_url || '')
+  const htmlVotingStarts = escapeHtml(data.voting_starts || 'soon')
+
   const templates: Record<string, () => { subject: string; html: string; text: string }> = {
     
     nomination_reminder_48h: () => ({
@@ -88,16 +107,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #d4af37; margin-bottom: 24px;">You've Been Nominated! 🏆</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Hey ${data.nominee_name},
+            Hey ${htmlNomineeName},
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            ${data.nominator_name ? `<strong>${data.nominator_name}</strong> thinks` : 'Someone thinks'} you're Most Eligible material and nominated you for <strong>${data.competition_name}</strong>!
+            ${data.nominator_name ? `<strong>${htmlNominatorName}</strong> thinks` : 'Someone thinks'} you're Most Eligible material and nominated you for <strong>${htmlCompetitionName}</strong>!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             Don't leave them hanging — accept your nomination and compete for the title (plus a share of the $${(data.prize_pool || 5000).toLocaleString()}+ prize pool).
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.claim_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlClaimUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Accept Nomination
             </a>
           </div>
@@ -115,16 +134,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #d4af37; margin-bottom: 24px;">Last Chance! ⏰</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Hey ${data.nominee_name},
+            Hey ${htmlNomineeName},
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            Your nomination for <strong>${data.competition_name}</strong> is about to expire.
+            Your nomination for <strong>${htmlCompetitionName}</strong> is about to expire.
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             This is your final reminder — after this, you'll miss your chance to compete for the title and prizes.
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.claim_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlClaimUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Accept Before It's Too Late
             </a>
           </div>
@@ -139,21 +158,21 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #22c55e; margin-bottom: 24px;">Great News! 🎉</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Hey ${data.nominator_name || 'there'},
+            Hey ${htmlNominatorName},
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            <strong>${data.nominee_name}</strong> just accepted your nomination and entered <strong>${data.competition_name}</strong>!
+            <strong>${htmlNomineeName}</strong> just accepted your nomination and entered <strong>${htmlCompetitionName}</strong>!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             They're now competing for the title and a share of the prize pool. Want to help them win?
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               View Their Profile & Share
             </a>
           </div>
           <p style="font-size: 14px; color: #888; text-align: center;">
-            Voting starts ${data.voting_starts || 'soon'}. Rally your friends!
+            Voting starts ${htmlVotingStarts}. Rally your friends!
           </p>
         </div>
       `,
@@ -166,16 +185,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #f59e0b; margin-bottom: 24px;">No Response Yet 🤔</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Hey ${data.nominator_name || 'there'},
+            Hey ${htmlNominatorName},
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            <strong>${data.nominee_name}</strong> hasn't responded to your nomination for <strong>${data.competition_name}</strong> yet.
+            <strong>${htmlNomineeName}</strong> hasn't responded to your nomination for <strong>${htmlCompetitionName}</strong> yet.
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             Maybe give them a nudge? Let them know you believe in them!
           </p>
           <p style="font-size: 14px; color: #888; margin-top: 24px;">
-            Know someone else who should enter? <a href="${data.competition_url}" style="color: #d4af37;">Nominate them here</a>.
+            Know someone else who should enter? <a href="${htmlCompetitionUrl}" style="color: #d4af37;">Nominate them here</a>.
           </p>
         </div>
       `,
@@ -188,16 +207,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #22c55e; margin-bottom: 24px;">You're In! 🎉</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Congratulations ${data.nominee_name}!
+            Congratulations ${htmlNomineeName}!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            You've been approved as a contestant for <strong>${data.competition_name}</strong>!
+            You've been approved as a contestant for <strong>${htmlCompetitionName}</strong>!
           </p>
           
           <div style="background: #f8f9fa; border-radius: 12px; padding: 24px; margin: 24px 0;">
             <h3 style="color: #333; margin-top: 0;">You're competing for:</h3>
             <ul style="color: #555; line-height: 1.8;">
-              <li>The title of Most Eligible ${data.city_name}</li>
+              <li>The title of Most Eligible ${htmlCityName}</li>
               <li>A share of the $${(data.prize_pool || 5000).toLocaleString()}+ prize pool</li>
               <li>Bragging rights for a full year</li>
             </ul>
@@ -214,13 +233,13 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
           </div>
 
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               View My Profile
             </a>
           </div>
 
           <p style="font-size: 14px; color: #888; text-align: center;">
-            ${data.voting_starts ? `Voting starts ${data.voting_starts}. Start building your audience now!` : 'Voting starts soon. Get ready!'}
+            ${data.voting_starts ? `Voting starts ${htmlVotingStarts}. Start building your audience now!` : 'Voting starts soon. Get ready!'}
           </p>
         </div>
       `,
@@ -233,10 +252,10 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #d4af37; margin-bottom: 24px;">3 Days to Go! ⏰</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Hey ${data.nominee_name},
+            Hey ${htmlNomineeName},
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            Voting for <strong>${data.competition_name}</strong> starts in just 3 days!
+            Voting for <strong>${htmlCompetitionName}</strong> starts in just 3 days!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             Now's the time to rally your supporters. Make sure your friends and family are ready to vote for you on day one.
@@ -248,12 +267,12 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
               <li>✅ Profile complete with great photo</li>
               <li>✅ Bio that stands out</li>
               <li>✅ Social links added</li>
-              <li>📣 Tell your network voting starts ${data.voting_starts}</li>
+            <li>📣 Tell your network voting starts ${htmlVotingStarts}</li>
             </ul>
           </div>
 
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Share My Profile
             </a>
           </div>
@@ -268,16 +287,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #d4af37; margin-bottom: 24px;">Tomorrow! 🚀</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            ${data.nominee_name}, this is it!
+            ${htmlNomineeName}, this is it!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            Voting for <strong>${data.competition_name}</strong> starts <strong>tomorrow</strong>.
+            Voting for <strong>${htmlCompetitionName}</strong> starts <strong>tomorrow</strong>.
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             Final prep: Make sure everyone knows to vote for you tomorrow. Post on your socials, text your friends, rally your network!
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Get My Shareable Link
             </a>
           </div>
@@ -292,7 +311,7 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #22c55e; margin-bottom: 24px;">It's Go Time! 🗳️</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            ${data.nominee_name}, voting is now LIVE!
+            ${htmlNomineeName}, voting is now LIVE!
           </p>
           
           <div style="background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05)); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
@@ -311,7 +330,7 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
           </div>
 
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               View Leaderboard
             </a>
           </div>
@@ -326,13 +345,13 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #d4af37; margin-bottom: 24px;">First Vote! 🎉</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            Congrats ${data.nominee_name}!
+            Congrats ${htmlNomineeName}!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            You just got your first vote for <strong>${data.competition_name}</strong>! Someone believes in you. Keep the momentum going!
+            You just got your first vote for <strong>${htmlCompetitionName}</strong>! Someone believes in you. Keep the momentum going!
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Share & Get More Votes
             </a>
           </div>
@@ -347,13 +366,13 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #22c55e; margin-bottom: 24px;">Moving Up! 📈</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            ${data.nominee_name}, you're climbing the ranks!
+            ${htmlNomineeName}, you're climbing the ranks!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            You just moved to <strong>#${data.current_rank}</strong> in ${data.competition_name}. Keep pushing!
+            You just moved to <strong>#${data.current_rank}</strong> in ${htmlCompetitionName}. Keep pushing!
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               View Leaderboard
             </a>
           </div>
@@ -368,16 +387,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #ef4444; margin-bottom: 24px;">Time to Rally! ⚠️</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            ${data.nominee_name}, you need more votes!
+            ${htmlNomineeName}, you need more votes!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            You're currently <strong>#${data.current_rank}</strong> in ${data.competition_name}. Only the top contestants advance to the next round.
+            You're currently <strong>#${data.current_rank}</strong> in ${htmlCompetitionName}. Only the top contestants advance to the next round.
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             Share your link and remind your supporters to vote!
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Get More Votes Now
             </a>
           </div>
@@ -392,16 +411,16 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
           <h1 style="color: #f59e0b; margin-bottom: 24px;">Final 24 Hours! ⏰</h1>
           <p style="font-size: 18px; color: #333; line-height: 1.6;">
-            ${data.nominee_name}, the round ends tomorrow!
+            ${htmlNomineeName}, the round ends tomorrow!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
-            You're currently <strong>#${data.current_rank}</strong> in ${data.competition_name}. This is your final push!
+            You're currently <strong>#${data.current_rank}</strong> in ${htmlCompetitionName}. This is your final push!
           </p>
           <p style="font-size: 16px; color: #555; line-height: 1.6;">
             Remind everyone: free votes reset at midnight. Tell them to vote NOW!
           </p>
           <div style="text-align: center; margin: 32px 0;">
-            <a href="${data.profile_url}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
+            <a href="${htmlProfileUrl}" style="display: inline-block; background: linear-gradient(135deg, #d4af37, #b8960c); color: #000; font-weight: 600; padding: 16px 32px; border-radius: 8px; text-decoration: none; font-size: 16px;">
               Share for Final Push
             </a>
           </div>
@@ -415,7 +434,7 @@ function renderEmailTemplate(type: string, data: TemplateData): { subject: strin
   if (!template) {
     return {
       subject: `Update from ${data.competition_name || 'EliteRank'}`,
-      html: `<p>You have an update. <a href="${data.profile_url || data.competition_url}">View details</a></p>`,
+      html: `<p>You have an update. <a href="${htmlProfileUrl || htmlCompetitionUrl}">View details</a></p>`,
       text: `You have an update. View details: ${data.profile_url || data.competition_url}`,
     }
   }
@@ -564,6 +583,7 @@ async function resolveSenderName(
 // MAIN HANDLER
 // =============================================================================
 
+if (Deno.env.get('DENO_TESTING') !== '1') {
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -712,3 +732,4 @@ serve(async (req) => {
     )
   }
 })
+}

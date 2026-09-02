@@ -5,6 +5,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/** Escape relationship-derived values before interpolating them into HTML. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 /**
  * send-photobooth-photo — Sends Lucky Disco photo booth strip via OneSignal email.
  *
@@ -13,21 +23,21 @@ const corsHeaders = {
  *   ONESIGNAL_API_KEY    — OneSignal REST API Key
  */
 
-interface PhotoBoothEmailRequest {
+export interface PhotoBoothEmailRequest {
   to_email: string
   photo_urls: string[]  // Array of individual branded photo URLs
   photo_url?: string    // Legacy single URL (backwards compat)
   nominee_name?: string
 }
 
-function buildPhotoEmail(photoUrls: string[], nomineeName?: string): { subject: string; body: string } {
+export function buildPhotoEmail(photoUrls: string[], nomineeName?: string): { subject: string; body: string } {
   const subject = nomineeName
     ? `Your St. Patrick's Day photos with ${nomineeName} 🍀 Lucky Disco × Most Eligible`
     : `Your St. Patrick's Day photos 🍀 Lucky Disco × Most Eligible`
 
   const photosHtml = photoUrls.map((url, i) => `
     <div style="margin:0 auto 16px;text-align:center;">
-      <img src="${url}" alt="Photo ${i + 1}" width="600" style="width:100%;height:auto;border-radius:8px;display:block;margin:0 auto;" />
+      <img src="${escapeHtml(url)}" alt="Photo ${i + 1}" width="600" style="width:100%;height:auto;border-radius:8px;display:block;margin:0 auto;" />
     </div>
   `).join('')
 
@@ -51,7 +61,7 @@ function buildPhotoEmail(photoUrls: string[], nomineeName?: string): { subject: 
         <div style="text-align:center;">
           <h1 style="color:#fff;font-size:24px;margin:0 0 8px;">Your Photos 🍀</h1>
           <p style="color:rgba(255,255,255,.6);font-size:14px;margin:0 0 24px;">
-            ${nomineeName ? `Featuring ${nomineeName} — ` : ''}Thanks for stopping by the photo booth!
+            ${nomineeName ? `Featuring ${escapeHtml(nomineeName)} — ` : ''}Thanks for stopping by the photo booth!
           </p>
           <p style="color:rgba(255,255,255,.4);font-size:12px;margin:0 0 16px;">
             Long press each photo to save it to your camera roll
@@ -173,6 +183,7 @@ async function ensureEmailSubscription(
   }
 }
 
+if (Deno.env.get('DENO_TESTING') !== '1') {
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -275,3 +286,4 @@ serve(async (req) => {
     )
   }
 })
+}

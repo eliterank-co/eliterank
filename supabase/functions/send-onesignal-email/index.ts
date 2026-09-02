@@ -78,7 +78,7 @@ function escapeHtml(value: string): string {
  *   DEFAULT_BRAND_NAME   — sender name for platform-level emails (default "EliteRank")
  */
 
-interface EmailRequest {
+export interface EmailRequest {
   type: 'nominee_invite' | 'nominee_reminder' | 'self_nominee_reminder' | 'nominator_confirm' | 'nominee_accepted' | 'nominee_declined' | 'account_ready' | 'contestant_promoted' | 'fan_confirmation' | 'fan_weekly_digest' | 'fan_round_closing' | 'fan_vote_boost' | 'vote_receipt' | 'nominations_open_subscriber' | 'subscriber_confirmation' | 'judge_invite'
   to_email: string
   to_name?: string
@@ -156,7 +156,7 @@ async function signFanToken(fanId: string, secret: string): Promise<string> {
 }
 
 // HTML email templates
-function getEmailContent(req: EmailRequest): { subject: string; body: string } {
+export function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   const appUrl = Deno.env.get('APP_URL') || 'https://eliterank.co'
 
   const header = `
@@ -182,7 +182,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   // a link that resolves to nothing is worse than none.
   const footer = `
     <div style="text-align:center;padding:24px 0;border-top:1px solid #333;margin-top:32px;">
-      <a href="${appUrl}" style="color:#d4a843;font-size:12px;text-decoration:none;font-family:Arial,sans-serif;">eliterank.co</a>
+      <a href="${escapeHtml(appUrl)}" style="color:#d4a843;font-size:12px;text-decoration:none;font-family:Arial,sans-serif;">eliterank.co</a>
       <p style="color:#999;font-size:11px;margin-top:8px;font-family:Arial,sans-serif;">
         You're receiving this because of activity on EliteRank.
       </p>
@@ -196,8 +196,8 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   // gradient — without it the button renders with no background at all.
   const goldButton = (text: string, url: string) => `
     <div style="text-align:center;margin:24px 0;">
-      <a href="${url}" style="display:inline-block;padding:14px 32px;background-color:#d4a843;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">
-        ${text}
+      <a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 32px;background-color:#d4a843;background:linear-gradient(135deg,#d4a843,#f4d03f);color:#000;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;font-family:Arial,sans-serif;">
+        ${escapeHtml(text)}
       </a>
     </div>
   `
@@ -214,7 +214,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     <div style="text-align:center;padding:16px 0 0;margin-top:24px;">
       <p style="color:#999;font-size:11px;margin:0;font-family:Arial,sans-serif;line-height:1.5;">
         You signed up for updates about this competition.
-        <a href="${unsubscribeUrl}" style="color:#d4a843;text-decoration:underline;">Unsubscribe</a>.
+        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#d4a843;text-decoration:underline;">Unsubscribe</a>.
       </p>
     </div>
   `
@@ -256,13 +256,13 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
   switch (req.type) {
     case 'nominee_invite': {
       const nominatorLine = req.nominator_name
-        ? `<p style="color:#ccc;font-size:15px;">Nominated by <strong>${req.nominator_name}</strong></p>`
-        : `<p style="color:#ccc;font-size:15px;">Someone thinks you are an Elite in ${req.city_name || 'your city'}!</p>`
+        ? `<p style="color:#ccc;font-size:15px;">Nominated by <strong>${escapeHtml(req.nominator_name)}</strong></p>`
+        : `<p style="color:#ccc;font-size:15px;">Someone thinks you are an Elite in ${escapeHtml(req.city_name || 'your city')}!</p>`
 
       const reasonLine = req.reason
         ? `<div style="background:#1a1a1a;border-left:3px solid #d4a843;padding:12px 16px;margin:16px 0;border-radius:4px;">
             <p style="color:#999;font-size:12px;margin:0 0 4px;">Why you were nominated:</p>
-            <p style="color:#eee;font-size:14px;margin:0;font-style:italic;">"${req.reason}"</p>
+            <p style="color:#eee;font-size:14px;margin:0;font-style:italic;">"${escapeHtml(req.reason)}"</p>
           </div>`
         : ''
 
@@ -280,7 +280,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You've Been Nominated!</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             ${nominatorLine}
             ${reasonLine}
             <p style="color:#999;font-size:14px;margin-top:16px;">
@@ -301,7 +301,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">Almost There!</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             <p style="color:#ccc;font-size:15px;">
               You accepted your nomination — now finish setting up your profile to be eligible to compete.
             </p>
@@ -323,7 +323,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You're So Close!</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             <p style="color:#ccc;font-size:15px;">
               You started entering but didn't finish your profile. Complete it now so the hosts can review and approve you.
             </p>
@@ -347,7 +347,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You've Been Invited to Judge</h1>
             <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name || 'your competition'}</p>
             <p style="color:#ccc;font-size:15px;">
-              You've been selected as a judge${req.city_name ? ` for ${req.city_name}` : ''}. Your scores will help decide who advances and who wins.
+              You've been selected as a judge${req.city_name ? ` for ${escapeHtml(req.city_name)}` : ''}. Your scores will help decide who advances and who wins.
             </p>
             <p style="color:#999;font-size:14px;margin-top:16px;">
               Set up your account and you'll be able to score contestants when the judging round opens.
@@ -363,7 +363,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
 
     case 'nominator_confirm': {
       const nomineeEmailLine = req.nominee_email
-        ? `<p style="color:#999;font-size:13px;margin-top:4px;">We'll send the invite to <strong style="color:#ccc;">${req.nominee_email}</strong></p>`
+        ? `<p style="color:#999;font-size:13px;margin-top:4px;">We'll send the invite to <strong style="color:#ccc;">${escapeHtml(req.nominee_email)}</strong></p>`
         : ''
 
       return {
@@ -371,9 +371,9 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">Nomination Submitted!</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             <p style="color:#ccc;font-size:15px;">
-              You nominated <strong>${req.nominee_name || 'someone special'}</strong>.
+              You nominated <strong>${escapeHtml(req.nominee_name || 'someone special')}</strong>.
             </p>
             ${nomineeEmailLine}
             <p style="color:#999;font-size:14px;margin-top:16px;">
@@ -394,9 +394,9 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">Nomination Accepted!</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             <p style="color:#ccc;font-size:15px;">
-              <strong>${req.nominee_name || 'Your nominee'}</strong> has accepted their nomination! The team is now reviewing their submission — we'll let you know if they are approved as an official contestant.
+              <strong>${escapeHtml(req.nominee_name || 'Your nominee')}</strong> has accepted their nomination! The team is now reviewing their submission — we'll let you know if they are approved as an official contestant.
             </p>
             ${req.competition_url ? goldButton('View Competition', req.competition_url) : ''}
           </div>
@@ -410,9 +410,9 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#999;font-size:28px;margin:0 0 8px;">Nomination Update</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             <p style="color:#ccc;font-size:15px;">
-              Unfortunately, <strong>${req.nominee_name || 'your nominee'}</strong> has decided not to enter the competition at this time.
+              Unfortunately, <strong>${escapeHtml(req.nominee_name || 'your nominee')}</strong> has decided not to enter the competition at this time.
             </p>
             <p style="color:#999;font-size:14px;margin-top:16px;">
               Know someone else who'd be a great fit? You can still nominate more people!
@@ -430,9 +430,9 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">Your Account is Ready!</h1>
-            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${req.competition_name}</p>` : ''}
+            ${req.competition_name ? `<p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(req.competition_name)}</p>` : ''}
             <p style="color:#ccc;font-size:15px;">
-              Hi${req.nominee_name ? ` ${req.nominee_name.split(' ')[0]}` : ''}! Your EliteRank account has been set up with your nomination details.
+              Hi${req.nominee_name ? ` ${escapeHtml(req.nominee_name.split(' ')[0])}` : ''}! Your EliteRank account has been set up with your nomination details.
             </p>
             <p style="color:#ccc;font-size:15px;margin-top:12px;">
               Set your password below so you can log in, view your profile, and track your progress in the competition.
@@ -451,7 +451,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
       const firstName = contestantName ? contestantName.split(' ')[0] : ''
       const competitionName = req.competition_name || 'the competition'
       const cityLine = req.city_name
-        ? `<p style="color:#ccc;font-size:15px;margin-top:4px;">${req.city_name}</p>`
+        ? `<p style="color:#ccc;font-size:15px;margin-top:4px;">${escapeHtml(req.city_name)}</p>`
         : ''
       const ctaUrl = req.profile_url || req.competition_url || appUrl
       return {
@@ -459,10 +459,10 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You're In!</h1>
-            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${competitionName}</p>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(competitionName)}</p>
             ${cityLine}
             <p style="color:#ccc;font-size:15px;margin-top:16px;">
-              Congratulations${firstName ? `, ${firstName}` : ''}! Your nomination has been approved — you're now an official contestant in <strong>${competitionName}</strong>.
+              Congratulations${firstName ? `, ${escapeHtml(firstName)}` : ''}! Your nomination has been approved — you're now an official contestant in <strong>${escapeHtml(competitionName)}</strong>.
             </p>
             <p style="color:#999;font-size:14px;margin-top:16px;">
               Votes are how you climb the ranks. Share your profile, rally your network, and complete bonus tasks to earn extra votes.
@@ -673,7 +673,8 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         ? req.subtotal_amount
         : Math.max(0, amountPaid - taxAmount)
       const taxLabel = req.tax_label || 'Tax'
-      const taxLabelWithRate = req.tax_rate_pct ? `${taxLabel} (${req.tax_rate_pct}%)` : taxLabel
+      const safeTaxLabel = escapeHtml(taxLabel)
+      const taxLabelWithRate = req.tax_rate_pct ? `${safeTaxLabel} (${req.tax_rate_pct}%)` : safeTaxLabel
 
       const amountBlock = amountPaid > 0
         ? (hasTax
@@ -692,10 +693,10 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
       const vendorBlock = hasTax && req.vendor_legal_name
         ? `<div style="text-align:center;margin-top:20px;padding-top:14px;border-top:1px solid #222;">
              <p style="color:#777;font-size:11px;line-height:1.7;margin:0;font-family:Arial,sans-serif;">
-               Sold by <strong style="color:#999;">${req.vendor_legal_name}</strong><br>
-               ${req.vendor_tax_number ? `${taxLabel} Reg. No. ${req.vendor_tax_number}<br>` : ''}
-               ${req.vendor_address ? `${req.vendor_address}<br>` : ''}
-               ${req.receipt_number ? `Receipt No. ${req.receipt_number}` : ''}
+               Sold by <strong style="color:#999;">${escapeHtml(req.vendor_legal_name)}</strong><br>
+               ${req.vendor_tax_number ? `${safeTaxLabel} Reg. No. ${escapeHtml(req.vendor_tax_number)}<br>` : ''}
+               ${req.vendor_address ? `${escapeHtml(req.vendor_address)}<br>` : ''}
+               ${req.receipt_number ? `Receipt No. ${escapeHtml(req.receipt_number)}` : ''}
              </p>
            </div>`
         : ''
@@ -726,15 +727,15 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
       const fanPrompt = isAnonymous
         ? `<div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:16px;margin-top:24px;">
              <p style="color:#ccc;font-size:14px;margin:0 0 12px;">
-               Want to follow ${firstName}'s journey? Create a free account to become a fan and get weekly updates.
+               Want to follow ${escapeHtml(firstName)}'s journey? Create a free account to become a fan and get weekly updates.
              </p>
-             ${req.signup_url ? `<a href="${req.signup_url}" style="display:inline-block;padding:10px 24px;background:transparent;border:1px solid #d4a843;color:#d4a843;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Create Account & Become a Fan</a>` : ''}
+             ${req.signup_url ? `<a href="${escapeHtml(req.signup_url)}" style="display:inline-block;padding:10px 24px;background:transparent;border:1px solid #d4a843;color:#d4a843;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Create Account & Become a Fan</a>` : ''}
            </div>`
         : `<div style="background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:16px;margin-top:24px;">
              <p style="color:#ccc;font-size:14px;margin:0 0 12px;">
-               Want weekly updates on ${firstName}'s progress?
+               Want weekly updates on ${escapeHtml(firstName)}'s progress?
              </p>
-             ${ctaUrl ? `<a href="${ctaUrl}?becomeFan=1" style="display:inline-block;padding:10px 24px;background:transparent;border:1px solid #d4a843;color:#d4a843;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Become a Fan</a>` : ''}
+             ${ctaUrl ? `<a href="${escapeHtml(`${ctaUrl}?becomeFan=1`)}" style="display:inline-block;padding:10px 24px;background:transparent;border:1px solid #d4a843;color:#d4a843;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">Become a Fan</a>` : ''}
            </div>`
 
       return {
@@ -745,8 +746,8 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
             <p style="color:#ccc;font-size:16px;margin:8px 0;">
               You sent <strong style="color:#fff;">${voteText}</strong> to
             </p>
-            <p style="color:#fff;font-size:22px;font-weight:bold;margin:8px 0;">${contestantName}</p>
-            <p style="color:#999;font-size:14px;margin:4px 0;">in ${competitionName}</p>
+            <p style="color:#fff;font-size:22px;font-weight:bold;margin:8px 0;">${escapeHtml(contestantName)}</p>
+            <p style="color:#999;font-size:14px;margin:4px 0;">in ${escapeHtml(competitionName)}</p>
             ${amountBlock}
             ${doubledLine}
             ${rankBlock}
@@ -762,9 +763,9 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     case 'subscriber_confirmation': {
       const competitionName = req.competition_name || 'your competition'
       const cityLine = req.city_name
-        ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">${req.city_name}</p>`
+        ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">${escapeHtml(req.city_name)}</p>`
         : ''
-      const greeting = req.to_name ? `Hi ${req.to_name.split(' ')[0]},` : 'Hi,'
+      const greeting = req.to_name ? `Hi ${escapeHtml(req.to_name.split(' ')[0])},` : 'Hi,'
       const ctaUrl = req.competition_url || appUrl
       const openLine = req.nomination_start
         ? `<p style="color:#ccc;font-size:14px;margin:8px 0;">Nominations open <strong style="color:#fff;">${new Date(req.nomination_start).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>.</p>`
@@ -774,7 +775,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">You're on the list</h1>
-            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${competitionName}</p>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(competitionName)}</p>
             ${cityLine}
             <p style="color:#ccc;font-size:15px;margin-top:20px;text-align:left;">${greeting}</p>
             <p style="color:#ccc;font-size:15px;text-align:left;">
@@ -791,9 +792,9 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
     case 'nominations_open_subscriber': {
       const competitionName = req.competition_name || 'your competition'
       const cityLine = req.city_name
-        ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">${req.city_name}</p>`
+        ? `<p style="color:#ccc;font-size:15px;margin-top:8px;">${escapeHtml(req.city_name)}</p>`
         : ''
-      const greeting = req.to_name ? `Hi ${req.to_name.split(' ')[0]},` : 'Hi,'
+      const greeting = req.to_name ? `Hi ${escapeHtml(req.to_name.split(' ')[0])},` : 'Hi,'
       const ctaUrl = req.competition_url || appUrl
       const deadlineLine = req.nomination_end
         ? `<p style="color:#999;font-size:13px;margin-top:12px;">Nominations close ${new Date(req.nomination_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.</p>`
@@ -803,7 +804,7 @@ function getEmailContent(req: EmailRequest): { subject: string; body: string } {
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">Nominations are open</h1>
-            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${competitionName}</p>
+            <p style="color:#fff;font-size:18px;font-weight:bold;margin:8px 0;">${escapeHtml(competitionName)}</p>
             ${cityLine}
             <p style="color:#ccc;font-size:15px;margin-top:20px;text-align:left;">${greeting}</p>
             <p style="color:#ccc;font-size:15px;text-align:left;">
@@ -1025,6 +1026,7 @@ async function logEmailSend(params: {
   }
 }
 
+if (Deno.env.get('DENO_TESTING') !== '1') {
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -1260,3 +1262,4 @@ serve(async (req) => {
     )
   }
 })
+}
