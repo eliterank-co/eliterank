@@ -22,6 +22,30 @@ const parseDateLocal = (dateStr) => {
   return new Date(dateStr);
 };
 
+// Same treatment as the Timezone select and the calendar-day date input
+// below. Without an explicit background/border the native controls render
+// bare on the dark card and read as disabled; colorScheme: 'dark' is what
+// turns the native calendar/clock glyphs light.
+const fieldStyle = {
+  width: '100%',
+  marginTop: spacing.xs,
+  padding: `${spacing.sm} ${spacing.md}`,
+  background: colors.background.secondary,
+  border: `1px solid ${colors.border.light}`,
+  borderRadius: borderRadius.md,
+  color: colors.text.primary,
+  fontSize: typography.fontSize.base,
+  colorScheme: 'dark',
+  boxSizing: 'border-box',
+};
+
+const fieldLabelStyle = {
+  display: 'block',
+  fontSize: typography.fontSize.sm,
+  fontWeight: typography.fontWeight.medium,
+  color: colors.text.primary,
+};
+
 /**
  * DoubleVoteDaysSection — Engagement tab. Pick calendar dates (in the
  * competition's timezone) when every vote counts twice.
@@ -201,42 +225,42 @@ export default function DoubleVoteDaysSection({
           border: `1px solid ${colors.border.lighter}`,
           borderRadius: borderRadius.md,
         }}>
-          <label style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>
+          <label style={fieldLabelStyle}>
             Starts in {competitionTimezone}
             <input
               type="datetime-local"
               value={boostStart}
               onChange={(event) => setBoostStart(event.target.value)}
-              style={{ width: '100%', marginTop: spacing.xs, padding: spacing.sm }}
+              style={fieldStyle}
             />
           </label>
-          <label style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>
+          <label style={fieldLabelStyle}>
             Ends in {competitionTimezone}
             <input
               type="datetime-local"
               value={boostEnd}
               onChange={(event) => setBoostEnd(event.target.value)}
-              style={{ width: '100%', marginTop: spacing.xs, padding: spacing.sm }}
+              style={fieldStyle}
             />
           </label>
-          <label style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>
+          <label style={fieldLabelStyle}>
             Vote credit
             <select
               value={boostMultiplier}
               onChange={(event) => setBoostMultiplier(Number(event.target.value))}
-              style={{ width: '100%', marginTop: spacing.xs, padding: spacing.sm }}
+              style={fieldStyle}
             >
               <option value={2}>2×</option>
               <option value={3}>3×</option>
             </select>
           </label>
-          <label style={{ fontSize: typography.fontSize.sm, color: colors.text.secondary }}>
+          <label style={fieldLabelStyle}>
             Label (optional)
             <input
               value={boostLabel}
               maxLength={60}
               onChange={(event) => setBoostLabel(event.target.value)}
-              style={{ width: '100%', marginTop: spacing.xs, padding: spacing.sm }}
+              style={fieldStyle}
             />
           </label>
           <div style={{ gridColumn: isMobile ? 'auto' : '1 / -1' }}>
