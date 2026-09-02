@@ -1,7 +1,7 @@
 -- Recipient-level fan-email delivery state. A worker queues deterministic
 -- occurrences, atomically claims a bounded batch, and settles every claim.
 -- Provider dispatch remains independently default-off.
-CREATE TABLE public.fan_email_deliveries (
+CREATE TABLE IF NOT EXISTS public.fan_email_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid REFERENCES public.organizations(id) ON DELETE SET NULL,
   competition_id uuid REFERENCES public.competitions(id) ON DELETE SET NULL,
@@ -31,10 +31,10 @@ CREATE TABLE public.fan_email_deliveries (
   UNIQUE (recipient_id, contestant_id, message_kind, occurrence_key)
 );
 
-CREATE INDEX fan_email_deliveries_claim_idx
+CREATE INDEX IF NOT EXISTS fan_email_deliveries_claim_idx
   ON public.fan_email_deliveries (next_attempt_at, created_at)
   WHERE status IN ('queued', 'failed', 'claimed');
-CREATE INDEX fan_email_deliveries_provider_idx
+CREATE INDEX IF NOT EXISTS fan_email_deliveries_provider_idx
   ON public.fan_email_deliveries (provider_id)
   WHERE provider_id IS NOT NULL;
 

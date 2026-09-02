@@ -63,9 +63,14 @@ GRANT EXECUTE ON FUNCTION app_private.effective_vote_multiplier(uuid, timestampt
 
 -- PostgREST exposes only `public`; this invoker wrapper is the minimum
 -- authenticated read API while row access remains in the private helper.
+-- No DEFAULT on p_now: with one, a one-argument call matches both this
+-- overload and the browser-facing (uuid) form below, and Postgres refuses to
+-- choose ("function public.effective_vote_multiplier(uuid) is not unique") —
+-- is_double_vote_day would fail at CREATE time and PostgREST would answer
+-- every /rpc/effective_vote_multiplier call with PGRST203.
 CREATE OR REPLACE FUNCTION public.effective_vote_multiplier(
   p_competition_id uuid,
-  p_now timestamptz DEFAULT now()
+  p_now timestamptz
 )
 RETURNS integer
 LANGUAGE sql
