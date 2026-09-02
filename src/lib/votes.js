@@ -384,6 +384,7 @@ export async function createVotePaymentIntent({
   contestantId,
   voteCount,
   voterEmail,
+  voterId,
 }) {
   if (!supabase) {
     return { success: false, error: 'Database not configured' };
@@ -411,6 +412,10 @@ export async function createVotePaymentIntent({
         contestantId,
         voteCount,
         voterEmail,
+        // The webhook stamps votes.voter_id from this so the buyer can see
+        // their own paid-vote row under RLS; without it the checkout poll
+        // never resolves for signed-in voters.
+        voterId,
       },
     });
 

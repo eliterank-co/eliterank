@@ -348,6 +348,7 @@ serve(async (req) => {
           contestant_id,
           vote_count,
           voter_email,
+          voter_id: capturedVoterId,
         } = paymentIntent.metadata
 
         if (!competition_id || !contestant_id || !vote_count) {
@@ -460,12 +461,34 @@ serve(async (req) => {
         const isDoubleVoteDay = multiplier > 1
         const voteCount = purchasedVoteCount * multiplier
 
+        // Captured buyer identity (create-payment-intent metadata). The
+        // browser polls for this row by payment_intent_id under votes RLS
+        // (auth.uid() = voter_id), so an authenticated buyer's row MUST
+        // carry voter_id or the checkout UI can never confirm fulfillment.
+        // Metadata is untrusted input: accept it only when it is a well-formed
+        // uuid AND resolves to a real profile row; absent/malformed means
+        // anonymous checkout, exactly like voter_email.
+        const capturedVoterIdRaw = (capturedVoterId || '').trim()
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        let voterIdForInsert: string | null = null
+        if (capturedVoterIdRaw && UUID_RE.test(capturedVoterIdRaw)) {
+          const { data: voterProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', capturedVoterIdRaw)
+            .maybeSingle()
+          if (voterProfile?.id) {
+            voterIdForInsert = voterProfile.id
+          }
+        }
+
         // Record the paid votes
         const { data: insertedVote, error: voteError } = await supabase
           .from('votes')
           .insert({
             competition_id,
             contestant_id,
+            voter_id: voterIdForInsert,
             voter_email: resolvedVoterEmail || null,
             vote_count: voteCount,
             amount_paid: amountPaid,

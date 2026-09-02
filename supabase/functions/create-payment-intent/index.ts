@@ -12,6 +12,11 @@ interface PaymentRequest {
   contestantId: string
   voteCount: number
   voterEmail?: string
+  // Auth user id (profiles.id) when the buyer is signed in. Carried into the
+  // intent's metadata so the webhook can stamp votes.voter_id — without it the
+  // webhook-authored row is invisible to the buyer under votes RLS
+  // (auth.uid() = voter_id) and the checkout poll can never resolve.
+  voterId?: string
 }
 
 // Mirror of PRICE_BUNDLER_TIERS in src/types/competition.js. Kept inline
@@ -42,7 +47,7 @@ serve(async (req) => {
 
   try {
     // Get request body
-    const { competitionId, contestantId, voteCount, voterEmail }: PaymentRequest = await req.json()
+    const { competitionId, contestantId, voteCount, voterEmail, voterId }: PaymentRequest = await req.json()
 
     // Validate required fields
     if (!competitionId || !contestantId || !voteCount) {
@@ -235,6 +240,10 @@ serve(async (req) => {
           contestant_id: contestantId,
           vote_count: voteCount.toString(),
           voter_email: voterEmail || '',
+          // Captured buyer identity (see PaymentRequest.voterId): the webhook
+          // writes votes.voter_id from this so the row is visible to the
+          // buyer under RLS. Absent for anonymous checkout, like voter_email.
+          voter_id: voterId || '',
           competition_name: compName,
           contestant_name: contestant.name,
           is_double_vote_day: isDoubleVoteDay ? 'true' : 'false',

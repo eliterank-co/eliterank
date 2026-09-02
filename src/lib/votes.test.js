@@ -11,7 +11,7 @@ const { supabaseMock } = vi.hoisted(() => ({
 
 vi.mock('./supabase', () => ({ supabase: supabaseMock }));
 
-import { submitAnonymousVote, submitFreeVote, waitForPaidVoteFulfillment } from './votes';
+import { submitAnonymousVote, submitFreeVote, waitForPaidVoteFulfillment, createVotePaymentIntent } from './votes';
 
 describe('submitAnonymousVote', () => {
   const baseInput = {
@@ -345,5 +345,61 @@ describe('waitForPaidVoteFulfillment', () => {
       pending: true,
       error: 'temporarily unavailable',
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createVotePaymentIntent — captured buyer identity. The webhook stamps
+// votes.voter_id from intent metadata so the buyer's own paid-vote row is
+// visible under votes RLS (auth.uid() = voter_id); without voter_id in the
+// invoke body, an authenticated buyer's checkout poll can never resolve.
+// ---------------------------------------------------------------------------
+
+describe('createVotePaymentIntent', () => {
+  beforeEach(() => {
+    supabaseMock.rpc.mockReset();
+    supabaseMock.rpc.mockImplementation((name) => {
+      if (name === 'ensure_round_state') {
+        return makeChain({ data: { active: true, round: { id: 'r1' } }, error: null });
+      }
+      return makeChain({ data: { multiplier: 1, is_double_day: false }, error: null });
+    });
+  });
+
+  it('passes the signed-in voter id through to the edge function body', async () => {
+    const invokeSpy = vi.fn().mockResolvedValue({
+      data: { clientSecret: 'cs_1', paymentIntentId: 'pi_1' },
+      error: null,
+    });
+    supabaseMock.functions = { invoke: invokeSpy };
+
+    await createVotePaymentIntent({
+      competitionId: 'comp-1',
+      contestantId: 'contestant-1',
+      voteCount: 10,
+      voterEmail: 'buyer@example.com',
+      voterId: 'user-1',
+    });
+
+    const { body } = invokeSpy.mock.calls[0][1];
+    expect(body.voterId).toBe('user-1');
+    expect(body.voterEmail).toBe('buyer@example.com');
+  });
+
+  it('omits voter_id (undefined) for anonymous checkout, like voter_email', async () => {
+    const invokeSpy = vi.fn().mockResolvedValue({
+      data: { clientSecret: 'cs_1', paymentIntentId: 'pi_1' },
+      error: null,
+    });
+    supabaseMock.functions = { invoke: invokeSpy };
+
+    await createVotePaymentIntent({
+      competitionId: 'comp-1',
+      contestantId: 'contestant-1',
+      voteCount: 10,
+    });
+
+    const { body } = invokeSpy.mock.calls[0][1];
+    expect(body.voterId).toBeUndefined();
   });
 });

@@ -338,6 +338,9 @@ export default function VoteModal({
         contestantId: contestant.id,
         voteCount: selectedVoteCount,
         voterEmail: user?.email,
+        // Webhook stamps votes.voter_id from this so the buyer's own paid-vote
+        // row is visible under RLS and the checkout poll can confirm it.
+        voterId: userId,
       });
 
       // Bail if the modal was closed while this request was in flight; the
