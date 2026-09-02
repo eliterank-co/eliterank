@@ -1,0 +1,43 @@
+name: Edge functions CI
+
+# Type-checks the edge functions that have unit coverage and runs their tests.
+# No secrets: the functions import supabase-js/std from CDNs and the tests
+# never call a network. DENO_TESTING=1 makes each function skip its top-level
+# serve() so several can be imported into one test process.
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/edge-functions-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/edge-functions-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deno:
+    name: deno check + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: deno check
+        run: |
+          deno check \
+            supabase/functions/send-onesignal-email/index.ts \
+            supabase/functions/process-engagement-queue/index.ts \
+            supabase/functions/send-photobooth-photo/index.ts
+      - name: deno test
+        env:
+          DENO_TESTING: '1'
+        # --no-check: types are covered by the deno check step above; checking
+        # here again drags in esm.sh's `npm:@types/node` reference, which needs
+        # a node_modules directory CI does not have.
+        run: deno test --allow-all --no-check supabase/functions/email-template-escaping_test.ts
