@@ -159,7 +159,13 @@ serve(async (request) => {
     // Empty body is a normal scheduler invocation.
   }
   const dryRun = body.dry_run === true
-  const now = body.now ? new Date(body.now) : new Date()
+  // A caller-supplied clock exists for TESTING a past or future occurrence
+  // without sending anything. It is honoured on dry runs only: once dispatch
+  // is enabled in production, an arbitrary `now` would let any authenticated
+  // caller queue deliveries for occurrence windows the wall clock has
+  // passed — bounded by the gates, but still an unearned queueing lever.
+  // Real sends always use the machine clock.
+  const now = dryRun && body.now ? new Date(body.now) : new Date()
   if (Number.isNaN(now.getTime())) return json(400, { success: false, error: 'invalid_now' })
   const batchSize = Math.min(100, Math.max(1, Math.trunc(body.batch_size || 50)))
   const db = createClient(supabaseUrl, serviceKey, {
