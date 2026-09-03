@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usePublicCompetition } from '../../../contexts/PublicCompetitionContext';
 import { Crown } from 'lucide-react';
-import { isDoubleVoteDayForCompetition } from '../../../lib/doubleVoteDay';
+import { getVoteMultiplierForCompetition } from '../../../lib/doubleVoteDay';
 import { transformSupabaseImage, getOrgLogo } from '../../../lib/storageImage';
 
 /**
@@ -16,17 +16,18 @@ import { transformSupabaseImage, getOrgLogo } from '../../../lib/storageImage';
 export function CompetitionHeader({ badge, badgeIcon: BadgeIcon, badgeVariant = 'default', compact = false, iconOnly = false }) {
   const { competition, organization, about } = usePublicCompetition();
 
-  // Resolve double-vote-day status so the phase badge can flip to a
-  // green "DOUBLE DAY · ALL VOTES 2×" overlay during a host-scheduled
-  // double day. Re-polls every 60s so the badge auto-flips at the
-  // competition's local midnight without requiring a page refresh.
-  const [isDoubleVoteDay, setIsDoubleVoteDay] = useState(false);
+  // Resolve the numeric vote multiplier so the phase badge can flip to a
+  // green "VOTE BOOST · ALL VOTES N×" overlay during a host-scheduled
+  // boost. Numeric, not boolean — a 3× window must read 3×, not 2×.
+  // Re-polls every 60s so the badge auto-flips at the window boundary
+  // without requiring a page refresh.
+  const [voteMultiplier, setVoteMultiplier] = useState(1);
   useEffect(() => {
     if (!competition?.id) return undefined;
     let cancelled = false;
     const refresh = () => {
-      isDoubleVoteDayForCompetition(competition.id).then((flag) => {
-        if (!cancelled) setIsDoubleVoteDay(!!flag);
+      getVoteMultiplierForCompetition(competition.id).then(({ multiplier }) => {
+        if (!cancelled) setVoteMultiplier(multiplier || 1);
       });
     };
     refresh();
@@ -37,8 +38,10 @@ export function CompetitionHeader({ badge, badgeIcon: BadgeIcon, badgeVariant = 
     };
   }, [competition?.id]);
 
+  const isDoubleVoteDay = voteMultiplier > 1;
+
   // Determine badge variant class (overridden to green 'active' style
-  // during a double day so the visual cue matches the inline panel).
+  // during a boost day so the visual cue matches the inline panel).
   const effectiveVariant = isDoubleVoteDay ? 'active' : badgeVariant;
   const badgeClass = {
     default: '',
@@ -46,7 +49,7 @@ export function CompetitionHeader({ badge, badgeIcon: BadgeIcon, badgeVariant = 
     live: 'phase-badge-live',
     complete: 'phase-badge-complete',
   }[effectiveVariant] || '';
-  const effectiveBadge = isDoubleVoteDay ? 'Double Day · All Votes 2×' : badge;
+  const effectiveBadge = isDoubleVoteDay ? `Vote Boost · All Votes ${voteMultiplier}×` : badge;
 
   // Use the single canonical host-uploaded logo everywhere (same file the
   // footer and listings use) so the org's branding is consistent across the

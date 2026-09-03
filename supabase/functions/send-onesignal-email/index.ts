@@ -712,12 +712,20 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
         ? `<p style="color:#ccc;font-size:14px;margin:12px 0;">Voting round ends <strong style="color:#fff;">${formatShortDate(req.voting_round_end)}</strong></p>`
         : ''
 
-      // When the host scheduled today as a double-vote day, the webhook
-      // doubled the purchased count. Tell the voter so the receipt total
-      // doesn't read as a billing bug.
+      // When the host scheduled today as a boost day, the webhook multiplied
+      // the purchased count. Tell the voter so the receipt total doesn't read
+      // as a billing bug. Label matches the multiplier the buyer actually got
+      // (2× legacy double day or 3× scheduled boost).
+      const boostMultiplier = wasDoubled
+        ? (voteCount > 0 && purchasedVoteCount > 0 && voteCount % purchasedVoteCount === 0
+            ? Math.min(10, Math.max(2, voteCount / purchasedVoteCount))
+            : 2)
+        : 1
       const doubledLine = wasDoubled
         ? `<p style="color:#d4a843;font-size:14px;margin:12px 0;font-weight:bold;">
-             Today is a Double Vote Day — your ${purchasedVoteCount.toLocaleString()} paid ${purchasedVoteCount === 1 ? 'vote counts' : 'votes count'} as ${voteCount.toLocaleString()}.
+             ${boostMultiplier > 2
+                ? `${boostMultiplier}× Vote Boost — your ${purchasedVoteCount.toLocaleString()} paid ${purchasedVoteCount === 1 ? 'vote counts' : 'votes count'} as ${voteCount.toLocaleString()}.`
+                : `Today is a Double Vote Day — your ${purchasedVoteCount.toLocaleString()} paid ${purchasedVoteCount === 1 ? 'vote counts' : 'votes count'} as ${voteCount.toLocaleString()}.`}
            </p>`
         : ''
 

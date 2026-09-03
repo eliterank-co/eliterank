@@ -8,7 +8,7 @@ import { CONTESTANT_IMAGES } from '../../../constants';
 import { transformSupabaseImage } from '../../../lib/storageImage';
 import { sortContestantsByStanding } from '../../../utils/contestantRanking';
 
-export default function ContestantsTab({ contestants, events, forceDoubleVoteDay, onVote, isAuthenticated = false, onLogin, isJudgingPhase = false, onViewProfile, currentRound }) {
+export default function ContestantsTab({ contestants, events, forceDoubleVoteDay, voteMultiplier, onVote, isAuthenticated = false, onLogin, isJudgingPhase = false, onViewProfile, currentRound }) {
   // Use currentRound end date if available, otherwise show no countdown
   const roundEndDate = currentRound?.endDate ? new Date(currentRound.endDate) : null;
   const timeLeft = useCountdown(roundEndDate);
@@ -62,7 +62,7 @@ export default function ContestantsTab({ contestants, events, forceDoubleVoteDay
           }
         </p>
 
-        {/* Double Vote Day Alert - only show during voting phase */}
+        {/* Vote Boost Alert - only show during voting phase */}
         {forceDoubleVoteDay && !isJudgingPhase && (
           <div
             style={{
@@ -79,10 +79,10 @@ export default function ContestantsTab({ contestants, events, forceDoubleVoteDay
               <Sparkles size={24} style={{ color: colors.gold.primary }} />
               <div>
                 <p style={{ color: colors.gold.primary, fontWeight: typography.fontWeight.bold, fontSize: typography.fontSize.xl }}>
-                  DOUBLE VOTE DAY!
+                  {voteMultiplier > 2 ? `${voteMultiplier}× VOTE BOOST!` : 'DOUBLE VOTE DAY!'}
                 </p>
                 <p style={{ color: colors.text.light, fontSize: typography.fontSize.md }}>
-                  Every vote counts twice today • $1 = 2 votes
+                  Every vote counts {voteMultiplier > 2 ? `${voteMultiplier}× ` : 'twice '}today • $1 = {voteMultiplier} votes
                 </p>
               </div>
               <Sparkles size={24} style={{ color: colors.gold.primary }} />
