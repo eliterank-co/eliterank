@@ -660,6 +660,7 @@ export default function PublicSitePage({
                   contestants={displayContestants}
                   events={displayEvents}
                   forceDoubleVoteDay={isDoubleVoteDay}
+                  voteMultiplier={voteMultiplier}
                   onVote={setSelectedContestant}
                   isAuthenticated={isAuthenticated}
                   onLogin={onLogin}

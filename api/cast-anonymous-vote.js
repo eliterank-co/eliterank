@@ -442,14 +442,24 @@ export default async function handler(request, response) {
       });
     }
 
-    // ─── Double vote day check (server-side, can't be spoofed by client) ─
-    // is_double_vote_day uses the competition's stored timezone so "today"
-    // means the host's local calendar day, not UTC. See migration 051.
-    const { data: isDoubleRpc } = await supabase.rpc('is_double_vote_day', {
-      p_competition_id: competitionId,
-    });
-    const isDoubleVoteDay = isDoubleRpc === true;
-    const voteCount = isDoubleVoteDay ? 2 : 1;
+    // ─── Vote multiplier (server-side, can't be spoofed by client) ──────
+    // Numeric multiplier, not the boolean double-day flag: a 3× boost
+    // window must credit 3, not the hardcoded 2 the boolean path allowed.
+    // Mirrors submitFreeVote — validate against [1,2,3] and fail closed so
+    // no anonymous vote is recorded with ambiguous credit terms.
+    const { data: multiplierRpc, error: multiplierError } = await supabase.rpc(
+      'effective_vote_multiplier',
+      { p_competition_id: competitionId },
+    );
+    if (multiplierError || ![1, 2, 3].includes(multiplierRpc)) {
+      console.error('Vote multiplier resolution failed:', multiplierError || multiplierRpc);
+      return response.status(503).json({
+        error: 'Vote boost status is temporarily unavailable. Please try again in a moment.',
+        code: 'MULTIPLIER_UNAVAILABLE',
+      });
+    }
+    const voteCount = multiplierRpc;
+    const isDoubleVoteDay = voteCount > 1;
 
     // ─── Insert the vote ─────────────────────────────────────────────────
     const { error: voteErr } = await supabase

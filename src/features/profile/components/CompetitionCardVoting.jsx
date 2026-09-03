@@ -10,7 +10,7 @@ import {
   submitAnonymousVote,
   createVotePaymentIntent,
 } from '../../../lib/votes';
-import { isDoubleVoteDayForCompetition } from '../../../lib/doubleVoteDay';
+import { getVoteMultiplierForCompetition } from '../../../lib/doubleVoteDay';
 import {
   readAnonVoted,
   writeAnonVoted,
@@ -88,11 +88,11 @@ export default function CompetitionCardVoting({
   const [showFreeForm, setShowFreeForm] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  // True when today is a host-scheduled double-vote day for this competition.
-  // Drives the modal's 2× indicator + receipt copy. The free-vote handler
-  // refetches on click for freshness; this state exists for the paid-vote
-  // modal which renders before any user interaction.
-  const [isDoubleVoteDay, setIsDoubleVoteDay] = useState(false);
+  // True when a boost is active for this competition today. Drives the
+  // modal's N× indicator + receipt copy. The free-vote handler refetches
+  // on click for freshness; this state exists for the paid-vote modal
+  // which renders before any user interaction.
+  const [voteMultiplier, setVoteMultiplier] = useState(1);
   // Pre-created PaymentIntent kicked off in the Send click handler so the
   // edge-function round-trip runs in parallel with the modal mounting.
   const [preloadedCheckout, setPreloadedCheckout] = useState({
@@ -155,14 +155,15 @@ export default function CompetitionCardVoting({
     }
   }, []);
 
-  // Resolve double-vote-day status once per competition so the modal can
-  // surface the 2× indicator on open. The free-vote handler still fetches
-  // fresh on click — this state is for render-time consumers only.
+  // Resolve the numeric vote multiplier once per competition so the modal
+  // and inline surfaces can show the true N× on open (a 3× window must read
+  // 3×, not the 2× the boolean fallback produced). The free-vote handler
+  // still fetches fresh on click — this state is for render-time consumers.
   useEffect(() => {
     if (!competitionId) return;
     let cancelled = false;
-    isDoubleVoteDayForCompetition(competitionId).then((flag) => {
-      if (!cancelled) setIsDoubleVoteDay(!!flag);
+    getVoteMultiplierForCompetition(competitionId).then(({ multiplier }) => {
+      if (!cancelled) setVoteMultiplier(multiplier || 1);
     });
     return () => { cancelled = true; };
   }, [competitionId]);
@@ -171,6 +172,8 @@ export default function CompetitionCardVoting({
     if (!currentRound) return null;
     return { ...currentRound, isActive: true };
   }, [currentRound]);
+
+  const isDoubleVoteDay = voteMultiplier > 1;
 
   const stopPropagation = (e) => { e.stopPropagation(); };
 
@@ -306,13 +309,13 @@ export default function CompetitionCardVoting({
 
     setBusy(true);
     setError('');
-    const isDoubleVoteDay = await isDoubleVoteDayForCompetition(competitionId);
     const result = await submitFreeVote({
       userId: user.id,
       voterEmail: user.email,
       competitionId,
       contestantId,
-      isDoubleVoteDay,
+      // Hint only — submitFreeVote re-resolves the multiplier server-side.
+      isDoubleVoteDay: voteMultiplier > 1,
     });
     setBusy(false);
 
@@ -418,7 +421,7 @@ export default function CompetitionCardVoting({
             : `Send votes to ${firstName}`}
         </h4>
 
-        {/* Double-vote-day banner — single source of truth for the 2×
+        {/* Vote-boost banner — single source of truth for the N×
             cue. We deliberately don't repeat the math on every tile or in
             the CTA; one calm signal beats three loud ones. */}
         {isDoubleVoteDay && (
@@ -440,7 +443,7 @@ export default function CompetitionCardVoting({
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
             }}>
-              Double Vote Day · every vote counts 2× today
+              {isDoubleVoteDay ? `${voteMultiplier}× Vote Boost · every vote counts ${voteMultiplier}× today` : ''}
             </span>
           </div>
         )}
@@ -475,6 +478,7 @@ export default function CompetitionCardVoting({
               pricePerVote={pricePerVote}
               useBundler={useBundler}
               isDoubleVoteDay={isDoubleVoteDay}
+              voteMultiplier={voteMultiplier}
               active={Number(selectedCount) === count}
               onClick={handleTileClick(count)}
             />
@@ -542,7 +546,7 @@ export default function CompetitionCardVoting({
                 fontWeight: typography.fontWeight.semibold,
                 color: colors.text.primary,
               }}>
-                {Number(selectedCount) * 2}
+                {Number(selectedCount) * voteMultiplier}
               </span>
               <span style={{
                 fontSize: typography.fontSize.xs,
@@ -619,7 +623,7 @@ export default function CompetitionCardVoting({
             opacity: canSend ? 1 : 0.6,
           }}
         >
-          Send {isDoubleVoteDay ? Number(selectedCount || 0) * 2 : (selectedCount || 0)} {Number(selectedCount) === 1 && !isDoubleVoteDay ? 'vote' : 'votes'} — {formatPrice(total)}
+          Send {isDoubleVoteDay ? Number(selectedCount || 0) * voteMultiplier : (selectedCount || 0)} {Number(selectedCount) === 1 && !isDoubleVoteDay ? 'vote' : 'votes'} — {formatPrice(total)}
         </button>
 
         {/* Free-vote path — hide once the free vote has been successfully
@@ -723,6 +727,7 @@ export default function CompetitionCardVoting({
           votePrice={competition?.price_per_vote}
           useBundler={competition?.use_price_bundler}
           forceDoubleVoteDay={isDoubleVoteDay}
+          voteMultiplier={voteMultiplier}
           externalCheckout
           preloadedClientSecret={preloadedCheckout.clientSecret}
           preloadedPaymentIntentId={preloadedCheckout.paymentIntentId}
@@ -751,17 +756,17 @@ export default function CompetitionCardVoting({
   );
 }
 
-function PresetTile({ count, pricePerVote, useBundler, isDoubleVoteDay, active, onClick }) {
+function PresetTile({ count, pricePerVote, useBundler, isDoubleVoteDay, voteMultiplier = 2, active, onClick }) {
   const total = calculateVotePrice(count, useBundler, pricePerVote);
   const save = Math.max(0, count * pricePerVote - total);
   // Only surface the savings when the delta is meaningful — hides the
   // noisy "save $4" on the 25-vote tile and keeps attention on the big
   // discounts (100 votes = save $30, 250 votes = save $125).
   const showSave = save >= 10;
-  // Strikethrough pattern carries the double-day signal on the count
-  // itself (struck-through original + bold doubled count) so the green
-  // accent slot can stay reserved for the bundler savings only.
-  const displayCount = isDoubleVoteDay ? count * 2 : count;
+  // Strikethrough pattern carries the boost signal on the count itself
+  // (struck-through original + bold multiplied count) so the green accent
+  // slot can stay reserved for the bundler savings only.
+  const displayCount = isDoubleVoteDay ? count * voteMultiplier : count;
 
   return (
     <div style={{ position: 'relative' }}>

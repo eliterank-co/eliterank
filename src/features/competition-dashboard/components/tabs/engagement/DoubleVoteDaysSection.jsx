@@ -31,7 +31,7 @@ const fieldStyle = {
   marginTop: spacing.xs,
   padding: `${spacing.sm} ${spacing.md}`,
   background: colors.background.secondary,
-  border: `1px solid ${colors.border.light}`,
+  border: `1px solid ${colors.border.primary}`,
   borderRadius: borderRadius.md,
   color: colors.text.primary,
   fontSize: typography.fontSize.base,
@@ -183,7 +183,7 @@ export default function DoubleVoteDaysSection({
               width: '100%',
               padding: `${spacing.sm} ${spacing.md}`,
               background: colors.background.secondary,
-              border: `1px solid ${colors.border.light}`,
+              border: `1px solid ${colors.border.primary}`,
               borderRadius: borderRadius.md,
               color: colors.text.primary,
               fontSize: typography.fontSize.base,
@@ -222,7 +222,7 @@ export default function DoubleVoteDaysSection({
           padding: spacing.md,
           marginBottom: spacing.lg,
           background: colors.background.secondary,
-          border: `1px solid ${colors.border.lighter}`,
+          border: `1px solid ${colors.border.secondary}`,
           borderRadius: borderRadius.md,
         }}>
           <label style={fieldLabelStyle}>
@@ -292,7 +292,7 @@ export default function DoubleVoteDaysSection({
                 gap: spacing.md,
                 padding: spacing.md,
                 background: colors.background.secondary,
-                border: `1px solid ${colors.border.lighter}`,
+                border: `1px solid ${colors.border.secondary}`,
                 borderRadius: borderRadius.md,
                 opacity: boost.cancelledAt ? 0.55 : 1,
               }}>
@@ -348,7 +348,7 @@ export default function DoubleVoteDaysSection({
               flex: 1,
               padding: `${spacing.sm} ${spacing.md}`,
               background: colors.background.secondary,
-              border: `1px solid ${colors.border.light}`,
+              border: `1px solid ${colors.border.primary}`,
               borderRadius: borderRadius.md,
               color: colors.text.primary,
               fontSize: typography.fontSize.base,
@@ -397,7 +397,7 @@ export default function DoubleVoteDaysSection({
                   padding: spacing.md,
                   background: colors.background.secondary,
                   borderRadius: borderRadius.md,
-                  border: isToday ? `1px solid ${colors.gold.primary}` : `1px solid ${colors.border.lighter}`,
+                  border: isToday ? `1px solid ${colors.gold.primary}` : `1px solid ${colors.border.secondary}`,
                   opacity: isPast ? 0.55 : 1,
                 }}>
                   <Zap size={18} style={{ color: colors.gold.primary, flexShrink: 0 }} />

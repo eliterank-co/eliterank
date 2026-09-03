@@ -36,6 +36,7 @@ vi.mock('../../../lib/votes', () => ({
 }));
 vi.mock('../../../lib/doubleVoteDay', () => ({
   isDoubleVoteDayForCompetition: vi.fn().mockResolvedValue(false),
+  getVoteMultiplierForCompetition: vi.fn().mockResolvedValue({ multiplier: 1, error: null }),
 }));
 vi.mock('../../../lib/stripe', () => ({ getStripe: vi.fn(), isStripeConfigured: () => false }));
 vi.mock('../../../components/ui', () => ({
