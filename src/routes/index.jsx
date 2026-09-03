@@ -42,6 +42,7 @@ const PrivacyPage = lazy(() => import('../pages/PrivacyPage'));
 const TermsPage = lazy(() => import('../pages/TermsPage'));
 const CookiesPage = lazy(() => import('../pages/CookiesPage'));
 const ContestTermsPage = lazy(() => import('../pages/ContestTermsPage'));
+const RefundPage = lazy(() => import('../pages/RefundPage'));
 const PhotoBoothPage = lazy(() => import('../pages/PhotoBoothPage'));
 const AccountSettingsPage = lazy(() => import('../pages/AccountSettingsPage'));
 const JudgeClaimPage = lazy(() => import('../features/judge/JudgeClaimPage'));
@@ -231,6 +232,14 @@ export default function AppRoutes() {
         element={
           <SuspenseWrapper>
             <ContestTermsPage />
+          </SuspenseWrapper>
+        }
+      />
+      <Route
+        path="/refunds"
+        element={
+          <SuspenseWrapper>
+            <RefundPage />
           </SuspenseWrapper>
         }
       />
