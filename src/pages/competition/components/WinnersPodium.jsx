@@ -27,8 +27,19 @@ function divisionLabel(gender) {
  * Single-winner competitions: large spotlight on the champion
  * Multi-winner / legacy competitions: premium card grid of ranked winners
  */
-export function WinnersPodium() {
-  const { competition, contestants, topThree, openContestantProfile } = usePublicCompetition();
+export function WinnersPodium({
+  competition: propCompetition,
+  contestants: propContestants,
+  topThree: propTopThree,
+  openContestantProfile: propOpenProfile,
+  placementLabels: propPlacementLabels,
+} = {}) {
+  const context = usePublicCompetition() || {};
+  const competition = propCompetition || context.competition;
+  const contestants = propContestants || context.contestants;
+  const topThree = propTopThree || context.topThree;
+  const openContestantProfile = propOpenProfile || context.openContestantProfile;
+  const placementLabels = propPlacementLabels || competition?.winner_placement_labels;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -38,7 +49,7 @@ export function WinnersPodium() {
     if (contestant.user_id) {
       navigate(`/profile/${contestant.user_id}${location.search || ''}`);
     } else {
-      openContestantProfile(contestant);
+      openContestantProfile?.(contestant);
     }
   }, [openContestantProfile, navigate, location.search]);
 
@@ -106,6 +117,7 @@ export function WinnersPodium() {
         year={competition?.season}
         city={competition?.city}
         splitByGender={splitByGender}
+        placementLabels={placementLabels}
       />
     );
   }
@@ -129,7 +141,7 @@ export function WinnersPodium() {
         >
           <div className="winner-place">
             <EliteRankCrown size={32} />
-            <span>Champion</span>
+            <span>{placementLabels?.[0] || 'Champion'}</span>
           </div>
 
           <div className="winner-avatar winner-avatar-large">
@@ -156,7 +168,14 @@ export function WinnersPodium() {
  * Mirrors the Hall of Winners showcase: full-bleed photo cards with a gold
  * ordinal rank badge (1st–5th) and the winner's name over a gradient.
  */
-function WinnersGrid({ winners, onSelect, year, city, splitByGender = false }) {
+export function WinnersGrid({
+  winners,
+  onSelect,
+  year,
+  city,
+  splitByGender = false,
+  placementLabels = null,
+}) {
   const { isMobile } = useResponsive();
   const subtitle = [city, year].filter(Boolean).join(' • ');
 
@@ -170,56 +189,74 @@ function WinnersGrid({ winners, onSelect, year, city, splitByGender = false }) {
 
       {/* Winners Grid - portrait photo cards */}
       <div style={styles.grid}>
-        {winners.map((contestant, index) => (
-          <div
-            key={contestant.id}
-            onClick={() => onSelect?.(contestant)}
-            style={{
-              ...styles.card,
-              width: isMobile ? 'calc(46% - 8px)' : 'calc(20% - 10px)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.55)';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.25)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            {/* Photo fills the card */}
-            {contestant.avatar_url ? (
-              <img
-                src={transformSupabaseImage(contestant.avatar_url, { width: 400, height: 533 })}
-                alt={contestant.name}
-                style={styles.photo}
-              />
-            ) : (
-              <div style={styles.photoPlaceholder}>
-                <User size={32} style={{ color: colors.text.muted }} />
-              </div>
-            )}
+        {winners.map((contestant, index) => {
+          const placementLabel =
+            !splitByGender && Array.isArray(placementLabels) && placementLabels[index]
+              ? placementLabels[index]
+              : null;
 
-            {/* Badge: a crown for gender-split winners (co-equal division
-                champions), an ordinal rank badge otherwise. */}
-            <div style={styles.rankBadge}>
-              {splitByGender ? (
-                <EliteRankCrown size={18} />
+          return (
+            <div
+              key={contestant.id}
+              onClick={() => onSelect?.(contestant)}
+              style={{
+                ...styles.card,
+                width: isMobile ? 'calc(46% - 8px)' : 'calc(20% - 10px)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.55)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.25)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              {/* Photo fills the card */}
+              {contestant.avatar_url ? (
+                <img
+                  src={transformSupabaseImage(contestant.avatar_url, { width: 400, height: 533 })}
+                  alt={contestant.name}
+                  style={styles.photo}
+                />
               ) : (
-                <span style={styles.rankText}>{ordinal(index + 1)}</span>
+                <div style={styles.photoPlaceholder}>
+                  <User size={32} style={{ color: colors.text.muted }} />
+                </div>
               )}
-            </div>
 
-            {/* Name on a gradient background for legibility. Split winners get
-                a gold division label above the name in place of a rank. */}
-            <div style={styles.nameOverlay}>
-              {splitByGender && divisionLabel(contestant.gender) && (
-                <p style={styles.division}>{divisionLabel(contestant.gender)}</p>
-              )}
-              <p style={styles.name}>{contestant.name}</p>
+              {/* Badge: a crown for gender-split winners (co-equal division
+                  champions), a placement label badge if configured, or ordinal rank badge otherwise. */}
+              <div
+                style={{
+                  ...styles.rankBadge,
+                  ...(placementLabel ? styles.placementBadge : {}),
+                }}
+              >
+                {splitByGender ? (
+                  <EliteRankCrown size={18} />
+                ) : (
+                  <span style={styles.rankText}>
+                    {placementLabel || ordinal(index + 1)}
+                  </span>
+                )}
+              </div>
+
+              {/* Name on a gradient background for legibility. Split winners get
+                  a gold division label above the name in place of a rank. Configured
+                  placement titles are also surfaced above the name. */}
+              <div style={styles.nameOverlay}>
+                {splitByGender && divisionLabel(contestant.gender) && (
+                  <p style={styles.division}>{divisionLabel(contestant.gender)}</p>
+                )}
+                {!splitByGender && placementLabel && (
+                  <p style={styles.division}>{placementLabel}</p>
+                )}
+                <p style={styles.name}>{contestant.name}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
@@ -288,8 +325,9 @@ const styles = {
     position: 'absolute',
     top: spacing.sm,
     left: spacing.sm,
-    width: '36px',
+    minWidth: '36px',
     height: '36px',
+    padding: `0 ${spacing.sm}`,
     flexShrink: 0,
     borderRadius: borderRadius.full,
     background: 'rgba(0, 0, 0, 0.65)',
@@ -297,12 +335,17 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    boxSizing: 'border-box',
+  },
+  placementBadge: {
+    padding: `0 ${spacing.md}`,
   },
   rankText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.gold.primary,
     lineHeight: 1,
+    whiteSpace: 'nowrap',
   },
   nameOverlay: {
     position: 'absolute',

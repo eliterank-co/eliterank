@@ -405,6 +405,7 @@ export const DEFAULT_COMPETITION = {
   entry_type: 'nominations',
   has_events: false,
   number_of_winners: 5,
+  winner_placement_labels: null,
   selection_criteria: SELECTION_CRITERIA.VOTES,
   host_id: null,
   description: '',
