@@ -167,7 +167,13 @@ Validate fail-closed via node assertion:
 ```bash
 node -e '
   const { execSync } = require("child_process");
-  const projects = JSON.parse(execSync("supabase projects list --output-format json", { encoding: "utf8" }));
+  const raw = execSync("supabase projects list --output-format json", { encoding: "utf8" });
+  const payload = JSON.parse(raw);
+  const projects = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.projects) ? payload.projects : null);
+  if (!projects) {
+    console.error("FATAL: Malformed output from supabase projects list: projects array not found!");
+    process.exit(1);
+  }
   const target = projects.find(p => p.id === "jioblcflgpqcfdmzjnto");
   if (!target) {
     console.error("FATAL: Target project ref jioblcflgpqcfdmzjnto not found in authenticated account!");

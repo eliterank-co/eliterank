@@ -231,6 +231,15 @@ export function WinnersGrid({
                 style={{
                   ...styles.rankBadge,
                   ...(placementLabel ? styles.placementBadge : {}),
+                  ...(placementLabel && placementLabel.length > 20
+                    ? {
+                        top: '6px',
+                        left: '6px',
+                        maxWidth: 'calc(100% - 12px)',
+                        padding: '2px 4px',
+                        minHeight: '26px',
+                      }
+                    : {}),
                 }}
               >
                 {splitByGender ? (
@@ -239,7 +248,13 @@ export function WinnersGrid({
                   <span
                     style={{
                       ...styles.rankText,
-                      ...(placementLabel && placementLabel.length > 10
+                      ...(placementLabel && placementLabel.length > 20
+                        ? {
+                            fontSize: placementLabel.length > 35 ? '9.5px' : '10.5px',
+                            lineHeight: 1.1,
+                            letterSpacing: '-0.01em',
+                          }
+                        : placementLabel && placementLabel.length > 10
                         ? { fontSize: typography.fontSize.xs }
                         : {}),
                     }}
@@ -252,12 +267,35 @@ export function WinnersGrid({
               {/* Name on a gradient background for legibility. Split winners get
                   a gold division label above the name in place of a rank. Configured
                   placement titles are also surfaced above the name. */}
-              <div style={styles.nameOverlay}>
+              <div
+                style={{
+                  ...styles.nameOverlay,
+                  ...(placementLabel && placementLabel.length > 20
+                    ? {
+                        padding: `10px ${spacing.xs} 4px`,
+                      }
+                    : {}),
+                }}
+              >
                 {splitByGender && divisionLabel(contestant.gender) && (
                   <p style={styles.division}>{divisionLabel(contestant.gender)}</p>
                 )}
                 {!splitByGender && placementLabel && (
-                  <p style={styles.division}>{placementLabel}</p>
+                  <p
+                    style={{
+                      ...styles.division,
+                      ...(placementLabel.length > 20
+                        ? {
+                            fontSize: placementLabel.length > 35 ? '9.5px' : '10.5px',
+                            lineHeight: 1.15,
+                            letterSpacing: '0.02em',
+                            margin: '0 0 2px',
+                          }
+                        : {}),
+                    }}
+                  >
+                    {placementLabel}
+                  </p>
                 )}
                 <p style={styles.name}>{contestant.name}</p>
               </div>

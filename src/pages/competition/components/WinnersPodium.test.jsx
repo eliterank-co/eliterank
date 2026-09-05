@@ -197,9 +197,9 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
 
   it('renders long placement labels with wrapping and font scaling without clipping', () => {
     const longLabels = [
-      'Primera Dama de Honor y Representante',
-      'Segunda Finalista Oficial del Certamen',
-      'Tercera Finalista',
+      'Reina Internacional de la Comunidad y Representación General',
+      'Virreina con un título extraordinariamente largo',
+      'Princesa de la Comunidad',
     ];
     const competition = {
       id: 'comp-long',
@@ -210,7 +210,7 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
       season: '2026',
     };
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <WinnersPodium
           competition={competition}
@@ -223,5 +223,59 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
     expect(screen.getAllByText(longLabels[0]).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(longLabels[1]).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(longLabels[2]).length).toBeGreaterThanOrEqual(1);
+
+    // Layout regression: Verify badge and overlay styles adapt to prevent vertical overlap
+    const cards = container.querySelectorAll('section > div > div');
+    expect(cards.length).toBe(3);
+
+    // Card 1 has the longest label (> 35 chars): check font scaling and compact positioning
+    const card1Badge = cards[0].children[1];
+    const card1BadgeText = card1Badge.querySelector('span');
+    const card1Overlay = cards[0].children[2];
+    const card1Division = card1Overlay.querySelector('p');
+
+    // Badge styling for long labels: compact top, padding, and font size 9.5px
+    expect(card1Badge.style.top).toBe('6px');
+    expect(card1Badge.style.padding).toBe('2px 4px');
+    expect(card1BadgeText.style.fontSize).toBe('9.5px');
+    expect(card1BadgeText.style.lineHeight).toBe('1.1');
+
+    // Overlay and division styling for long labels: reduced top padding and 9.5px uppercase title
+    expect(card1Overlay.style.padding).toContain('10px');
+    expect(card1Division.style.fontSize).toBe('9.5px');
+    expect(card1Division.style.lineHeight).toBe('1.15');
+  });
+
+  it('preserves standard sizing and padding for short placement labels', () => {
+    const shortLabels = ['Reina', 'Virreina', 'Princesa'];
+    const competition = {
+      id: 'comp-short',
+      number_of_winners: 3,
+      winners_split_by_gender: false,
+      winner_placement_labels: shortLabels,
+      winners: ['c-1', 'c-2', 'c-3'],
+      season: '2026',
+    };
+
+    const { container } = render(
+      <MemoryRouter>
+        <WinnersPodium
+          competition={competition}
+          contestants={mockContestants}
+        />
+      </MemoryRouter>
+    );
+
+    const cards = container.querySelectorAll('section > div > div');
+    const card1Badge = cards[0].children[1];
+    const card1BadgeText = card1Badge.querySelector('span');
+    const card1Overlay = cards[0].children[2];
+    const card1Division = card1Overlay.querySelector('p');
+
+    // Standard styling for short labels (<= 10 chars)
+    expect(card1Badge.style.top).toBe('8px');
+    expect(card1Badge.style.padding).toBe('4px 8px');
+    expect(card1BadgeText.style.fontSize).toBe('0.8125rem'); // typography.fontSize.sm
+    expect(card1Division.style.fontSize).toBe('0.75rem'); // typography.fontSize.xs
   });
 });
