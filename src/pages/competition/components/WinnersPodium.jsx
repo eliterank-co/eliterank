@@ -225,42 +225,13 @@ export function WinnersGrid({
                 </div>
               )}
 
-              {/* Badge: a crown for gender-split winners (co-equal division
-                  champions), a placement label badge if configured, or ordinal rank badge otherwise. */}
-              <div
-                style={{
-                  ...styles.rankBadge,
-                  ...(placementLabel ? styles.placementBadge : {}),
-                  ...(placementLabel && placementLabel.length > 20
-                    ? {
-                        top: '6px',
-                        left: '6px',
-                        maxWidth: 'calc(100% - 12px)',
-                        padding: '2px 4px',
-                        minHeight: '26px',
-                      }
-                    : {}),
-                }}
-              >
+              {/* Co-equal division champions keep their crown; ranked winners
+                  always show their ordinal here, with custom titles below. */}
+              <div style={styles.rankBadge}>
                 {splitByGender ? (
                   <EliteRankCrown size={18} />
                 ) : (
-                  <span
-                    style={{
-                      ...styles.rankText,
-                      ...(placementLabel && placementLabel.length > 20
-                        ? {
-                            fontSize: placementLabel.length > 35 ? '9.5px' : '10.5px',
-                            lineHeight: 1.1,
-                            letterSpacing: '-0.01em',
-                          }
-                        : placementLabel && placementLabel.length > 10
-                        ? { fontSize: typography.fontSize.xs }
-                        : {}),
-                    }}
-                  >
-                    {placementLabel || ordinal(index + 1)}
-                  </span>
+                  <span style={styles.rankText}>{ordinal(index + 1)}</span>
                 )}
               </div>
 
@@ -384,10 +355,6 @@ const styles = {
     justifyContent: 'center',
     boxSizing: 'border-box',
     zIndex: 2,
-  },
-  placementBadge: {
-    padding: `4px ${spacing.sm}`,
-    borderRadius: '18px',
   },
   rankText: {
     fontSize: typography.fontSize.sm,

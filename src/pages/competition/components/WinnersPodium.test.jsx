@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { WinnersPodium, WinnersGrid } from './WinnersPodium';
 
@@ -46,10 +46,15 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
       </MemoryRouter>
     );
 
-    // Each placement label appears in the rank badge and division title
-    expect(screen.getAllByText('Reina').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Virreina').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Princesa').length).toBeGreaterThanOrEqual(1);
+    // Each card keeps its ordinal badge and a single custom title above the name.
+    ['Reina', 'Virreina', 'Princesa'].forEach((label, index) => {
+      const name = screen.getByText(mockContestants[index].name);
+      const overlay = name.parentElement;
+      const card = overlay.parentElement;
+      expect(within(card).getByText(['1st', '2nd', '3rd'][index])).toBeInTheDocument();
+      expect(screen.getAllByText(label)).toHaveLength(1);
+      expect(within(overlay).getByText(label).nextElementSibling).toBe(name);
+    });
 
     // Contestant names are present
     expect(screen.getByText('Sofia Alvarez')).toBeInTheDocument();
@@ -195,7 +200,7 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
     expect(handleSelect).toHaveBeenCalledWith(mockContestants[0]);
   });
 
-  it('renders long placement labels with wrapping and font scaling without clipping', () => {
+  it('keeps standard ordinal badges with long custom titles in the bottom overlay', () => {
     const longLabels = [
       'Reina Internacional de la Comunidad y Representación General',
       'Virreina con un título extraordinariamente largo',
@@ -219,7 +224,7 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
       </MemoryRouter>
     );
 
-    // Badges render full text
+    // Bottom custom titles retain their full text
     expect(screen.getAllByText(longLabels[0]).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(longLabels[1]).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(longLabels[2]).length).toBeGreaterThanOrEqual(1);
@@ -234,11 +239,13 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
     const card1Overlay = cards[0].children[2];
     const card1Division = card1Overlay.querySelector('p');
 
-    // Badge styling for long labels: compact top, padding, and font size 9.5px
-    expect(card1Badge.style.top).toBe('6px');
-    expect(card1Badge.style.padding).toBe('2px 4px');
-    expect(card1BadgeText.style.fontSize).toBe('9.5px');
-    expect(card1BadgeText.style.lineHeight).toBe('1.1');
+    // Long custom titles must not resize or replace the ordinal badge.
+    expect(card1BadgeText).toHaveTextContent('1st');
+    expect(card1Badge.style.top).toBe('8px');
+    expect(card1Badge.style.left).toBe('8px');
+    expect(card1Badge.style.padding).toBe('4px 8px');
+    expect(card1BadgeText.style.fontSize).toBe('0.8125rem');
+    expect(card1BadgeText.style.lineHeight).toBe('1.15');
 
     // Overlay and division styling for long labels: reduced top padding and 9.5px uppercase title
     expect(card1Overlay.style.padding).toContain('10px');
