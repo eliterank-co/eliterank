@@ -236,7 +236,14 @@ export function WinnersGrid({
                 {splitByGender ? (
                   <EliteRankCrown size={18} />
                 ) : (
-                  <span style={styles.rankText}>
+                  <span
+                    style={{
+                      ...styles.rankText,
+                      ...(placementLabel && placementLabel.length > 10
+                        ? { fontSize: typography.fontSize.xs }
+                        : {}),
+                    }}
+                  >
                     {placementLabel || ordinal(index + 1)}
                   </span>
                 )}
@@ -326,26 +333,34 @@ const styles = {
     top: spacing.sm,
     left: spacing.sm,
     minWidth: '36px',
-    height: '36px',
-    padding: `0 ${spacing.sm}`,
+    maxWidth: 'calc(100% - 16px)',
+    minHeight: '36px',
+    height: 'auto',
+    padding: `4px ${spacing.sm}`,
     flexShrink: 0,
     borderRadius: borderRadius.full,
-    background: 'rgba(0, 0, 0, 0.65)',
+    background: 'rgba(0, 0, 0, 0.75)',
     border: `1px solid ${colors.gold.primary}`,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     boxSizing: 'border-box',
+    zIndex: 2,
   },
   placementBadge: {
-    padding: `0 ${spacing.md}`,
+    padding: `4px ${spacing.sm}`,
+    borderRadius: '18px',
   },
   rankText: {
     fontSize: typography.fontSize.sm,
     fontWeight: typography.fontWeight.bold,
     color: colors.gold.primary,
-    lineHeight: 1,
-    whiteSpace: 'nowrap',
+    lineHeight: 1.15,
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
+    textAlign: 'center',
+    maxWidth: '100%',
   },
   nameOverlay: {
     position: 'absolute',
@@ -355,6 +370,7 @@ const styles = {
     padding: `${spacing.lg} ${spacing.xs} ${spacing.sm}`,
     background: 'linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.5) 55%, rgba(0, 0, 0, 0) 100%)',
     textAlign: 'center',
+    boxSizing: 'border-box',
   },
   name: {
     fontSize: typography.fontSize.sm,
@@ -370,6 +386,11 @@ const styles = {
     margin: '0 0 2px',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
+    wordBreak: 'break-word',
+    overflowWrap: 'anywhere',
+    hyphens: 'auto',
+    lineHeight: 1.25,
+    maxWidth: '100%',
   },
 };
 

@@ -278,6 +278,11 @@ BEGIN
       v_mws_comp_id, v_comp.winners USING ERRCODE = 'data_exception', HINT = 'mws_winners_already_crowned';
   END IF;
 
+  IF COALESCE(v_comp.winners_split_by_gender, false) = true THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: competition % has winners_split_by_gender = true, expected false',
+      v_mws_comp_id USING ERRCODE = 'data_exception', HINT = 'mws_unexpected_gender_split';
+  END IF;
+
   -- 2. Assert exact round baseline preconditions:
   SELECT * INTO v_round
   FROM public.voting_rounds
@@ -298,9 +303,23 @@ BEGIN
       v_mws_round_id, v_round.finalized_at USING ERRCODE = 'data_exception', HINT = 'mws_round_already_finalized';
   END IF;
 
+  IF v_round.round_type != 'judging' THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: round % has round_type %, expected judging',
+      v_mws_round_id, v_round.round_type USING ERRCODE = 'data_exception', HINT = 'mws_wrong_round_type';
+  END IF;
+
   IF COALESCE(v_round.judge_weight, 0) != 100 THEN
     RAISE EXCEPTION 'Miss Woman Summer baseline drift: round % has judge_weight %, expected 100',
       v_mws_round_id, v_round.judge_weight USING ERRCODE = 'data_exception', HINT = 'mws_round_not_100_percent_judged';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.voting_rounds vr
+    WHERE vr.competition_id = v_mws_comp_id
+      AND vr.round_order > v_round.round_order
+  ) THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: round % is not the final round (a round with higher round_order exists)',
+      v_mws_round_id USING ERRCODE = 'data_exception', HINT = 'mws_not_final_round';
   END IF;
 
   -- Check existing criteria count for MWS
@@ -311,18 +330,9 @@ BEGIN
   -- 3. Case A: Re-run idempotency check.
   -- A rerun may no-op ONLY if the full criteria set, labels, winner count,
   -- and round advancement already match the target exactly.
-  IF v_crit_count = 10 THEN
-    -- Check if all 10 criteria match sort_order, label, and weight exactly
-    SELECT (
-      COUNT(*) = 10
-      AND COUNT(*) FILTER (
-        WHERE jc.label = target.label
-          AND jc.weight = target.weight
-          AND jc.sort_order = target.sort_order
-      ) = 10
-    ) INTO v_exact_match
-    FROM public.judging_criteria jc
-    JOIN (
+  -- Every target criterion must exist exactly once, with no extra, missing, duplicate, or modified rows.
+  IF v_crit_count > 0 THEN
+    WITH target(sort_order, label, weight) AS (
       VALUES
         (1, 'Confidence and Stage Presence / Seguridad y presencia escénica', 1.00::NUMERIC(4,2)),
         (2, 'Presentation and Elegance / Presentación y elegancia', 1.00::NUMERIC(4,2)),
@@ -334,9 +344,37 @@ BEGIN
         (8, 'Creative Swimwear / Traje de baño creativo', 1.00::NUMERIC(4,2)),
         (9, 'Gala / Vestido de gala', 1.00::NUMERIC(4,2)),
         (10, 'Sponsor Swimwear / Traje de baño del patrocinador', 1.00::NUMERIC(4,2))
-    ) AS target(sort_order, label, weight)
-      ON jc.sort_order = target.sort_order
-    WHERE jc.competition_id = v_mws_comp_id;
+    ),
+    actual AS (
+      SELECT sort_order, label, weight
+      FROM public.judging_criteria
+      WHERE competition_id = v_mws_comp_id
+    ),
+    matched_target AS (
+      SELECT
+        t.sort_order,
+        COUNT(a.sort_order) AS match_count
+      FROM target t
+      LEFT JOIN actual a
+        ON a.sort_order = t.sort_order
+       AND a.label = t.label
+       AND a.weight = t.weight
+      GROUP BY t.sort_order
+    ),
+    unmatched_actual AS (
+      SELECT a.sort_order
+      FROM actual a
+      LEFT JOIN target t
+        ON a.sort_order = t.sort_order
+       AND a.label = t.label
+       AND a.weight = t.weight
+      WHERE t.sort_order IS NULL
+    )
+    SELECT (
+      (SELECT COUNT(*) FROM actual) = 10
+      AND (SELECT COUNT(*) FROM matched_target WHERE match_count = 1) = 10
+      AND (SELECT COUNT(*) FROM unmatched_actual) = 0
+    ) INTO v_exact_match;
 
     IF v_exact_match
        AND v_comp.number_of_winners = 3
@@ -345,13 +383,9 @@ BEGIN
       -- Exact rerun idempotency: already in desired state, clean no-op
       RETURN;
     ELSE
-      RAISE EXCEPTION 'Miss Woman Summer criteria drift: 10 criteria exist but do not match exact target configuration'
+      RAISE EXCEPTION 'Miss Woman Summer criteria drift: existing judging criteria do not match exact target configuration'
         USING ERRCODE = 'data_exception', HINT = 'mws_criteria_drift';
     END IF;
-  ELSIF v_crit_count > 0 THEN
-    -- Partial, extra, or unexpected criteria present (baseline was verified 0 criteria)
-    RAISE EXCEPTION 'Miss Woman Summer criteria drift: found % unexpected judging criteria for competition % (verified baseline is 0)',
-      v_crit_count, v_mws_comp_id USING ERRCODE = 'data_exception', HINT = 'mws_criteria_drift';
   END IF;
 
   -- 4. Case B: Clean first application from verified 0-criteria baseline.

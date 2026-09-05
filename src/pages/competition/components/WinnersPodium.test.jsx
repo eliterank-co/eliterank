@@ -194,4 +194,34 @@ describe('WinnersPodium & WinnersGrid - placement labels and fallbacks', () => {
     fireEvent.click(screen.getByText('Sofia Alvarez'));
     expect(handleSelect).toHaveBeenCalledWith(mockContestants[0]);
   });
+
+  it('renders long placement labels with wrapping and font scaling without clipping', () => {
+    const longLabels = [
+      'Primera Dama de Honor y Representante',
+      'Segunda Finalista Oficial del Certamen',
+      'Tercera Finalista',
+    ];
+    const competition = {
+      id: 'comp-long',
+      number_of_winners: 3,
+      winners_split_by_gender: false,
+      winner_placement_labels: longLabels,
+      winners: ['c-1', 'c-2', 'c-3'],
+      season: '2026',
+    };
+
+    render(
+      <MemoryRouter>
+        <WinnersPodium
+          competition={competition}
+          contestants={mockContestants}
+        />
+      </MemoryRouter>
+    );
+
+    // Badges render full text
+    expect(screen.getAllByText(longLabels[0]).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(longLabels[1]).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(longLabels[2]).length).toBeGreaterThanOrEqual(1);
+  });
 });

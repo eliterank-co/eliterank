@@ -150,42 +150,100 @@ LEFT JOIN public.judge_scores js
 
 ---
 
-## 5. Fail-Closed Incident Recovery & Operational Runbook
+## 5. Protected Production Operations & Fail-Closed Incident Recovery
 
-### Operational Invariant: Fail-Closed Protection
-The readiness barrier trigger `trg_check_judging_round_readiness` is strictly fail-closed by design. It prevents any round from finalizing with incomplete, missing, or unsubmitted scores. Under no circumstances should the trigger be dropped during an active competition incident, as dropping the trigger exposes the finale to silent score truncation and corrupted podium outcomes.
+### 5.1 Mandatory Identity Verification Gate
+Every production database interaction or operational intervention on live production MUST be preceded by freshly proving the project identity. Under no circumstances may any command or script be executed against an unverified or ambiguous endpoint.
 
-### Incident Recovery Scenarios:
+Before executing any write query, run this identity proof:
+```sql
+SELECT
+  current_database() AS database,
+  current_user AS db_user,
+  'jioblcflgpqcfdmzjnto' AS expected_project_ref,
+  'EliteRank' AS expected_project_name;
+```
+Verify that the active connection explicitly targets project `jioblcflgpqcfdmzjnto` (EliteRank).
 
-1. **Judge No-Show or Incomplete Scoresheet at Deadline (8:59 p.m. CDT):**
-   - **Symptom:** Finalization fails with exception `incomplete_score_matrix` or `unsubmitted_scores`.
-   - **Action A (Preferred):** Have the assigned judge complete and submit their scoresheet. Once all scores are submitted, re-trigger finalization.
-   - **Action B (Judge Absent / Unreachable):** If a judge cannot submit scores and the host determines the round must finalize with the remaining judges, mark the absent judge as hidden:
+### 5.2 Protected Operations Policy
+All write actions on live production are strictly **Protected Operations** requiring:
+1. Explicit written authorization from owner `guillermovillegas` and the competition host.
+2. Verified project ref `jioblcflgpqcfdmzjnto`.
+3. An audit trail of the decision and action taken.
+
+The following operations are classified as Protected Operations:
+- **Migration Application:** Applying `20260905000000_mws_judging_readiness_and_placement_labels.sql`.
+- **Judge Management:** Inviting judges, revoking invites, or setting `hidden = true` on any judge.
+- **Schedule Changes:** Extending the round deadline or placing a competition hold.
+- **Placement Labels:** Modifying or resetting `winner_placement_labels`.
+- **Round Finalization / Re-finalization:** Invoking `finalize_voting_round`.
+
+### 5.3 Operational Invariant: Fail-Closed Protection
+The readiness barrier trigger `trg_check_judging_round_readiness` is strictly fail-closed by design. It aborts and rolls back any transaction attempting to finalize a round with `judge_weight > 0` unless all criteria exist, all active judges are claimed, and every judge has submitted all scores. Under no circumstances may the trigger be dropped or disabled during an incident, as doing so removes the barrier and causes silent score truncation or unranked winners.
+
+### 5.4 Diagnostic Hints & Incident Recovery Scenarios
+
+When finalization is blocked, the trigger raises a PostgreSQL exception with a specific diagnostic `HINT`. Use the exact diagnostic hint to identify the cause:
+
+1. **`incomplete_score_matrix` (Missing Judge Scores):**
+   - **Trigger Diagnostic:** `HINT = 'incomplete_score_matrix'`
+   - **Symptom:** Exception: `Judging readiness barrier: round % is missing % required score(s) across active judges, contestants, and criteria`.
+   - **Protected Decision & Action:**
+     - **Action A (Preferred):** Contact the assigned judge to complete and submit their scoresheet before the deadline. Once submitted, re-trigger finalization.
+     - **Action B (Absent / No-Show Judge — Requires Host Written Approval):** If a judge is confirmed absent/unreachable and the host officially determines the competition will proceed with the remaining judges, the host/owner must explicitly approve marking that specific judge as hidden:
+       ```sql
+       -- REQUIRES OWNER & HOST AUTHORIZATION
+       -- Verify project ref: jioblcflgpqcfdmzjnto
+       UPDATE public.judges
+       SET hidden = true
+       WHERE id = '<unresponsive_judge_id>'
+         AND competition_id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
+       ```
+       Setting `hidden = true` auditably removes that judge from the required matrix calculation while preserving all historical records. Finalization can then proceed safely with the remaining claimed judges.
+
+2. **`unsubmitted_draft_scores` (Unsubmitted Draft Scores):**
+   - **Trigger Diagnostic:** `HINT = 'unsubmitted_draft_scores'`
+   - **Symptom:** Exception: `Judging readiness barrier: round % has % unsubmitted draft score(s)`.
+   - **Protected Decision & Action:**
+     - The judge entered scores but has not clicked "Submit".
+     - Have the judge click "Submit Scores" to set `submitted_at = NOW()`.
+     - Once all draft scores are submitted, re-trigger finalization.
+
+3. **`unclaimed_judges` (Unclaimed Judge Invitation):**
+   - **Trigger Diagnostic:** `HINT = 'unclaimed_judges'`
+   - **Symptom:** Exception: `Judging readiness barrier: competition % has % unclaimed active judge(s)`.
+   - **Protected Decision & Action:**
+     - An invited judge has `claimed_at IS NULL` or `user_id IS NULL`.
+     - **Action A:** Have the judge log in via their invite link to claim their seat.
+     - **Action B (Unused Invite — Requires Host Written Approval):** If the invite was abandoned or sent in error, the host/owner must explicitly approve marking that specific unclaimed judge record as hidden:
+       ```sql
+       -- REQUIRES OWNER & HOST AUTHORIZATION
+       -- Verify project ref: jioblcflgpqcfdmzjnto
+       UPDATE public.judges
+       SET hidden = true
+       WHERE id = '<unclaimed_judge_id>'
+         AND competition_id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3'
+         AND (claimed_at IS NULL OR user_id IS NULL);
+       ```
+
+4. **`judging_criteria_missing` (No Criteria Configured):**
+   - **Trigger Diagnostic:** `HINT = 'judging_criteria_missing'`
+   - **Symptom:** Exception: `Judging readiness barrier: competition % has no judging criteria configured`.
+   - **Action:** The 10 bilingual criteria must be installed via migration `20260905000000_mws_judging_readiness_and_placement_labels.sql`.
+
+5. **`judges_missing` (No Judges Configured):**
+   - **Trigger Diagnostic:** `HINT = 'judges_missing'`
+   - **Symptom:** Exception: `Judging readiness barrier: competition % has no active (non-hidden) judges`.
+   - **Action:** At least one non-hidden judge must be assigned and claimed.
+
+6. **Podium Placement Labels Adjustment (Protected Operation):**
+   - If placement titles need adjustment, execute only with explicit host/owner approval:
      ```sql
-     UPDATE public.judges
-     SET hidden = true
-     WHERE id = '<unresponsive_judge_id>'
-       AND competition_id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
-     ```
-     Setting `hidden = true` auditably removes that judge from the required matrix calculation while preserving all audit logs and historical records. Finalization can then proceed safely with the remaining claimed judges.
-
-2. **Unclaimed Judge Invitation:**
-   - **Symptom:** Finalization fails with `unclaimed_judges_present`.
-   - **Action:** An invited judge never logged in or claimed their invite. If they are not participating, mark them `hidden = true`:
-     ```sql
-     UPDATE public.judges
-     SET hidden = true
-     WHERE competition_id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3'
-       AND hidden = false
-       AND (claimed_at IS NULL OR user_id IS NULL);
-     ```
-
-3. **Podium Placement Labels Adjustment:**
-   - If placement labels need adjustment:
-     ```sql
+     -- REQUIRES OWNER & HOST AUTHORIZATION
+     -- Verify project ref: jioblcflgpqcfdmzjnto
      UPDATE public.competitions
      SET winner_placement_labels = ARRAY['Reina', 'Virreina', 'Princesa']
      WHERE id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
      ```
-   - If placement labels are set to `NULL`, the UI automatically falls back to standard `1st`, `2nd`, `3rd` ordinal rank badges.
-   - Labels must satisfy the `validate_placement_labels` constraint: cardinality $\le$ `number_of_winners`, non-empty trimmed strings, no empty elements.
+   - Labels must satisfy the `validate_placement_labels` constraint: cardinality $\le$ `number_of_winners`, non-empty trimmed strings, no empty or duplicate elements.
+   - If set to `NULL`, the UI automatically falls back to standard `1st`, `2nd`, `3rd` ordinal rank badges.
