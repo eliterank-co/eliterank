@@ -150,23 +150,42 @@ LEFT JOIN public.judge_scores js
 
 ---
 
-## 5. Rollback & Forward-Fix Analysis
+## 5. Fail-Closed Incident Recovery & Operational Runbook
 
-### Rollback Strategy:
-- The migration is forward-only. If the barrier trigger needs to be temporarily deactivated in an emergency without rolling back data:
-  ```sql
-  DROP TRIGGER IF EXISTS trg_check_judging_round_readiness ON public.voting_rounds;
-  ```
-- Dropping the trigger returns finalization behavior to previous un-gated execution while preserving the configured criteria, round advancement settings, and winner labels.
-- If placement labels need to be cleared:
-  ```sql
-  UPDATE public.competitions
-  SET winner_placement_labels = NULL
-  WHERE id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
-  ```
-  The UI will automatically fall back to standard `1st`, `2nd`, `3rd` ordinal rank badges.
+### Operational Invariant: Fail-Closed Protection
+The readiness barrier trigger `trg_check_judging_round_readiness` is strictly fail-closed by design. It prevents any round from finalizing with incomplete, missing, or unsubmitted scores. Under no circumstances should the trigger be dropped during an active competition incident, as dropping the trigger exposes the finale to silent score truncation and corrupted podium outcomes.
 
-### Residual Risks:
-- **Judge No-Show / Incomplete Scoring:** If a judge accepts an invite but fails to submit scores for all 13 contestants before 8:59 p.m. CDT, the barrier will block finalization. Host administrators can either:
-  1. Have the judge submit their scoresheet; OR
-  2. Mark the unresponsive judge `hidden = true` (which excludes them from the readiness calculation).
+### Incident Recovery Scenarios:
+
+1. **Judge No-Show or Incomplete Scoresheet at Deadline (8:59 p.m. CDT):**
+   - **Symptom:** Finalization fails with exception `incomplete_score_matrix` or `unsubmitted_scores`.
+   - **Action A (Preferred):** Have the assigned judge complete and submit their scoresheet. Once all scores are submitted, re-trigger finalization.
+   - **Action B (Judge Absent / Unreachable):** If a judge cannot submit scores and the host determines the round must finalize with the remaining judges, mark the absent judge as hidden:
+     ```sql
+     UPDATE public.judges
+     SET hidden = true
+     WHERE id = '<unresponsive_judge_id>'
+       AND competition_id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
+     ```
+     Setting `hidden = true` auditably removes that judge from the required matrix calculation while preserving all audit logs and historical records. Finalization can then proceed safely with the remaining claimed judges.
+
+2. **Unclaimed Judge Invitation:**
+   - **Symptom:** Finalization fails with `unclaimed_judges_present`.
+   - **Action:** An invited judge never logged in or claimed their invite. If they are not participating, mark them `hidden = true`:
+     ```sql
+     UPDATE public.judges
+     SET hidden = true
+     WHERE competition_id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3'
+       AND hidden = false
+       AND (claimed_at IS NULL OR user_id IS NULL);
+     ```
+
+3. **Podium Placement Labels Adjustment:**
+   - If placement labels need adjustment:
+     ```sql
+     UPDATE public.competitions
+     SET winner_placement_labels = ARRAY['Reina', 'Virreina', 'Princesa']
+     WHERE id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
+     ```
+   - If placement labels are set to `NULL`, the UI automatically falls back to standard `1st`, `2nd`, `3rd` ordinal rank badges.
+   - Labels must satisfy the `validate_placement_labels` constraint: cardinality $\le$ `number_of_winners`, non-empty trimmed strings, no empty elements.

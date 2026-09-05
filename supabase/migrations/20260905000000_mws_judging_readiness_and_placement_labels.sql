@@ -1,7 +1,9 @@
 -- =============================================================================
 -- 20260905000000_mws_judging_readiness_and_placement_labels.sql
 --
--- 1. Add optional generic winner_placement_labels TEXT[] to competitions.
+-- 1. Add optional generic winner_placement_labels TEXT[] to competitions
+--    with coherent validation: non-null, non-empty, trimmed strings, with
+--    cardinality <= number_of_winners.
 -- 2. Add an atomic judging-readiness barrier (BEFORE UPDATE OF finalized_at on
 --    voting_rounds) that prevents any round with judge_weight > 0 from
 --    finalizing unless:
@@ -14,17 +16,56 @@
 --      - No required score row is an unsubmitted draft
 --    Hidden preview judges do not participate in readiness. Pure-vote rounds
 --    (judge_weight = 0) are completely unaffected.
--- 3. Idempotently configure the live Miss Woman Summer competition record
+-- 3. Fail-closed & exactly-idempotent configuration of Miss Woman Summer
 --    (id: 16276ff8-be5b-47c5-8178-2d463fb7dcc3):
---      - number_of_winners = 3
---      - winner_placement_labels = ['Reina', 'Virreina', 'Princesa']
---      - final round contestants_advance = 3
---      - 10 official bilingual criteria with equal weight 1.00 (order 1-10)
+--      - Asserts exact unfinalized, uncompleted, 100%-judged baseline; rolls
+--        back on any drift
+--      - Clean 1st run inserts exact 10 bilingual criteria with weight 1.00
+--      - Re-run only no-ops on exact match of criteria, labels, and advance count
+--      - Partial, extra, or relabeled criteria raise as drift
 -- =============================================================================
 
 -- ──────────────────────────────────────────────────────────────────────────
--- 1. competitions.winner_placement_labels
+-- 1. competitions.winner_placement_labels validation & column
 -- ──────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.validate_placement_labels(p_labels TEXT[], p_max INTEGER)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  v_label TEXT;
+  v_seen TEXT[] := '{}';
+BEGIN
+  IF p_labels IS NULL THEN
+    RETURN TRUE;
+  END IF;
+
+  IF array_ndims(p_labels) != 1 THEN
+    RETURN FALSE;
+  END IF;
+
+  IF cardinality(p_labels) < 1 OR cardinality(p_labels) > COALESCE(p_max, 1) THEN
+    RETURN FALSE;
+  END IF;
+
+  FOREACH v_label IN ARRAY p_labels LOOP
+    IF v_label IS NULL OR trim(v_label) = '' THEN
+      RETURN FALSE;
+    END IF;
+    IF trim(v_label) = ANY(v_seen) THEN
+      RETURN FALSE;
+    END IF;
+    v_seen := array_append(v_seen, trim(v_label));
+  END LOOP;
+
+  RETURN TRUE;
+END;
+$$;
+
+COMMENT ON FUNCTION public.validate_placement_labels IS
+  'Validates that winner_placement_labels is a 1D array of non-empty strings with cardinality not exceeding number_of_winners.';
+
 ALTER TABLE public.competitions
   ADD COLUMN IF NOT EXISTS winner_placement_labels TEXT[];
 
@@ -35,13 +76,7 @@ BEGIN
   ) THEN
     ALTER TABLE public.competitions
       ADD CONSTRAINT competitions_winner_placement_labels_check
-      CHECK (
-        winner_placement_labels IS NULL OR (
-          array_ndims(winner_placement_labels) = 1
-          AND array_position(winner_placement_labels, NULL) IS NULL
-          AND cardinality(winner_placement_labels) <= 50
-        )
-      );
+      CHECK (public.validate_placement_labels(winner_placement_labels, number_of_winners));
   END IF;
 END;
 $$;
@@ -112,7 +147,9 @@ BEGIN
       USING ERRCODE = 'check_violation', HINT = 'unclaimed_judges';
   END IF;
 
-  -- 4. Active contestants check
+  -- 4. Active contestants check:
+  -- When finalize_voting_round runs, it mutates contestant status before updating voting_rounds.
+  -- Derive active contestants from NEW.finalized_snapshot, falling back to contestants table.
   WITH active_contestants AS (
     SELECT DISTINCT (elem->>'contestant_id')::UUID AS id
     FROM jsonb_array_elements(NEW.finalized_snapshot) AS elem
@@ -209,50 +246,141 @@ COMMENT ON FUNCTION public.check_judging_round_readiness IS
   'Atomic judging readiness barrier: prevents finalization of rounds with judge_weight > 0 unless judging criteria exist, active judges are claimed, and every active judge has submitted all scores for all active contestants across all criteria.';
 
 -- ──────────────────────────────────────────────────────────────────────────
--- 3. Idempotent configuration of Miss Woman Summer
+-- 3. Fail-Closed & Exactly-Idempotent Configuration of Miss Woman Summer
 -- ──────────────────────────────────────────────────────────────────────────
 DO $$
 DECLARE
-  v_mws_comp_id CONSTANT UUID := '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
+  v_mws_comp_id  CONSTANT UUID := '16276ff8-be5b-47c5-8178-2d463fb7dcc3';
   v_mws_round_id CONSTANT UUID := '85373939-f51b-48df-86ca-cbdaeca51663';
+  v_comp         public.competitions%ROWTYPE;
+  v_round        public.voting_rounds%ROWTYPE;
+  v_crit_count   INTEGER;
+  v_exact_match  BOOLEAN;
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.competitions WHERE id = v_mws_comp_id) THEN
-    -- Update competition winner count and placement labels
-    UPDATE public.competitions
-    SET
-      number_of_winners = 3,
-      winner_placement_labels = ARRAY['Reina', 'Virreina', 'Princesa']::TEXT[],
-      updated_at = NOW()
-    WHERE id = v_mws_comp_id;
-
-    -- Update final voting round contestants_advance
-    UPDATE public.voting_rounds
-    SET
-      contestants_advance = 3
-    WHERE id = v_mws_round_id
-      AND competition_id = v_mws_comp_id;
-
-    -- Idempotently insert the 10 official criteria
-    INSERT INTO public.judging_criteria (competition_id, label, weight, sort_order)
-    SELECT v_mws_comp_id, c.label, c.weight, c.sort_order
-    FROM (
-      VALUES
-        ('Confidence and Stage Presence / Seguridad y presencia escénica', 1.00, 1),
-        ('Presentation and Elegance / Presentación y elegancia', 1.00, 2),
-        ('Personality and Charisma / Personalidad y carisma', 1.00, 3),
-        ('Creativity and Adaptability / Creatividad y adaptabilidad', 1.00, 4),
-        ('Activity Attendance and Participation / Asistencia y participación', 1.00, 5),
-        ('Sisterhood and Relationships with the other candidates / Compañerismo y relación con las demás candidatas', 1.00, 6),
-        ('Overall Representation / Representación general', 1.00, 7),
-        ('Creative Swimwear / Traje de baño creativo', 1.00, 8),
-        ('Gala / Vestido de gala', 1.00, 9),
-        ('Sponsor Swimwear / Traje de baño del patrocinador', 1.00, 10)
-    ) AS c(label, weight, sort_order)
-    WHERE NOT EXISTS (
-      SELECT 1 FROM public.judging_criteria jc
-      WHERE jc.competition_id = v_mws_comp_id
-        AND jc.label = c.label
-    );
+  -- If MWS does not exist at all in this database (e.g. standalone test environment
+  -- where MWS has not been seeded), skip configuration cleanly.
+  IF NOT EXISTS (SELECT 1 FROM public.competitions WHERE id = v_mws_comp_id) THEN
+    RETURN;
   END IF;
+
+  -- 1. Assert exact competition baseline preconditions:
+  SELECT * INTO v_comp
+  FROM public.competitions
+  WHERE id = v_mws_comp_id;
+
+  IF v_comp.status = 'completed' THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: competition % is already completed',
+      v_mws_comp_id USING ERRCODE = 'data_exception', HINT = 'mws_already_completed';
+  END IF;
+
+  IF v_comp.winners IS NOT NULL AND cardinality(v_comp.winners) > 0 THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: competition % already has crowned winners %',
+      v_mws_comp_id, v_comp.winners USING ERRCODE = 'data_exception', HINT = 'mws_winners_already_crowned';
+  END IF;
+
+  -- 2. Assert exact round baseline preconditions:
+  SELECT * INTO v_round
+  FROM public.voting_rounds
+  WHERE id = v_mws_round_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: expected final round % not found',
+      v_mws_round_id USING ERRCODE = 'data_exception', HINT = 'mws_round_missing';
+  END IF;
+
+  IF v_round.competition_id != v_mws_comp_id THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: round % belongs to competition %, expected %',
+      v_mws_round_id, v_round.competition_id, v_mws_comp_id USING ERRCODE = 'data_exception', HINT = 'mws_round_competition_mismatch';
+  END IF;
+
+  IF v_round.finalized_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: round % is already finalized at %',
+      v_mws_round_id, v_round.finalized_at USING ERRCODE = 'data_exception', HINT = 'mws_round_already_finalized';
+  END IF;
+
+  IF COALESCE(v_round.judge_weight, 0) != 100 THEN
+    RAISE EXCEPTION 'Miss Woman Summer baseline drift: round % has judge_weight %, expected 100',
+      v_mws_round_id, v_round.judge_weight USING ERRCODE = 'data_exception', HINT = 'mws_round_not_100_percent_judged';
+  END IF;
+
+  -- Check existing criteria count for MWS
+  SELECT COUNT(*) INTO v_crit_count
+  FROM public.judging_criteria
+  WHERE competition_id = v_mws_comp_id;
+
+  -- 3. Case A: Re-run idempotency check.
+  -- A rerun may no-op ONLY if the full criteria set, labels, winner count,
+  -- and round advancement already match the target exactly.
+  IF v_crit_count = 10 THEN
+    -- Check if all 10 criteria match sort_order, label, and weight exactly
+    SELECT (
+      COUNT(*) = 10
+      AND COUNT(*) FILTER (
+        WHERE jc.label = target.label
+          AND jc.weight = target.weight
+          AND jc.sort_order = target.sort_order
+      ) = 10
+    ) INTO v_exact_match
+    FROM public.judging_criteria jc
+    JOIN (
+      VALUES
+        (1, 'Confidence and Stage Presence / Seguridad y presencia escénica', 1.00::NUMERIC(4,2)),
+        (2, 'Presentation and Elegance / Presentación y elegancia', 1.00::NUMERIC(4,2)),
+        (3, 'Personality and Charisma / Personalidad y carisma', 1.00::NUMERIC(4,2)),
+        (4, 'Creativity and Adaptability / Creatividad y adaptabilidad', 1.00::NUMERIC(4,2)),
+        (5, 'Activity Attendance and Participation / Asistencia y participación', 1.00::NUMERIC(4,2)),
+        (6, 'Sisterhood and Relationships with the other candidates / Compañerismo y relación con las demás candidatas', 1.00::NUMERIC(4,2)),
+        (7, 'Overall Representation / Representación general', 1.00::NUMERIC(4,2)),
+        (8, 'Creative Swimwear / Traje de baño creativo', 1.00::NUMERIC(4,2)),
+        (9, 'Gala / Vestido de gala', 1.00::NUMERIC(4,2)),
+        (10, 'Sponsor Swimwear / Traje de baño del patrocinador', 1.00::NUMERIC(4,2))
+    ) AS target(sort_order, label, weight)
+      ON jc.sort_order = target.sort_order
+    WHERE jc.competition_id = v_mws_comp_id;
+
+    IF v_exact_match
+       AND v_comp.number_of_winners = 3
+       AND v_comp.winner_placement_labels = ARRAY['Reina', 'Virreina', 'Princesa']::TEXT[]
+       AND v_round.contestants_advance = 3 THEN
+      -- Exact rerun idempotency: already in desired state, clean no-op
+      RETURN;
+    ELSE
+      RAISE EXCEPTION 'Miss Woman Summer criteria drift: 10 criteria exist but do not match exact target configuration'
+        USING ERRCODE = 'data_exception', HINT = 'mws_criteria_drift';
+    END IF;
+  ELSIF v_crit_count > 0 THEN
+    -- Partial, extra, or unexpected criteria present (baseline was verified 0 criteria)
+    RAISE EXCEPTION 'Miss Woman Summer criteria drift: found % unexpected judging criteria for competition % (verified baseline is 0)',
+      v_crit_count, v_mws_comp_id USING ERRCODE = 'data_exception', HINT = 'mws_criteria_drift';
+  END IF;
+
+  -- 4. Case B: Clean first application from verified 0-criteria baseline.
+  -- Update competition winner count and placement labels
+  UPDATE public.competitions
+  SET
+    number_of_winners = 3,
+    winner_placement_labels = ARRAY['Reina', 'Virreina', 'Princesa']::TEXT[],
+    updated_at = NOW()
+  WHERE id = v_mws_comp_id;
+
+  -- Update final voting round contestants_advance
+  UPDATE public.voting_rounds
+  SET
+    contestants_advance = 3
+  WHERE id = v_mws_round_id;
+
+  -- Insert the ten exact rows
+  INSERT INTO public.judging_criteria (competition_id, label, weight, sort_order)
+  VALUES
+    (v_mws_comp_id, 'Confidence and Stage Presence / Seguridad y presencia escénica', 1.00, 1),
+    (v_mws_comp_id, 'Presentation and Elegance / Presentación y elegancia', 1.00, 2),
+    (v_mws_comp_id, 'Personality and Charisma / Personalidad y carisma', 1.00, 3),
+    (v_mws_comp_id, 'Creativity and Adaptability / Creatividad y adaptabilidad', 1.00, 4),
+    (v_mws_comp_id, 'Activity Attendance and Participation / Asistencia y participación', 1.00, 5),
+    (v_mws_comp_id, 'Sisterhood and Relationships with the other candidates / Compañerismo y relación con las demás candidatas', 1.00, 6),
+    (v_mws_comp_id, 'Overall Representation / Representación general', 1.00, 7),
+    (v_mws_comp_id, 'Creative Swimwear / Traje de baño creativo', 1.00, 8),
+    (v_mws_comp_id, 'Gala / Vestido de gala', 1.00, 9),
+    (v_mws_comp_id, 'Sponsor Swimwear / Traje de baño del patrocinador', 1.00, 10);
 END;
 $$;
