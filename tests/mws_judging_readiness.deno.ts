@@ -15,12 +15,12 @@ export interface HarnessConfig {
 export function validateAndResolveHarnessConfig(env: {
   get: (key: string) => string | undefined;
 }): HarnessConfig {
-  // 1. Host: Must be explicitly provided via TEST_PGHOST (or PGHOST).
+  // 1. Host: Must be explicitly provided via TEST_PGHOST.
   // Strictly loopback only: 127.0.0.1, localhost, or ::1. No remote hosts!
-  const host = env.get('TEST_PGHOST') || env.get('PGHOST');
+  const host = env.get('TEST_PGHOST');
   if (!host || host.trim() === '') {
     throw new Error(
-      'Database test harness requires TEST_PGHOST or PGHOST environment variable to be explicitly set.'
+      'Database test harness requires TEST_PGHOST environment variable to be explicitly set.'
     );
   }
   const normalizedHost = host.trim().toLowerCase();
@@ -31,11 +31,11 @@ export function validateAndResolveHarnessConfig(env: {
     );
   }
 
-  // 2. Port: Must be explicitly set, integer in range [1024, 65535].
-  const portStr = env.get('TEST_PGPORT') || env.get('PGPORT');
+  // 2. Port: Must be explicitly set via TEST_PGPORT, integer in range [1024, 65535].
+  const portStr = env.get('TEST_PGPORT');
   if (!portStr || portStr.trim() === '') {
     throw new Error(
-      'Database test harness requires TEST_PGPORT or PGPORT environment variable to be explicitly set.'
+      'Database test harness requires TEST_PGPORT environment variable to be explicitly set.'
     );
   }
   const port = parseInt(portStr.trim(), 10);
@@ -43,28 +43,28 @@ export function validateAndResolveHarnessConfig(env: {
     throw new Error(`Invalid test port "${portStr}". Must be an integer between 1024 and 65535.`);
   }
 
-  // 3. User & Password: Must be explicitly set; no silent defaults.
-  const user = env.get('TEST_PGUSER') || env.get('PGUSER');
+  // 3. User & Password: Must be explicitly set via TEST_PGUSER and TEST_PGPASSWORD; no silent defaults.
+  const user = env.get('TEST_PGUSER');
   if (!user || user.trim() === '') {
     throw new Error(
-      'Database test harness requires TEST_PGUSER or PGUSER environment variable to be explicitly set.'
+      'Database test harness requires TEST_PGUSER environment variable to be explicitly set.'
     );
   }
-  const password = env.get('TEST_PGPASSWORD') || env.get('PGPASSWORD');
+  const password = env.get('TEST_PGPASSWORD');
   if (!password || password.trim() === '') {
     throw new Error(
-      'Database test harness requires TEST_PGPASSWORD or PGPASSWORD environment variable to be explicitly set.'
+      'Database test harness requires TEST_PGPASSWORD environment variable to be explicitly set.'
     );
   }
 
-  // 4. Database Name: Must be explicitly set; no fallback.
+  // 4. Database Name: Must be explicitly set via TEST_PGDATABASE; no fallback.
   // Must start with 'test_' or 'tmp_test_'
   // Must match ^(test_|tmp_test_)[a-z0-9_]+$
   // Explicitly reject substrings like 'contest' or names containing 'prod', 'staging', 'live', 'real'.
-  const rawDb = env.get('TEST_PGDATABASE') || env.get('PGDATABASE');
+  const rawDb = env.get('TEST_PGDATABASE');
   if (!rawDb || rawDb.trim() === '') {
     throw new Error(
-      'Database test harness requires TEST_PGDATABASE or PGDATABASE environment variable to be explicitly set.'
+      'Database test harness requires TEST_PGDATABASE environment variable to be explicitly set.'
     );
   }
   const dbName = rawDb.trim();
@@ -178,9 +178,130 @@ Deno.test('Harness Safety Guard: Accepts valid loopback test configuration', () 
   }
 });
 
+Deno.test('Harness Safety Guard: Rejects generic-only PG* variables without TEST_PG* prefix', () => {
+  const genericVars: Record<string, string> = {
+    PGHOST: '127.0.0.1',
+    PGPORT: '5434',
+    PGUSER: 'postgres',
+    PGPASSWORD: 'postgres_password',
+    PGDATABASE: 'test_mws_generic_guard',
+  };
+
+  // 1. All generic variables present, no TEST_PG*
+  let threw = false;
+  try {
+    validateAndResolveHarnessConfig({
+      get: (k) => genericVars[k],
+    });
+  } catch (err: any) {
+    threw = true;
+    if (!err.message.includes('TEST_PGHOST environment variable to be explicitly set')) {
+      throw new Error(`Expected TEST_PGHOST requirement error, got: ${err.message}`);
+    }
+  }
+  if (!threw) {
+    throw new Error('Expected harness to reject configuration with generic PG* variables only');
+  }
+
+  // 2. Ensure each individual TEST_PG* variable is strictly required and cannot fall back to generic PG*
+  const testVars: Record<string, string> = {
+    TEST_PGHOST: '127.0.0.1',
+    TEST_PGPORT: '5434',
+    TEST_PGUSER: 'postgres',
+    TEST_PGPASSWORD: 'postgres_password',
+    TEST_PGDATABASE: 'test_mws_run_isolated',
+  };
+
+  for (const requiredKey of Object.keys(testVars)) {
+    const subset = { ...testVars };
+    delete subset[requiredKey];
+    // Put generic equivalent in place
+    const genericEquivalent = requiredKey.replace('TEST_', '');
+    (subset as Record<string, string>)[genericEquivalent] = (testVars as Record<string, string>)[requiredKey];
+
+    let subThrew = false;
+    try {
+      validateAndResolveHarnessConfig({
+        get: (k) => subset[k],
+      });
+    } catch (err: any) {
+      subThrew = true;
+      if (!err.message.includes(`${requiredKey} environment variable to be explicitly set`)) {
+        throw new Error(`Expected error for ${requiredKey}, got: ${err.message}`);
+      }
+    }
+    if (!subThrew) {
+      throw new Error(`Expected omission of ${requiredKey} to throw even when ${genericEquivalent} is set`);
+    }
+  }
+});
+
+Deno.test('Harness Safety Guard: Rejects pre-existing database to enforce disposable run ownership', async () => {
+  const mockAdminClient = {
+    queryObject: async <T>(_query: string, _args?: unknown[]) => {
+      return { rows: [{ exists: true }] as T[] };
+    },
+    queryArray: async (_query: string) => {
+      throw new Error('Should not call queryArray when database already exists');
+    },
+  };
+
+  let threw = false;
+  try {
+    await verifyAndCreateFreshDatabase(mockAdminClient, 'test_mws_existing');
+  } catch (err: any) {
+    threw = true;
+    if (!err.message.includes('Pre-existing database "test_mws_existing" rejected')) {
+      throw new Error(`Unexpected error message: ${err.message}`);
+    }
+  }
+  if (!threw) {
+    throw new Error('Expected pre-existing database to be rejected');
+  }
+});
+
+Deno.test('Harness Safety Guard: Creates fresh database when not pre-existing', async () => {
+  let executedCreate = '';
+  const mockAdminClient = {
+    queryObject: async <T>(_query: string, _args?: unknown[]) => {
+      return { rows: [{ exists: false }] as T[] };
+    },
+    queryArray: async (query: string) => {
+      executedCreate = query;
+      return [];
+    },
+  };
+
+  await verifyAndCreateFreshDatabase(mockAdminClient, 'test_mws_fresh');
+  if (executedCreate !== 'CREATE DATABASE "test_mws_fresh";') {
+    throw new Error(`Unexpected create statement: ${executedCreate}`);
+  }
+});
+
 // -----------------------------------------------------------------------------
 // Live Database Harness Setup & Disposable Ownership Proof
 // -----------------------------------------------------------------------------
+
+export async function verifyAndCreateFreshDatabase(
+  adminClient: {
+    queryObject: <T>(query: string, args?: unknown[]) => Promise<{ rows: T[] }>;
+    queryArray: (query: string) => Promise<unknown>;
+  },
+  databaseName: string
+): Promise<void> {
+  const res = await adminClient.queryObject<{ exists: boolean }>(`
+    SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1) as exists;
+  `, [databaseName]);
+
+  if (res.rows[0].exists) {
+    throw new Error(
+      `Pre-existing database "${databaseName}" rejected: harness requires a fresh, uniquely named disposable database to prove run ownership.`
+    );
+  }
+
+  const safeDbName = databaseName.replace(/"/g, '""');
+  await adminClient.queryArray(`CREATE DATABASE "${safeDbName}";`);
+}
 
 function getActiveConfig(): HarnessConfig {
   return validateAndResolveHarnessConfig({
@@ -205,14 +326,7 @@ async function ensureDatabaseInitialized() {
   });
   await adminClient.connect();
   try {
-    const res = await adminClient.queryObject<{ exists: boolean }>(`
-      SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1) as exists;
-    `, [config.database]);
-
-    if (!res.rows[0].exists) {
-      const safeDbName = config.database.replace(/"/g, '""');
-      await adminClient.queryArray(`CREATE DATABASE "${safeDbName}";`);
-    }
+    await verifyAndCreateFreshDatabase(adminClient, config.database);
   } finally {
     await adminClient.end();
   }
@@ -221,16 +335,18 @@ async function ensureDatabaseInitialized() {
   const targetClient = new Client(config);
   await targetClient.connect();
   try {
-    // Write explicit disposable test ownership marker
+    // Write explicit disposable test ownership marker with unique run UUID
+    const runUuid = crypto.randomUUID();
     await targetClient.queryArray(`
       CREATE TABLE IF NOT EXISTS public.__disposable_test_marker (
         marker_id TEXT PRIMARY KEY,
         harness_signature TEXT NOT NULL,
         database_name TEXT NOT NULL,
+        run_uuid TEXT NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-      INSERT INTO public.__disposable_test_marker (marker_id, harness_signature, database_name)
-      VALUES ('disposable_mws_test_marker', 'mws_judging_readiness_test_suite', current_database())
+      INSERT INTO public.__disposable_test_marker (marker_id, harness_signature, database_name, run_uuid)
+      VALUES ('disposable_mws_test_marker', 'mws_judging_readiness_test_suite', current_database(), '${runUuid}')
       ON CONFLICT (marker_id) DO NOTHING;
     `);
 

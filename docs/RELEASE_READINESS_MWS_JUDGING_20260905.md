@@ -153,17 +153,72 @@ LEFT JOIN public.judge_scores js
 ## 5. Protected Production Operations & Fail-Closed Incident Recovery
 
 ### 5.1 Mandatory Identity Verification Gate
-Every production database interaction or operational intervention on live production MUST be preceded by freshly proving the project identity. Under no circumstances may any command or script be executed against an unverified or ambiguous endpoint.
+Every production database interaction or operational intervention on live production MUST be preceded by freshly proving the authoritative project identity. Under no circumstances may any command, migration, or script be executed against an unverified, ambiguous, or tautologically proved endpoint.
 
-Before executing any write query, run this identity proof:
-```sql
-SELECT
-  current_database() AS database,
-  current_user AS db_user,
-  'jioblcflgpqcfdmzjnto' AS expected_project_ref,
-  'EliteRank' AS expected_project_name;
+#### Step 1: Control-Plane Identity Verification (CLI Preflight)
+Before executing any write operation, execute an authoritative control-plane inspection via the authenticated Supabase CLI:
+
+```bash
+# 1. Authoritative check: list projects and assert exact target ref and name
+supabase projects list --output-format json
 ```
-Verify that the active connection explicitly targets project `jioblcflgpqcfdmzjnto` (EliteRank).
+
+Validate fail-closed via node assertion:
+```bash
+node -e '
+  const { execSync } = require("child_process");
+  const projects = JSON.parse(execSync("supabase projects list --output-format json", { encoding: "utf8" }));
+  const target = projects.find(p => p.id === "jioblcflgpqcfdmzjnto");
+  if (!target) {
+    console.error("FATAL: Target project ref jioblcflgpqcfdmzjnto not found in authenticated account!");
+    process.exit(1);
+  }
+  if (target.name !== "EliteRank") {
+    console.error(`FATAL: Project ref jioblcflgpqcfdmzjnto has unexpected name "${target.name}" (expected "EliteRank")!`);
+    process.exit(1);
+  }
+  if (target.status !== "ACTIVE_HEALTHY") {
+    console.error(`FATAL: Target project status is "${target.status}" (expected ACTIVE_HEALTHY)!`);
+    process.exit(1);
+  }
+  // Cross-project guard: Ensure v2 project ref is strictly not targeted
+  if (target.id === "dhiipdxsspmvaifvfffb") {
+    console.error("FATAL: Cross-project collision! v2 rebuild project ref detected!");
+    process.exit(1);
+  }
+  console.log("AUTHORITATIVE IDENTITY CONFIRMED:");
+  console.log(`  Project Ref:  ${target.id}`);
+  console.log(`  Project Name: ${target.name}`);
+  console.log(`  Status:       ${target.status}`);
+'
+```
+
+#### Step 2: Runtime Connection & Database Context Verification
+When establishing a direct database or pooler session (`psql` or client connection), query dynamic session context (not hardcoded literals) to verify connected endpoint, database name, and target competition identity:
+
+```sql
+-- 1. Verify dynamic connection attributes
+SELECT
+  current_database() AS connected_database,
+  current_user AS connected_user,
+  inet_server_addr() AS server_ip,
+  inet_server_port() AS server_port,
+  current_setting('application_name') AS app_name;
+
+-- 2. Verify competition anchor exists in target database
+SELECT
+  id AS competition_id,
+  name AS competition_name,
+  slug AS competition_slug,
+  status AS competition_status
+FROM public.competitions
+WHERE id = '16276ff8-be5b-47c5-8178-2d463fb7dcc3'
+  AND slug = 'miss-woman-summer-chi-26';
+```
+*Expected: `connected_database = 'postgres'`, `connected_user IN ('postgres', 'service_role')`, and exactly 1 row returned for Miss Woman Summer Chicago 2026 (`miss-woman-summer-chi-26`).*
+
+#### Step 3: Strict Fail-Closed Rule
+If either Step 1 or Step 2 fails to authoritatively confirm project `jioblcflgpqcfdmzjnto` ("EliteRank"), **HALT ALL OPERATIONS IMMEDIATELY**. Do not apply migrations, do not alter judge records, and do not trigger round finalization.
 
 ### 5.2 Protected Operations Policy
 All write actions on live production are strictly **Protected Operations** requiring:
