@@ -568,7 +568,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
       const heading = isSelf ? 'Your Weekly Update' : `Weekly Update: ${safeContestant}`
       const subject = isSelf
         ? `Your weekly update — ${competitionName}`
-        : `Weekly update on ${contestantName}`
+        : `Weekly update on ${contestantName} - ${competitionName}`
 
       const ctaUrl = isSelf ? (req.profile_url || req.competition_url) : (req.purchase_votes_url || req.competition_url)
       const ctaLabel = isSelf ? 'View My Profile' : `Purchase votes for ${safeContestant}`
