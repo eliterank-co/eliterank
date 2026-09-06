@@ -541,12 +541,8 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
         ? `<div style="display:inline-block;padding:12px 20px;background:#1a1a1a;border:1px solid #333;border-radius:8px;margin:8px 4px;min-width:120px;">
              <div style="color:#999;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;">Total Votes</div>
              <div style="color:#fff;font-size:32px;font-weight:bold;line-height:1.1;margin-top:4px;">${req.total_votes.toLocaleString()}</div>
-             <div style="color:#666;font-size:13px;margin-top:4px;">all time</div>
+             <div style="color:#666;font-size:13px;margin-top:4px;">this round</div>
            </div>`
-        : ''
-
-      const weeklyVotesLine = typeof req.weekly_votes === 'number'
-        ? `<p style="color:#ccc;font-size:14px;margin:8px 0;"><strong style="color:#fff;">${req.weekly_votes.toLocaleString()}</strong> votes credited this week</p>`
         : ''
 
       const statsRow = (rankBlock || votesBlock)
@@ -568,10 +564,10 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
       const heading = isSelf ? 'Your Weekly Update' : `Weekly Update: ${safeContestant}`
       const subject = isSelf
         ? `Your weekly update — ${competitionName}`
-        : `Weekly update on ${contestantName}`
+        : `Weekly update on ${contestantName} - ${competitionName}`
 
       const ctaUrl = isSelf ? (req.profile_url || req.competition_url) : (req.purchase_votes_url || req.competition_url)
-      const ctaLabel = isSelf ? 'View My Profile' : `Purchase votes for ${safeContestant}`
+      const ctaLabel = isSelf ? 'View My Profile' : `Vote for ${contestantName}`
 
       const unsubLine = !isSelf && req.unsubscribe_url
         ? `<p style="color:#666;font-size:12px;margin-top:16px;">
@@ -587,10 +583,9 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
             <h1 style="color:#d4a843;font-size:26px;margin:0 0 8px;">${heading}</h1>
             <p style="color:#ccc;font-size:15px;margin:8px 0 16px;">${intro}</p>
             ${statsRow}
-            ${weeklyVotesLine}
             ${roundEndLine}
             ${nextEventLine}
-            ${ctaUrl ? goldButton(ctaLabel, escapeHtml(ctaUrl)) : ''}
+            ${ctaUrl ? goldButton(ctaLabel, ctaUrl) : ''}
             ${unsubLine}
           </div>
         `),
@@ -609,7 +604,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:26px;margin:0 0 8px;">The round is closing</h1>
             <p style="color:#ccc;font-size:15px;line-height:1.5;">${safeContestant}'s round in <strong>${safeCompetition}</strong> ends in about 24 hours.</p>
-            ${req.purchase_votes_url ? goldButton(`Purchase votes for ${safeContestant}`, escapeHtml(req.purchase_votes_url)) : ''}
+            ${req.purchase_votes_url ? goldButton(`Vote for ${contestantName}`, req.purchase_votes_url) : ''}
             ${req.unsubscribe_url ? `<p style="color:#666;font-size:12px;margin-top:16px;"><a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from fan updates.</p>` : ''}
           </div>
         `),
@@ -622,13 +617,14 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
       const competitionName = req.competition_name || 'your competition'
       const safeContestant = escapeHtml(contestantName)
       const multiplier = req.vote_multiplier === 3 ? 3 : 2
+      const multiplierLabel = multiplier === 3 ? 'triple' : 'double'
       return {
         subject: `${multiplier}× Vote Boost is live — ${competitionName}`,
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">${multiplier}× Vote Boost</h1>
-            <p style="color:#ccc;font-size:15px;line-height:1.5;">Votes purchased for <strong>${safeContestant}</strong> now receive ${multiplier}× vote credit. The price does not change.</p>
-            ${req.purchase_votes_url ? goldButton(`Purchase votes for ${safeContestant}`, escapeHtml(req.purchase_votes_url)) : ''}
+            <p style="color:#ccc;font-size:15px;line-height:1.5;">All votes cast for <strong>${safeContestant}</strong> in <strong>${escapeHtml(competitionName)}</strong> are now worth ${multiplierLabel}. Ends soon!</p>
+            ${req.purchase_votes_url ? goldButton(`Vote for ${contestantName}`, req.purchase_votes_url) : ''}
             ${req.unsubscribe_url ? `<p style="color:#666;font-size:12px;margin-top:16px;"><a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from fan updates.</p>` : ''}
           </div>
         `),

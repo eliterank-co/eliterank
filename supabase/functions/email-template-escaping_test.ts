@@ -47,6 +47,8 @@ Deno.test('send-onesignal HTML templates escape relationship-derived values', ()
     'contestant_promoted',
     'fan_confirmation',
     'fan_weekly_digest',
+    'fan_round_closing',
+    'fan_vote_boost',
     'vote_receipt',
     'nominations_open_subscriber',
     'subscriber_confirmation',
@@ -63,6 +65,37 @@ Deno.test('send-onesignal HTML templates escape relationship-derived values', ()
 Deno.test('send-onesignal subject remains plain text', () => {
   const result = getEmailContent(senderRequest)
   assertStringIncludes(result.subject, hostile)
+})
+
+Deno.test('weekly fan update shows round totals without the weekly vote line', () => {
+  const result = getEmailContent({
+    type: 'fan_weekly_digest', to_email: 'fan@example.test',
+    contestant_name: 'Alex Morgan', competition_name: 'City Creators',
+    total_votes: 12480, weekly_votes: 1260, purchase_votes_url: 'https://example.test/vote',
+  })
+  assert(result.subject === 'Weekly update on Alex Morgan - City Creators')
+  assertStringIncludes(result.body, '12,480')
+  assertStringIncludes(result.body, '>this round<')
+  assertStringIncludes(result.body, 'Vote for Alex Morgan')
+  assert(!result.body.includes('all time'))
+  assert(!result.body.includes('votes credited this week'))
+  assert(!result.body.includes('1,260'))
+})
+
+Deno.test('fan boost copy selects double or triple and escapes names once', () => {
+  for (const multiplier of [2, 3]) {
+    const result = getEmailContent({
+      type: 'fan_vote_boost', to_email: 'fan@example.test',
+      contestant_name: 'Alex & Morgan', competition_name: hostile,
+      vote_multiplier: multiplier, purchase_votes_url: 'https://example.test/vote?a=1&b=2',
+    })
+    assertStringIncludes(result.body, `All votes cast for <strong>Alex &amp; Morgan</strong> in <strong>${escaped}</strong> are now worth ${multiplier === 3 ? 'triple' : 'double'}. Ends soon!`)
+    assertStringIncludes(result.body, 'Vote for Alex &amp; Morgan')
+    assertStringIncludes(result.body, 'https://example.test/vote?a=1&amp;b=2')
+    assert(!result.body.includes('&amp;amp;'))
+    assert(!result.body.includes('The price does not change'))
+    assert(!result.body.includes('Purchase votes for'))
+  }
 })
 
 Deno.test('engagement email HTML is escaped while its text part stays raw', () => {
