@@ -7,6 +7,7 @@ import {
   retryAt,
   type PromotionWindow,
 } from '../_shared/fan-email-policy.ts'
+import { checkFanEmailPreflight } from '../_shared/fan-email-preflight.ts'
 
 const headers = { 'Content-Type': 'application/json' }
 
@@ -356,23 +357,13 @@ serve(async (request) => {
 
     for (const claim of claims) {
       const payload: Record<string, unknown> = { ...claim.payload, delivery_id: claim.id }
-      const fanId = String(payload.fan_id || '')
-      const recipientId = String(payload.recipient_id || '')
-      const recipientEmail = String(payload.to_email || '')
-      const [{ data: fan, error: fanError }, { data: profile, error: currentEmailError }] = await Promise.all([
-        db.from('contestant_fans')
-          .select('id, user_id, email_weekly_updates')
-          .eq('id', fanId)
-          .eq('user_id', recipientId)
-          .maybeSingle(),
-        db.from('profiles').select('email').eq('id', recipientId).maybeSingle(),
-      ])
+      const preflight = await checkFanEmailPreflight(db, payload)
       let status = 'failed'
       let providerId: string | null = null
       let errorText: string | null = null
-      if (fanError || currentEmailError) {
-        errorText = fanError?.message || currentEmailError?.message || 'preflight_failed'
-      } else if (!fan?.email_weekly_updates || profile?.email?.trim().toLowerCase() !== recipientEmail) {
+      if (preflight.error) {
+        errorText = preflight.error
+      } else if (!preflight.eligible) {
         status = 'suppressed'
       } else {
         try {
