@@ -33,11 +33,12 @@ jobs:
           deno check \
             supabase/functions/send-onesignal-email/index.ts \
             supabase/functions/process-engagement-queue/index.ts \
-            supabase/functions/send-photobooth-photo/index.ts
+            supabase/functions/send-photobooth-photo/index.ts \
+            supabase/functions/send-fan-weekly-digest/index.ts
       - name: deno test
         env:
           DENO_TESTING: '1'
         # --no-check: types are covered by the deno check step above; checking
         # here again drags in esm.sh's `npm:@types/node` reference, which needs
         # a node_modules directory CI does not have.
-        run: deno test --allow-all --no-check supabase/functions/email-template-escaping_test.ts
+        run: deno test --allow-all --no-check supabase/functions/email-template-escaping_test.ts supabase/functions/fan-email-preflight_test.ts
