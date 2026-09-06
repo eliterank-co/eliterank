@@ -1,20 +1,26 @@
 name: Fan Weekly Digest
 
-# Disabled delivery-candidate harness. The worker evaluates Thursday 10:00 in
-# each competition's IANA timezone and claims a bounded durable batch. A later
-# release dispatch may add a polling schedule; this delivery PR cannot.
+# Poll for due weekly, boost and round-closing fan emails. The worker evaluates
+# Thursday 10:00 in each competition's IANA timezone and deduplicates occurrences.
+# Both FAN_EMAIL_SCHEDULER_ENABLED and app_settings.fan_email_dispatch gate sending.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL                — https://<ref>.supabase.co
 #   SUPABASE_SERVICE_ROLE_KEY   — the service role key from Supabase
 
 on:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Dry run (fetch recipient list but do not send emails)'
         type: boolean
         default: false
+
+concurrency:
+  group: fan-email-dispatch
+  cancel-in-progress: false
 
 jobs:
   send:
@@ -31,6 +37,10 @@ jobs:
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
             echo "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY secret."
+            exit 1
+          fi
+          if [ "${SUPABASE_URL%/}" != "https://jioblcflgpqcfdmzjnto.supabase.co" ]; then
+            echo "Unexpected Supabase target; refusing to send fan emails."
             exit 1
           fi
           BODY=$(jq -n --argjson d "$DRY_RUN" '{dry_run: $d}')
