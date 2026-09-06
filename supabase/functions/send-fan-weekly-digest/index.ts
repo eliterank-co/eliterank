@@ -27,6 +27,7 @@ interface Competition {
 
 interface Contestant {
   id: string
+  user_id: string | null
   name: string
   competition_id: string
   votes: number | null
@@ -200,7 +201,7 @@ serve(async (request) => {
       standingsResult, doubleDaysResult,
     ] = await Promise.all([
       db.from('contestants')
-        .select('id, name, competition_id, votes, trend, gender')
+        .select('id, user_id, name, competition_id, votes, trend, gender')
         .in('competition_id', competitionIds)
         .eq('status', 'active'),
       db.from('contestant_fans')
@@ -281,7 +282,10 @@ serve(async (request) => {
       )
       for (const occurrence of occurrences) {
         for (const contestant of contestants.filter(row => row.competition_id === competition.id)) {
-          const purchaseVotesUrl = `${competitionUrl}?voteFor=${encodeURIComponent(contestant.id)}`
+          // Open the public profile's standard voting controls, not the competition popup.
+          const profileUrl = contestant.user_id
+            ? `${appUrl.replace(/\/$/, '')}/profile/${encodeURIComponent(contestant.user_id)}`
+            : competitionUrl
           for (const fan of fans.filter(row => row.contestant_id === contestant.id)) {
             const email = emailByUser.get(fan.user_id)
             if (!email) continue
@@ -309,7 +313,7 @@ serve(async (request) => {
                 competition_name: competition.name,
                 contestant_name: contestant.name,
                 competition_url: competitionUrl,
-                purchase_votes_url: purchaseVotesUrl,
+                profile_url: profileUrl,
                 rank: ranks.get(contestant.id) || null,
                 trend: contestant.trend,
                 total_votes: contestant.votes || 0,

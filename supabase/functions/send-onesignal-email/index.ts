@@ -566,7 +566,7 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
         ? `Your weekly update — ${competitionName}`
         : `Weekly update on ${contestantName} - ${competitionName}`
 
-      const ctaUrl = isSelf ? (req.profile_url || req.competition_url) : (req.purchase_votes_url || req.competition_url)
+      const ctaUrl = req.profile_url || req.competition_url
       const ctaLabel = isSelf ? 'View My Profile' : `Vote for ${contestantName}`
 
       const unsubLine = !isSelf && req.unsubscribe_url
@@ -598,13 +598,14 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
       const competitionName = req.competition_name || 'your competition'
       const safeContestant = escapeHtml(contestantName)
       const safeCompetition = escapeHtml(competitionName)
+      const ctaUrl = req.profile_url || req.competition_url
       return {
         subject: `24 hours left in ${competitionName}`,
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:26px;margin:0 0 8px;">The round is closing</h1>
             <p style="color:#ccc;font-size:15px;line-height:1.5;">${safeContestant}'s round in <strong>${safeCompetition}</strong> ends in about 24 hours.</p>
-            ${req.purchase_votes_url ? goldButton(`Vote for ${contestantName}`, req.purchase_votes_url) : ''}
+            ${ctaUrl ? goldButton(`Vote for ${contestantName}`, ctaUrl) : ''}
             ${req.unsubscribe_url ? `<p style="color:#666;font-size:12px;margin-top:16px;"><a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from fan updates.</p>` : ''}
           </div>
         `),
@@ -618,13 +619,14 @@ export function getEmailContent(req: EmailRequest): { subject: string; body: str
       const safeContestant = escapeHtml(contestantName)
       const multiplier = req.vote_multiplier === 3 ? 3 : 2
       const multiplierLabel = multiplier === 3 ? 'triple' : 'double'
+      const ctaUrl = req.profile_url || req.competition_url
       return {
         subject: `${multiplier}× Vote Boost is live — ${competitionName}`,
         body: wrapper(`
           <div style="text-align:center;">
             <h1 style="color:#d4a843;font-size:28px;margin:0 0 8px;">${multiplier}× Vote Boost</h1>
             <p style="color:#ccc;font-size:15px;line-height:1.5;">All votes cast for <strong>${safeContestant}</strong> in <strong>${escapeHtml(competitionName)}</strong> are now worth ${multiplierLabel}. Ends soon!</p>
-            ${req.purchase_votes_url ? goldButton(`Vote for ${contestantName}`, req.purchase_votes_url) : ''}
+            ${ctaUrl ? goldButton(`Vote for ${contestantName}`, ctaUrl) : ''}
             ${req.unsubscribe_url ? `<p style="color:#666;font-size:12px;margin-top:16px;"><a href="${escapeHtml(req.unsubscribe_url)}" style="color:#999;text-decoration:underline;">Unsubscribe</a> from fan updates.</p>` : ''}
           </div>
         `),

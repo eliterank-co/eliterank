@@ -71,7 +71,7 @@ Deno.test('weekly fan update shows round totals without the weekly vote line', (
   const result = getEmailContent({
     type: 'fan_weekly_digest', to_email: 'fan@example.test',
     contestant_name: 'Alex Morgan', competition_name: 'City Creators',
-    total_votes: 12480, weekly_votes: 1260, purchase_votes_url: 'https://example.test/vote',
+    total_votes: 12480, weekly_votes: 1260, profile_url: 'https://example.test/profile/alex',
   })
   assert(result.subject === 'Weekly update on Alex Morgan - City Creators')
   assertStringIncludes(result.body, '12,480')
@@ -87,11 +87,11 @@ Deno.test('fan boost copy selects double or triple and escapes names once', () =
     const result = getEmailContent({
       type: 'fan_vote_boost', to_email: 'fan@example.test',
       contestant_name: 'Alex & Morgan', competition_name: hostile,
-      vote_multiplier: multiplier, purchase_votes_url: 'https://example.test/vote?a=1&b=2',
+      vote_multiplier: multiplier, profile_url: 'https://example.test/profile/alex?a=1&b=2',
     })
     assertStringIncludes(result.body, `All votes cast for <strong>Alex &amp; Morgan</strong> in <strong>${escaped}</strong> are now worth ${multiplier === 3 ? 'triple' : 'double'}. Ends soon!`)
     assertStringIncludes(result.body, 'Vote for Alex &amp; Morgan')
-    assertStringIncludes(result.body, 'https://example.test/vote?a=1&amp;b=2')
+    assertStringIncludes(result.body, 'https://example.test/profile/alex?a=1&amp;b=2')
     assert(!result.body.includes('&amp;amp;'))
     assert(!result.body.includes('The price does not change'))
     assert(!result.body.includes('Purchase votes for'))
@@ -122,4 +122,21 @@ Deno.test('photo email HTML escapes nominee names and image URLs', () => {
   assertStringIncludes(result.body, escaped)
   assert(!result.body.includes(hostile), 'photo email leaked hostile HTML')
   assertStringIncludes(result.subject, hostile)
+})
+
+Deno.test('fan email CTAs open profiles and never the legacy vote popup', () => {
+  for (const type of ['fan_weekly_digest', 'fan_vote_boost', 'fan_round_closing'] as const) {
+    for (const vote_multiplier of [2, 3]) {
+      for (const profile_url of ['https://example.test/profile/user-123', undefined]) {
+        const result = getEmailContent({
+          type, to_email: 'fan@example.test', contestant_name: 'Alex', vote_multiplier,
+          profile_url,
+          competition_url: 'https://example.test/most-eligible/bachelors',
+          purchase_votes_url: 'https://example.test/most-eligible/bachelors?voteFor=contestant-456',
+        })
+        assertStringIncludes(result.body, `href="${profile_url || 'https://example.test/most-eligible/bachelors'}"`)
+        assert(!result.body.includes('voteFor='), `${type} opened the legacy vote popup`)
+      }
+    }
+  }
 })
