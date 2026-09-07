@@ -723,18 +723,6 @@ export default function LoginPage({ onLogin, onBack, returnTo: returnToProp, ret
               </p>
             </div>
 
-            <p style={{
-              color: colors.text.secondary,
-              fontSize: typography.fontSize.sm,
-              lineHeight: typography.lineHeight.relaxed,
-              margin: 0,
-            }}>
-              <span>
-                If you voted before setting a password, this email may already have an account.
-                Set or reset a password to keep your votes and access this account.
-              </span>
-            </p>
-
             <div style={inputGroupStyle}>
               <label style={labelStyle}>Password</label>
               <div style={inputWrapperStyle}>

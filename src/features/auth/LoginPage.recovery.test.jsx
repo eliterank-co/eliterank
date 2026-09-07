@@ -84,7 +84,7 @@ describe('LoginPage voter recovery', () => {
     expect(rpc).toHaveBeenCalledWith('email_is_registered', {
       email_input: 'voter@example.com',
     });
-    expect(screen.getByText(/this email may already have an account/i)).toBeTruthy();
+    expect(screen.queryByText(/if you voted before setting a password/i)).toBeNull();
     expect(screen.getByRole('button', { name: /set or reset password/i })).toBeTruthy();
   });
 
