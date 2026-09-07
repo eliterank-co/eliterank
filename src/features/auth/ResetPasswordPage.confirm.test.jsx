@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, cleanup } from '@testing-library/react';
+import { render, screen, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import {
+  AUTH_RETURN_TO_STORAGE_KEY,
+  savePendingAuthReturnTo,
+} from '../../utils/authReturnTo';
 
 /**
  * Regression tests for the recovery-token burn.
@@ -102,6 +106,77 @@ describe('ResetPasswordPage spends the recovery token only on a human click', ()
     await act(async () => { confirmButton().click(); });
 
     expect(screen.getByText(/invalid or expired reset link/i)).toBeTruthy();
+  });
+
+  it('keeps a valid fan destination after the fallback record is removed mid-flow', async () => {
+    const originalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    const values = new Map();
+    const storage = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, String(value)),
+      removeItem: (key) => values.delete(key),
+    };
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+
+    try {
+      savePendingAuthReturnTo('/FanClub?pendingFan=1', { storage, now: Date.now() });
+      setUrl('?token_hash=abc123&type=recovery');
+      const onComplete = vi.fn();
+      updateUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+      vi.useFakeTimers();
+
+      render(<ResetPasswordPage onComplete={onComplete} />);
+      await act(async () => {});
+      await act(async () => { confirmButton().click(); });
+      storage.removeItem(AUTH_RETURN_TO_STORAGE_KEY); // another tab consumed it
+
+      const pws = [...document.querySelectorAll('input[type="password"]')];
+      pws.forEach((input) => fireEvent.change(input, { target: { value: 'hunter2hunter2' } }));
+      await act(async () => { fireEvent.submit(document.querySelector('form')); });
+      await act(async () => { vi.advanceTimersByTime(2000); });
+
+      expect(onComplete).toHaveBeenCalledWith('/FanClub?pendingFan=1');
+    } finally {
+      vi.useRealTimers();
+      if (originalStorage) {
+        Object.defineProperty(window, 'localStorage', originalStorage);
+      } else {
+        delete window.localStorage;
+      }
+    }
+  });
+
+  it('keeps the password form retryable after a returned update error', async () => {
+    setUrl('');
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'u1' } } }, error: null });
+    updateUser
+      .mockResolvedValueOnce({ error: { message: 'temporary update failure' } })
+      .mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null });
+
+    render(<ResetPasswordPage />);
+    await act(async () => {});
+    const pws = [...document.querySelectorAll('input[type="password"]')];
+    pws.forEach((input) => fireEvent.change(input, { target: { value: 'hunter2hunter2' } }));
+
+    await act(async () => { fireEvent.submit(document.querySelector('form')); });
+    expect(screen.getByText(/temporary update failure/i)).toBeTruthy();
+
+    await act(async () => { fireEvent.submit(document.querySelector('form')); });
+    await waitFor(() => expect(screen.getByText(/password updated/i)).toBeTruthy());
+    expect(updateUser).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns to login with a valid fan destination after an expired link', async () => {
+    const onBack = vi.fn();
+    verifyOtp.mockResolvedValue({ error: { message: 'Email link is invalid or has expired' } });
+    setUrl('?token_hash=spent&type=recovery&returnTo=%2FFanClub%3FpendingFan%3D1');
+
+    render(<ResetPasswordPage onBack={onBack} />);
+    await act(async () => {});
+    await act(async () => { confirmButton().click(); });
+    fireEvent.click(screen.getByRole('button', { name: /request new reset link/i }));
+
+    expect(onBack).toHaveBeenCalledWith('/FanClub?pendingFan=1');
   });
 
   it('still supports legacy links whose session Supabase already established', async () => {

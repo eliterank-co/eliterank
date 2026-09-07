@@ -3,6 +3,13 @@ import { Lock, Eye, EyeOff, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-r
 import { EliteRankCrown } from '../../components/ui';
 import { colors, gradients, shadows, borderRadius, spacing, typography } from '../../styles/theme';
 import { supabase } from '../../lib/supabase';
+import {
+  clearPendingAuthReturnTo,
+  consumePendingAuthReturnTo,
+  getReturnToFromSearch,
+  getSafeAuthReturnTo,
+  readPendingAuthReturnTo,
+} from '../../utils/authReturnTo';
 
 /**
  * ResetPasswordPage - Password reset flow
@@ -20,6 +27,27 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
   const [sessionReady, setSessionReady] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [confirming, setConfirming] = useState(false);
+
+  // The email may retain returnTo in its redirect URL. If the hosted template
+  // drops it, recover the short-lived same-browser path instead. An explicit
+  // malformed query is a deliberate fail-closed result and never uses storage.
+  const [urlReturnTo] = useState(() => {
+    if (typeof window === 'undefined') return { provided: false, value: null };
+    return getReturnToFromSearch(window.location.search);
+  });
+  const [resolvedReturnTo] = useState(() => ({
+    provided: urlReturnTo.provided,
+    value: urlReturnTo.provided ? urlReturnTo.value : readPendingAuthReturnTo(),
+  }));
+  const returnTo = resolvedReturnTo.value;
+
+  useEffect(() => {
+    if (urlReturnTo.provided && !urlReturnTo.value) {
+      // A malformed explicit destination invalidates any older fallback. The
+      // exact app-owned key is the only storage entry this flow may clear.
+      clearPendingAuthReturnTo();
+    }
+  }, [urlReturnTo]);
 
   // A recovery link that still carries an UNSPENT token: the email points here
   // with `?token_hash=...&type=recovery` instead of at Supabase's GET
@@ -151,6 +179,7 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess(false);
 
     if (!password || password.length < 6) {
       setError('Password must be at least 6 characters');
@@ -174,11 +203,15 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
       }
 
       setSuccess(true);
-      
+      const destination = getSafeAuthReturnTo(returnTo);
+      // Keep the fallback available through every failure/retry path, then
+      // consume it only once Auth has accepted the new password.
+      consumePendingAuthReturnTo();
+
       // Auto-redirect after success
       setTimeout(() => {
         if (onComplete) {
-          onComplete();
+          onComplete(destination);
         }
       }, 2000);
     } catch (err) {
@@ -187,6 +220,10 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleBackToLogin = () => {
+    if (onBack) onBack(getSafeAuthReturnTo(returnTo));
   };
 
   // Styles (matching LoginPage)
@@ -478,7 +515,7 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
         <div style={cardStyle}>
           {onBack && (
             <button
-              onClick={onBack}
+              onClick={handleBackToLogin}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -516,7 +553,7 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
           </div>
 
           <button
-            onClick={onBack}
+            onClick={handleBackToLogin}
             style={{
               ...buttonStyle,
               background: 'transparent',
@@ -542,7 +579,7 @@ export default function ResetPasswordPage({ onComplete, onBack }) {
       <div style={cardStyle}>
         {onBack && (
           <button
-            onClick={onBack}
+            onClick={handleBackToLogin}
             style={{
               display: 'flex',
               alignItems: 'center',

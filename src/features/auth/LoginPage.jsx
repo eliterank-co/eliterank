@@ -4,6 +4,17 @@ import { EliteRankCrown } from '../../components/ui';
 import { colors, gradients, shadows, borderRadius, spacing, typography } from '../../styles/theme';
 import { useSupabaseAuth } from '../../hooks';
 import { supabase } from '../../lib/supabase';
+import {
+  buildPasswordRecoveryRedirect,
+  buildLoginRedirect,
+  clearPendingAuthReturnTo,
+  consumePendingAuthReturnTo,
+  getReturnToFromSearch,
+  getSafeAuthReturnTo,
+  normalizeEmail,
+  readPendingAuthReturnTo,
+  savePendingAuthReturnTo,
+} from '../../utils/authReturnTo';
 
 /**
  * LoginPage - Two-step authentication flow
@@ -14,7 +25,7 @@ import { supabase } from '../../lib/supabase';
  *   - Existing user (including claimed nominees) → Password entry with forgot password option
  *   - New user → Signup form (name + password)
  */
-export default function LoginPage({ onLogin, onBack }) {
+export default function LoginPage({ onLogin, onBack, returnTo: returnToProp, returnToProvided }) {
   // Flow state
   const [step, setStep] = useState('email'); // 'email', 'password', 'signup', 'nominee-popup', 'magic-link-sent'
   const [isNominee, setIsNominee] = useState(false);
@@ -35,15 +46,34 @@ export default function LoginPage({ onLogin, onBack }) {
 
   const { signIn, signUp } = useSupabaseAuth();
 
+  // The wrapper normally resolves this once, but keeping the direct page
+  // usable matters for recovery links and isolated auth rendering. A malformed
+  // explicit query value remains null and never falls back to storage.
+  const [urlReturnTo] = useState(() => {
+    if (typeof window === 'undefined') return { provided: false, value: null };
+    return getReturnToFromSearch(window.location.search);
+  });
+  const [resolvedReturnTo] = useState(() => ({
+    provided: returnToProp !== undefined ? returnToProvided !== false : urlReturnTo.provided,
+    value: returnToProp !== undefined
+      ? getSafeAuthReturnTo(returnToProp)
+      : urlReturnTo.provided
+        ? urlReturnTo.value
+        : readPendingAuthReturnTo(),
+  }));
+  const returnTo = resolvedReturnTo.value;
+
   // Step 1: Check email and determine next step
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!email || !email.includes('@')) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
       setError('Please enter a valid email address');
       return;
     }
+    setEmail(normalizedEmail);
 
     setIsLoading(true);
 
@@ -53,7 +83,7 @@ export default function LoginPage({ onLogin, onBack }) {
       // who later signed up, partial flows), which used to let registered
       // emails slip through to the signup step and error on submit.
       const { data: authExists, error: authRpcError } = await supabase
-        .rpc('email_is_registered', { email_input: email });
+        .rpc('email_is_registered', { email_input: normalizedEmail });
 
       // Account existence is determined by the email_is_registered RPC
       // (SECURITY DEFINER). There is no client-side profiles fallback: the anon
@@ -76,7 +106,7 @@ export default function LoginPage({ onLogin, onBack }) {
         const { data: anyNominees } = await supabase
           .from('nominees')
           .select('id, name')
-          .ilike('email', email)
+          .ilike('email', normalizedEmail)
           .limit(1);
 
         const isNomineeRecord = anyNominees && anyNominees.length > 0;
@@ -108,7 +138,7 @@ export default function LoginPage({ onLogin, onBack }) {
           user_id,
           competition:competitions(id, season, status, city:cities(name))
         `)
-        .ilike('email', email)
+        .ilike('email', normalizedEmail)
         .neq('status', 'rejected')
         .is('claimed_at', null)
         .limit(1);
@@ -142,7 +172,7 @@ export default function LoginPage({ onLogin, onBack }) {
       const { data: claimedNominees } = await supabase
         .from('nominees')
         .select('id, name, nominated_by')
-        .ilike('email', email)
+        .ilike('email', normalizedEmail)
         .not('claimed_at', 'is', null)
         .limit(1);
 
@@ -174,6 +204,14 @@ export default function LoginPage({ onLogin, onBack }) {
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
+
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    setEmail(normalizedEmail);
 
     if (!password) {
       setError('Please enter your password');
@@ -183,7 +221,7 @@ export default function LoginPage({ onLogin, onBack }) {
     setIsLoading(true);
 
     try {
-      const { user, error: signInError } = await signIn(email, password);
+      const { user, error: signInError } = await signIn(normalizedEmail, password);
 
       if (signInError) {
         setError(signInError);
@@ -191,8 +229,9 @@ export default function LoginPage({ onLogin, onBack }) {
         await onLogin({
           id: user.id,
           email: user.email,
-          name: user.user_metadata?.first_name || email.split('@')[0],
+          name: user.user_metadata?.first_name || normalizedEmail.split('@')[0],
         });
+        consumePendingAuthReturnTo();
       }
     } catch (err) {
       setError(err.message || 'Failed to sign in');
@@ -205,6 +244,13 @@ export default function LoginPage({ onLogin, onBack }) {
   const handleSignup = async (e) => {
     e.preventDefault();
     setError('');
+
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    setEmail(normalizedEmail);
 
     if (!firstName || !lastName) {
       setError('Please enter your first and last name');
@@ -224,10 +270,27 @@ export default function LoginPage({ onLogin, onBack }) {
     setIsLoading(true);
 
     try {
-      const { user, error: signUpError } = await signUp(email, password, {
+      const signupMetadata = {
         first_name: firstName,
         last_name: lastName,
-      });
+      };
+      const safeReturnTo = getSafeAuthReturnTo(returnTo);
+      if (resolvedReturnTo.provided && !safeReturnTo) {
+        // Do not let an older local destination reappear after an explicitly
+        // malformed receipt/query target.
+        clearPendingAuthReturnTo();
+      }
+
+      let signupResult;
+      if (safeReturnTo) {
+        savePendingAuthReturnTo(safeReturnTo);
+        signupResult = await signUp(normalizedEmail, password, signupMetadata, {
+          emailRedirectTo: buildLoginRedirect(window.location.origin, safeReturnTo),
+        });
+      } else {
+        signupResult = await signUp(normalizedEmail, password, signupMetadata);
+      }
+      const { user, error: signUpError } = signupResult;
 
       if (signUpError) {
         setError(signUpError);
@@ -243,18 +306,40 @@ export default function LoginPage({ onLogin, onBack }) {
 
   // Send forgot password email
   const handleForgotPassword = async () => {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      setEmail(normalizedEmail);
+      const safeReturnTo = getSafeAuthReturnTo(returnTo);
+      if (resolvedReturnTo.provided && !safeReturnTo) {
+        // An explicit malformed destination must invalidate any older local
+        // fallback rather than allowing it to reappear in a later tab.
+        clearPendingAuthReturnTo();
+      }
+      if (safeReturnTo) {
+        // The hosted production template currently drops redirectTo's query;
+        // this local path lets a same-browser recovery tab restore the fan
+        // destination after the token is confirmed.
+        savePendingAuthReturnTo(safeReturnTo);
+      }
+
+      const result = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: buildPasswordRecoveryRedirect(window.location.origin, safeReturnTo),
       });
+      const resetError = result?.error;
 
       if (resetError) {
         setError(resetError.message || 'Failed to send reset email');
       } else {
-        setSuccess('Password reset email sent! Check your inbox.');
+        setSuccess('We accepted your request. Check your email for a password setup link. If it does not arrive, try again.');
       }
     } catch (err) {
       setError(err.message || 'Failed to send reset email');
@@ -270,13 +355,20 @@ export default function LoginPage({ onLogin, onBack }) {
       return;
     }
 
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
     try {
+      setEmail(normalizedEmail);
       // Send magic link that redirects to the claim page
       const { error: otpError } = await supabase.auth.signInWithOtp({
-        email,
+        email: normalizedEmail,
         options: {
           emailRedirectTo: `${window.location.origin}/claim/${nomineeData.invite_token}`,
         },
@@ -624,7 +716,7 @@ export default function LoginPage({ onLogin, onBack }) {
               marginBottom: spacing.sm,
             }}>
               <p style={{ color: colors.text.muted, fontSize: typography.fontSize.sm }}>
-                Signing in as
+                <span>Signing in as</span>
               </p>
               <p style={{ color: colors.text.primary, fontWeight: typography.fontWeight.medium }}>
                 {email}
@@ -664,7 +756,7 @@ export default function LoginPage({ onLogin, onBack }) {
               </div>
             </div>
 
-            <button type="submit" disabled={isLoading || !!success} style={buttonStyle}>
+            <button type="submit" disabled={isLoading} style={buttonStyle}>
               {isLoading ? (
                 <>
                   <span style={{
@@ -699,7 +791,7 @@ export default function LoginPage({ onLogin, onBack }) {
                   textDecoration: 'underline',
                 }}
               >
-                <span>Forgot password?</span>
+                <span>Set or reset password</span>
               </button>
             </div>
           </form>

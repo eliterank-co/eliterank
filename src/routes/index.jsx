@@ -11,6 +11,10 @@ import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-
 // Route guards and utilities
 import ProtectedRoute, { ROLE } from './ProtectedRoute';
 import { isCompetitionSlug, isIdRoute, isReservedPath } from '../utils/slugs';
+import {
+  buildLegacySignupRedirectSearch,
+  getSafeAuthReturnTo,
+} from '../utils/authReturnTo';
 import { resolveCompetitionAlias, toCanonicalAliasUrl } from '../config/competitionAliases';
 
 // Common components
@@ -115,14 +119,23 @@ export default function AppRoutes() {
     navigate('/achievements');
   }, [navigate]);
 
-  const handleResetComplete = useCallback(() => {
-    // Clear the URL params and navigate to home
-    navigate('/', { replace: true });
+  const handleResetComplete = useCallback((returnTo) => {
+    // Clear the URL params and return to the fan's local destination when the
+    // recovery link carried one. Legacy links without a destination retain the
+    // existing home redirect.
+    navigate(getSafeAuthReturnTo(returnTo) || '/', { replace: true });
   }, [navigate]);
 
-  const handleResetBack = useCallback(() => {
-    navigate('/login', { replace: true });
+  const handleResetBack = useCallback((returnTo) => {
+    const safeReturnTo = getSafeAuthReturnTo(returnTo);
+    const search = safeReturnTo ? `?returnTo=${encodeURIComponent(safeReturnTo)}` : '';
+    navigate(`/login${search}`, { replace: true });
   }, [navigate]);
+
+  const legacySignupSearch = buildLegacySignupRedirectSearch(
+    location.search,
+    typeof window !== 'undefined' ? window.location.origin : '',
+  );
 
   if (competitionAlias?.shouldRedirect) {
     return (
@@ -189,6 +202,13 @@ export default function AppRoutes() {
             <LoginPageWrapper />
           </SuspenseWrapper>
         }
+      />
+
+      {/* Legacy paid-vote receipts used /signup; keep their destination query
+          intact while sending users through the shared auth flow. */}
+      <Route
+        path="/signup"
+        element={<Navigate to={`/login${legacySignupSearch}${location.hash || ''}`} replace />}
       />
 
       {/* Host marketing page — interactive features-by-format explorer */}
