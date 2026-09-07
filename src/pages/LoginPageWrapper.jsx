@@ -11,6 +11,12 @@ import React, { lazy, Suspense, useCallback, useState, useEffect, useRef } from 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores';
+import {
+  consumePendingAuthReturnTo,
+  getReturnToFromSearch,
+  getSafeAuthReturnTo,
+  readPendingAuthReturnTo,
+} from '../utils/authReturnTo';
 
 const LoginPage = lazy(() => import('../features/auth/LoginPage'));
 
@@ -79,8 +85,18 @@ export default function LoginPageWrapper({
   const user = useAuthStore(s => s.user);
   const loading = useAuthStore(s => s.isLoading);
 
-  // Return URL from query params
-  const returnTo = searchParams.get('returnTo');
+  // Resolve the query exactly once. URLSearchParams already decodes a query
+  // value, so navigating through decodeURIComponent here would decode a
+  // legitimate destination twice. An explicit malformed value fails closed
+  // and never falls back to an older stored destination.
+  const [returnToContext] = useState(() => {
+    const parsed = getReturnToFromSearch(searchParams.toString());
+    return {
+      ...parsed,
+      value: parsed.provided ? parsed.value : readPendingAuthReturnTo(),
+    };
+  });
+  const returnTo = returnToContext.value;
 
   // Track whether user is actively logging in through the form.
   // This prevents the auto-redirect useEffect from racing with handleLogin.
@@ -99,17 +115,15 @@ export default function LoginPageWrapper({
 
       if (pending?.length && onPendingNominations) {
         onPendingNominations(pending);
+        consumePendingAuthReturnTo();
         navigate('/profile', { replace: true });
         return;
       }
     }
 
     // No pending nominations - normal flow
-    if (returnTo) {
-      navigate(decodeURIComponent(returnTo), { replace: true });
-    } else {
-      navigate('/profile', { replace: true });
-    }
+    consumePendingAuthReturnTo();
+    navigate(getSafeAuthReturnTo(returnTo, '/profile') || '/profile', { replace: true });
   }, [returnTo, navigate, onPendingNominations]);
 
   // If already authenticated (e.g. navigated to /login while logged in), redirect.
@@ -117,13 +131,19 @@ export default function LoginPageWrapper({
   // handleLogin manages the post-login navigation including pending-nomination checks.
   useEffect(() => {
     if (!loading && isAuthenticated && !isLoggingInRef.current) {
-      navigate(returnTo ? decodeURIComponent(returnTo) : '/profile', { replace: true });
+      consumePendingAuthReturnTo();
+      navigate(getSafeAuthReturnTo(returnTo, '/profile') || '/profile', { replace: true });
     }
   }, [loading, isAuthenticated, returnTo, navigate]);
 
   return (
     <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0a0a0c' }} />}>
-      <LoginPage onLogin={handleLogin} onBack={handleBack} />
+      <LoginPage
+        onLogin={handleLogin}
+        onBack={handleBack}
+        returnTo={returnTo}
+        returnToProvided={returnToContext.provided}
+      />
     </Suspense>
   );
 }

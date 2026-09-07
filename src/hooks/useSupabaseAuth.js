@@ -164,16 +164,21 @@ export default function useSupabaseAuth() {
   }, []);
 
   // Sign up
-  const signUp = useCallback(async (email, password, metadata = {}) => {
+  const signUp = useCallback(async (email, password, metadata = {}, signUpOptions = {}) => {
     if (!supabase) return { user: null, error: 'Supabase not configured' };
 
     setError(null);
 
     try {
+      const options = { data: metadata };
+      if (signUpOptions?.emailRedirectTo) {
+        options.emailRedirectTo = signUpOptions.emailRedirectTo;
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: metadata },
+        options,
       });
 
       if (signUpError) throw signUpError;
