@@ -12,7 +12,6 @@ import { CompetitionDashboard } from '../features/competition-dashboard';
 import DashboardSkeleton from '../components/skeletons/DashboardSkeleton';
 import ErrorState from '../components/common/ErrorState';
 import CreateCompetitionModal from '../components/modals/CreateCompetitionModal';
-import HostLandingEmptyState from '../features/competition-dashboard/components/HostLandingEmptyState';
 import { getCompetitionUrl, generateCompetitionSlug, slugify } from '../utils/slugs';
 
 /**
@@ -187,23 +186,19 @@ export default function DashboardPage() {
     );
   }
 
-  // Host must have an assigned competition to view the dashboard
+  // No competition yet — go straight to the launch wizard instead of a
+  // separate landing page. Closing it returns home.
   if (!selectedCompetition) {
     return (
-      <>
-        <HostLandingEmptyState
-          onCreate={() => { setCreateStep('ready'); setShowCreate(true); }}
-          onLearnMore={() => { setCreateStep('learn'); setShowCreate(true); }}
-          onBack={handleBack}
-        />
+      <div style={{ minHeight: '100vh', background: '#0a0a0c' }}>
         <CreateCompetitionModal
-          isOpen={showCreate}
-          initialStep={createStep}
-          onClose={() => setShowCreate(false)}
+          isOpen
+          initialStep="ready"
+          onClose={handleBack}
           userId={user?.id}
           onCreated={() => window.location.reload()}
         />
-      </>
+      </div>
     );
   }
 

@@ -404,7 +404,7 @@ export default function HostPage() {
           </p>
           <div style={styles.ctaButtons}>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/dashboard?create=1')}
               style={styles.btnPrimary}
               onMouseEnter={(e) => { e.currentTarget.style.background = colors.gold.light; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = colors.gold.primary; }}
