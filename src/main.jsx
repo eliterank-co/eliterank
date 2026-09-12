@@ -20,6 +20,13 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0.1,
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
+    // Facebook/Instagram in-app browsers inject scripts (iabjs://) that
+    // throw when the WebView's Java backing object is destroyed. Not our bug.
+    denyUrls: [/^iabjs:\/\//i],
+    ignoreErrors: [
+      /Java object is gone/i,
+      /enableButtonsClickedMetaDataLogging/i,
+    ],
   });
 }
 
