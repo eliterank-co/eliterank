@@ -129,6 +129,27 @@ export async function getTodaysVote(userId, competitionId) {
   }
 }
 
+const ACCOUNT_RESTRICTED_MESSAGE =
+  'This account is currently suspended or banned and cannot vote. If you believe this is a mistake, contact info@eliterank.co.';
+
+/**
+ * Best-effort client-side gate for suspended/banned accounts.
+ * The authoritative enforcement is the `enforce_account_active_on_vote` DB
+ * trigger on `votes`; this only lets the UI fail fast with a clear message.
+ * Fails open (returns true) if the RPC is unavailable, so the trigger remains
+ * the source of truth.
+ */
+async function isAccountActive(userId) {
+  if (!supabase || !userId) return true;
+  try {
+    const { data, error } = await supabase.rpc('account_is_active', { p_user_id: userId });
+    if (error) return true;
+    return data !== false;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Submit a free daily vote
  * @param {Object} params - Vote parameters
@@ -154,6 +175,10 @@ export async function submitFreeVote({
 
   if (!userId || !competitionId || !contestantId) {
     return { success: false, error: 'Missing required parameters' };
+  }
+
+  if (!(await isAccountActive(userId))) {
+    return { success: false, error: ACCOUNT_RESTRICTED_MESSAGE, code: 'ACCOUNT_RESTRICTED' };
   }
 
   try {
@@ -203,6 +228,10 @@ export async function submitFreeVote({
       // Check for unique constraint violation
       if (voteError.code === '23505') {
         return { success: false, error: 'You have already used your free vote today' };
+      }
+      // The DB trigger is the authoritative block for restricted accounts.
+      if ((voteError.message || '').includes('account_not_active')) {
+        return { success: false, error: ACCOUNT_RESTRICTED_MESSAGE, code: 'ACCOUNT_RESTRICTED' };
       }
       return { success: false, error: voteError.message };
     }
@@ -396,6 +425,10 @@ export async function createVotePaymentIntent({
 
   if (voteCount < 1 || voteCount > 1000) {
     return { success: false, error: 'Invalid vote count' };
+  }
+
+  if (voterId && !(await isAccountActive(voterId))) {
+    return { success: false, error: ACCOUNT_RESTRICTED_MESSAGE, code: 'ACCOUNT_RESTRICTED' };
   }
 
   try {

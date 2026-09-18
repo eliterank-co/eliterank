@@ -11,6 +11,7 @@ const CompetitionsManager = lazy(() => import('./components/CompetitionsManager'
 const HostsManager = lazy(() => import('./components/HostsManager'));
 const CitiesManager = lazy(() => import('./components/CitiesManager'));
 const OrganizationsManager = lazy(() => import('./components/OrganizationsManager'));
+const AccountsManager = lazy(() => import('./components/AccountsManager'));
 const RewardsManager = lazy(() => import('./components/RewardsManager'));
 const SiteSettingsManager = lazy(() => import('./components/SiteSettingsManager'));
 const PrizeRedemptionTracker = lazy(() => import('./components/PrizeRedemptionTracker'));
@@ -26,6 +27,7 @@ const SECTION_CONFIG = {
   interests: { title: 'Interest Submissions', subtitle: 'Review pending submissions' },
   hosts: { title: 'Hosts', subtitle: 'Manage host accounts' },
   organizations: { title: 'Organizations', subtitle: 'Manage organizations' },
+  accounts: { title: 'Account Enforcement', subtitle: 'Suspend, ban, or restore user accounts' },
   cities: { title: 'Cities', subtitle: 'Manage competition cities' },
   rewards: { title: 'Rewards', subtitle: 'Create and assign rewards' },
   redemptions: { title: 'Redemptions', subtitle: 'Track prize redemptions' },
@@ -177,6 +179,12 @@ export default function SuperAdminPage({ onLogout, user, profile }) {
         return (
           <Suspense fallback={<SectionLoader />}>
             <OrganizationsManager />
+          </Suspense>
+        );
+      case 'accounts':
+        return (
+          <Suspense fallback={<SectionLoader />}>
+            <AccountsManager />
           </Suspense>
         );
       case 'cities':
