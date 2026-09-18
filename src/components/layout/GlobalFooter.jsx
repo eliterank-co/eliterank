@@ -125,6 +125,7 @@ const LEGAL_LINKS = [
   { label: 'Terms of Use', path: '/terms' },
   { label: 'Cookie Policy', path: '/cookies' },
   { label: 'Contest Terms', path: '/contest-terms' },
+  { label: 'Acceptable Use', path: '/acceptable-use' },
 ];
 
 export default function GlobalFooter() {

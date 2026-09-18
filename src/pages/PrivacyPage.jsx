@@ -125,6 +125,13 @@ const styles = {
     display: 'block',
     padding: `${spacing[1]} 0`,
   },
+  callout: {
+    padding: spacing[4],
+    background: colors.background.card,
+    borderRadius: borderRadius.lg,
+    border: `1px solid ${colors.border.primary}`,
+    marginBottom: spacing[4],
+  },
 };
 
 export default function PrivacyPage() {
@@ -144,7 +151,7 @@ export default function PrivacyPage() {
         </button>
 
         <h1 style={styles.title}>Privacy Policy</h1>
-        <p style={styles.updated}>Last Updated: May 26, 2026</p>
+        <p style={styles.updated}>Last Updated: September 18, 2026</p>
 
         <section style={styles.section}>
           <h2 style={styles.h2}>1. About This Policy</h2>
@@ -168,6 +175,23 @@ export default function PrivacyPage() {
 
         <section style={styles.section}>
           <h2 style={styles.h2}>2. Information We Collect</h2>
+
+          <h3 style={styles.h3}>2.0 Notice at Collection</h3>
+          <div style={styles.callout}>
+            <p style={{ ...styles.p, marginBottom: spacing[2] }}>
+              This is our Notice at Collection. It summarizes, at or before the point we collect personal
+              information, what we collect, why we collect it, whether we sell or share it, and how long we keep
+              it. The rest of this Policy provides more detail.
+            </p>
+            <ul style={{ ...styles.ul, marginBottom: 0 }}>
+              <li style={styles.li}><span style={styles.strong}>Categories collected:</span> identifiers (name, email, phone number, IP address, device identifiers, browser fingerprint); commercial information (vote purchases and other transactions); internet or network activity (pages viewed, clicks, usage telemetry); approximate location (inferred from IP address); audio, electronic, visual, or similar information (photos, videos, and other content you submit); professional or competition-related information (entries, votes, judge scores, bonus-task submissions); sensitive personal information (government-issued identification and tax information you provide for prize verification); and inferences drawn from the above.</li>
+              <li style={styles.li}><span style={styles.strong}>Purposes:</span> as described in Section 3 — to provide and improve the Service, process competitions and payments, send the communications you request, prevent fraud and abuse, comply with law, and protect our rights and the rights of others.</li>
+              <li style={styles.li}><span style={styles.strong}>Sale or sharing:</span> we do not sell your personal information for money, and we do not share it for cross-context behavioral advertising. See Sections 5 and 11.</li>
+              <li style={styles.li}><span style={styles.strong}>Retention:</span> for the periods described in Section 8, including up to seven years for payment, tax, and prize-verification records, and a limited period for fraud-prevention and security data.</li>
+              <li style={styles.li}><span style={styles.strong}>Sensitive personal information:</span> we use government identification and tax information only to verify eligibility, administer prizes, meet tax and legal obligations, and prevent fraud — not to infer characteristics about you.</li>
+              <li style={styles.li}><span style={styles.strong}>Your rights:</span> see Sections 9, 11, 12, and 13, or contact us as described in Section 15.</li>
+            </ul>
+          </div>
 
           <h3 style={styles.h3}>2.1 Information You Provide</h3>
           <ul style={styles.ul}>
@@ -207,6 +231,7 @@ export default function PrivacyPage() {
             <li style={styles.li}>Detect, investigate, and prevent fraud, vote manipulation, abuse, security incidents, and other prohibited or illegal activity;</li>
             <li style={styles.li}>Comply with legal obligations, enforce our Terms of Use and Contest Terms &amp; Conditions, and protect our rights, the rights of users, and the public;</li>
             <li style={styles.li}>Analyze aggregate trends in how the Service is used so we can make it better.</li>
+            <li style={styles.li}><span style={styles.strong}>Automated decision-making:</span> we use automated tools to detect fraud, duplicate accounts, and prohibited voting, and to flag or block accounts or void votes that our integrity systems identify as abusive. See Sections 11 and 12 for disclosures about automated decision-making technology and how to request human review.</li>
           </ul>
         </section>
 
@@ -274,6 +299,12 @@ export default function PrivacyPage() {
             transmission over the internet or method of electronic storage is 100% secure; we cannot guarantee
             absolute security.
           </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Breach notification.</span> If we become aware of a security incident that
+            compromises your personal information, we will notify you and the relevant regulators or authorities as
+            and when required by applicable law, including the timeframes required by U.S. state breach-notification
+            laws and, where applicable, the EU GDPR and UK GDPR.
+          </p>
         </section>
 
         <section style={styles.section}>
@@ -288,11 +319,19 @@ export default function PrivacyPage() {
             <li style={styles.li}><span style={styles.strong}>Competition records:</span> retained for the duration of the competition and a reasonable period afterward for prize fulfillment, dispute resolution, and historical accuracy.</li>
             <li style={styles.li}><span style={styles.strong}>Payment records:</span> retained for the period required by tax and financial-reporting laws (typically up to seven years).</li>
             <li style={styles.li}><span style={styles.strong}>Logs and security data:</span> retained for a limited period sufficient to investigate incidents.</li>
+            <li style={styles.li}><span style={styles.strong}>Identity-verification and prize-claim records:</span> government identification, tax forms, and related records are retained for the period required to administer the prize and meet tax, anti-fraud, and financial-reporting obligations (typically up to seven years), after which they are deleted or de-identified.</li>
+            <li style={styles.li}><span style={styles.strong}>Fraud-prevention data:</span> browser-fingerprint identifiers, IP-derived signals, and rate-limit records are retained only for a limited period sufficient to detect and investigate fraud and prohibited voting, and are then deleted or de-identified.</li>
           </ul>
           <p style={styles.p}>
-            You may request deletion of your account and associated personal data at any time by contacting us at the
-            address in Section 15. We will respond to verifiable deletion requests within 30 days (or as required by
-            applicable law).
+            <span style={styles.strong}>Your deletion and access requests.</span> You may request access to, correction
+            of, a portable copy of, or deletion of your account and associated personal data at any time by
+            contacting us at the address in Section 15. You may also designate an authorized agent to submit a
+            request on your behalf, subject to verification. We will respond to verifiable requests within 30 days
+            (or the period required by applicable law), and we will let you know if we need more time or more
+            information to verify your request. Where we are required to retain information by law (for example,
+            payment, tax, prize-verification, or anti-fraud records), we may retain it for the required period and
+            will delete or de-identify it afterward. Deleting your account may also remove or void your competition
+            entries and votes, and may not be reversible.
           </p>
         </section>
 
@@ -303,7 +342,9 @@ export default function PrivacyPage() {
             <li style={styles.li}><span style={styles.strong}>Email:</span> use the "unsubscribe" link in any marketing email. Transactional emails (for example, security alerts) will continue.</li>
             <li style={styles.li}><span style={styles.strong}>Push notifications:</span> disable in your browser or device settings.</li>
             <li style={styles.li}><span style={styles.strong}>Cookies:</span> use the controls described in our <a onClick={() => navigate('/cookies')} style={styles.link}>Cookie Policy</a> and your browser settings.</li>
-            <li style={styles.li}><span style={styles.strong}>Do Not Track:</span> we do not currently respond to Do Not Track browser signals; we honor Global Privacy Control signals where required by applicable law.</li>
+            <li style={styles.li}><span style={styles.strong}>Do Not Track:</span> we do not respond to Do Not Track browser signals because there is no common industry standard for them. We do honor Global Privacy Control signals as described below.</li>
+            <li style={styles.li}><span style={styles.strong}>Global Privacy Control:</span> where required by applicable law, we treat a Global Privacy Control (GPC) signal as a valid request to opt out of the "sale" or "sharing" of personal information. Because we do not sell or share personal information for cross-context behavioral advertising, a GPC signal does not change how we handle your information; where required, we will confirm that the request has been honored.</li>
+            <li style={styles.li}><span style={styles.strong}>Access, correction, deletion, and portability:</span> request these at any time as described in Section 8, using the contact details in Section 15.</li>
           </ul>
         </section>
 
@@ -338,11 +379,32 @@ export default function PrivacyPage() {
           <p style={styles.p}>
             <span style={styles.strong}>Your California rights:</span> subject to verification, you may request to
             (i) know what personal information we have collected, used, and disclosed about you; (ii) correct
-            inaccurate personal information; (iii) delete personal information we have collected from you; (iv) opt
+            inaccurate personal information; (iii) delete personal information we have collected from you;             (iv) opt
             out of "sale" or "sharing" (we do not engage in either, but you may submit a request via the contact
             address below or a Global Privacy Control signal); and (v) limit the use of sensitive personal
             information. You may also designate an authorized agent to act on your behalf. We will not discriminate
             against you for exercising any of these rights.
+          </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Sensitive personal information:</span> we collect and use sensitive personal
+            information (government identification and tax information for prize verification) only for the purposes
+            permitted by the CCPA and its regulations, so no separate "limit" request is required. If you believe we
+            have used it for another purpose, contact us as described in Section 15.
+          </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Automated decision-making technology (ADMT):</span> we use automated
+            fraud-and-integrity systems to detect duplicate accounts, bots, and prohibited voting, and to flag,
+            block, or void accounts or votes. These systems do not use sensitive personal information to infer
+            characteristics about you, and they do not make decisions about employment, housing, credit, education,
+            or similar significant matters. If an automated decision blocks, suspends, or terminates your account,
+            you may request human review as described in our{' '}
+            <a onClick={() => navigate('/acceptable-use')} style={styles.link}>Acceptable Use &amp; Community
+            Guidelines</a>.
+          </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Format:</span> this Policy is available in a format that can be printed or
+            saved, and the categories, purposes, and retention of the personal information we collect can be
+            reviewed above in Section 2.0.
           </p>
         </section>
 
@@ -363,6 +425,15 @@ export default function PrivacyPage() {
             <li style={styles.li}><span style={styles.strong}>Right to withdraw consent</span> at any time, without affecting the lawfulness of processing prior to withdrawal;</li>
             <li style={styles.li}><span style={styles.strong}>Right to lodge a complaint</span> with your local supervisory authority (in the UK, the Information Commissioner's Office; in Switzerland, the Federal Data Protection and Information Commissioner).</li>
           </ul>
+          <p style={styles.p}>
+            <span style={styles.strong}>Automated decision-making.</span> We use automated systems for
+            fraud-prevention and platform integrity as described in Sections 3 and 11. Where a decision based solely
+            on automated processing produces legal effects concerning you or similarly significantly affects you,
+            you have the right to request human intervention, to express your point of view, and to contest the
+            decision, as described in our{' '}
+            <a onClick={() => navigate('/acceptable-use')} style={styles.link}>Acceptable Use &amp; Community
+            Guidelines</a>.
+          </p>
           <p style={styles.p}>
             To exercise any of these rights, contact us at the address in Section 15. Most Eligible LLC is the
             controller of personal data described in this Policy. We have not designated a representative in the EU

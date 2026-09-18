@@ -57,6 +57,7 @@ export function CompetitionFooter() {
         {rulesPath && <Link to={rulesPath} className="competition-footer-legal-link">Official Rules</Link>}
         <Link to="/contest-terms" className="competition-footer-legal-link">Contest Terms</Link>
         <Link to="/terms" className="competition-footer-legal-link">Terms of Use</Link>
+        <Link to="/acceptable-use" className="competition-footer-legal-link">Acceptable Use</Link>
         <Link to="/privacy" className="competition-footer-legal-link">Privacy</Link>
       </nav>
 
