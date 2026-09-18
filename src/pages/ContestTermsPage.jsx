@@ -136,7 +136,7 @@ export default function ContestTermsPage() {
         </button>
 
         <h1 style={styles.title}>Contest Terms &amp; Conditions</h1>
-        <p style={styles.updated}>Last Updated: May 26, 2026</p>
+        <p style={styles.updated}>Last Updated: September 18, 2026</p>
 
         <section style={styles.section}>
           <h2 style={styles.h2}>1. About These Terms</h2>
@@ -150,8 +150,9 @@ export default function ContestTermsPage() {
             eliterank.co (the "Platform"), you ("Entrant," "Voter," or "Participant," as applicable) agree to be
             bound by these Contest Terms &amp; Conditions (the "Contest Terms"), our{' '}
             <a onClick={() => navigate('/terms')} style={styles.link}>Terms of Use</a>, our{' '}
-            <a onClick={() => navigate('/privacy')} style={styles.link}>Privacy Policy</a>, and any additional rules
-            posted on the relevant contest page ("Additional Rules").
+            <a onClick={() => navigate('/privacy')} style={styles.link}>Privacy Policy</a>, our{' '}
+            <a onClick={() => navigate('/acceptable-use')} style={styles.link}>Acceptable Use &amp; Community
+            Guidelines</a>, and any additional rules posted on the relevant contest page ("Additional Rules").
           </p>
           <p style={styles.p}>
             Additional Rules are incorporated into these Contest Terms by reference. If there is a conflict between
@@ -220,7 +221,9 @@ export default function ContestTermsPage() {
             <li style={styles.li}>be your original work or content you have the right to submit;</li>
             <li style={styles.li}>not infringe the intellectual-property, privacy, publicity, or other rights of any third party;</li>
             <li style={styles.li}>not contain content that is obscene, sexually explicit involving minors, defamatory, hateful, threatening, or otherwise illegal;</li>
-            <li style={styles.li}>comply with the Additional Rules for the competition and any platform community guidelines.</li>
+            <li style={styles.li}>comply with the Additional Rules for the competition and our{' '}
+            <a onClick={() => navigate('/acceptable-use')} style={styles.link}>Acceptable Use &amp; Community
+            Guidelines</a>.</li>
           </ul>
 
           <h3 style={styles.h3}>4.3 Consent of Others</h3>
@@ -313,6 +316,12 @@ export default function ContestTermsPage() {
             withhold prizes, suspend accounts, and disqualify contestants found to have benefited from any prohibited
             activity. Detection methods include payment-instrument matching, device fingerprinting, account linkage
             analysis, and review of Stripe receipts.
+          </p>
+          <p style={styles.p}>
+            Enforcement is governed by our{' '}
+            <a onClick={() => navigate('/acceptable-use')} style={styles.link}>Acceptable Use &amp; Community
+            Guidelines</a>, which describe how we investigate violations, the actions we may take, and how to
+            request a review of an enforcement decision.
           </p>
         </section>
 
@@ -462,9 +471,9 @@ export default function ContestTermsPage() {
             If any provision of these Contest Terms is held invalid, illegal, or unenforceable, that provision will
             be enforced to the maximum extent permitted by law, and the remaining provisions will remain in full
             force and effect. These Contest Terms, together with the Terms of Use, the Privacy Policy, the Cookie
-            Policy, and the Additional Rules and Prize Claim Documents for each competition, express the entire
-            agreement between you and the Promotion Entities concerning each competition, and supersede any prior
-            agreements.
+            Policy, the Acceptable Use &amp; Community Guidelines, and the Additional Rules and Prize Claim
+            Documents for each competition, express the entire agreement between you and the Promotion Entities
+            concerning each competition, and supersede any prior agreements.
           </p>
         </section>
 

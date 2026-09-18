@@ -164,6 +164,7 @@ const styles = {
 const RELATED_POLICIES = [
   { label: 'Contest Terms', path: '/contest-terms' },
   { label: 'Terms of Use', path: '/terms' },
+  { label: 'Acceptable Use', path: '/acceptable-use' },
   { label: 'Privacy Policy', path: '/privacy' },
   { label: 'Cookie Policy', path: '/cookies' },
 ];

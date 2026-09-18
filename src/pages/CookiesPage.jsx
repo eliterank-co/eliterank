@@ -196,7 +196,7 @@ export default function CookiesPage() {
         </button>
 
         <h1 style={styles.title}>Cookie Policy</h1>
-        <p style={styles.updated}>Last Updated: May 26, 2026</p>
+        <p style={styles.updated}>Last Updated: September 18, 2026</p>
 
         <section style={styles.section}>
           <h2 style={styles.h2}>1. About This Policy</h2>
@@ -207,8 +207,12 @@ export default function CookiesPage() {
             <a onClick={() => navigate('/privacy')} style={styles.link}>Privacy Policy</a>.
           </p>
           <p style={styles.p}>
-            By using the Service, you consent to our use of cookies and similar technologies in accordance with this
-            Cookie Policy. You can control cookies through your browser settings as described in Section 5.
+            We use the cookies and similar technologies described in this Policy. Strictly necessary technologies
+            are required for the Service to work and are used on the basis of our legitimate interests in operating
+            a secure, functional service. We do not currently set advertising or marketing cookies that require
+            consent. If we add technologies that require consent, we will introduce a consent banner, request your
+            consent before setting them, and update this Policy. You can also control cookies through your browser
+            settings as described in Section 5.
           </p>
         </section>
 
@@ -251,8 +255,9 @@ export default function CookiesPage() {
           <p style={styles.p}>
             These technologies protect the integrity of competitions by detecting duplicate accounts and abusive
             voting patterns. They are not used for advertising and are not shared with third parties for marketing
-            purposes. Where consent is required by law, you may opt out using the cookie preferences below; opting
-            out may limit your ability to participate in certain voting flows.
+            purposes. Because they are used for fraud prevention and platform security rather than advertising, we
+            rely on our legitimate interests to operate them. Blocking the underlying browser-fingerprint script
+            through your browser or an extension may limit your ability to participate in certain voting flows.
           </p>
           <CookieTable rows={functional} />
 
@@ -306,6 +311,14 @@ export default function CookiesPage() {
             <li style={styles.li}><a href="https://support.apple.com/guide/safari/manage-cookies-sfri11471" target="_blank" rel="noopener noreferrer" style={styles.link}>Apple Safari</a></li>
             <li style={styles.li}><a href="https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09" target="_blank" rel="noopener noreferrer" style={styles.link}>Microsoft Edge</a></li>
           </ul>
+          <p style={styles.p}>
+            We do not sell personal information and do not share it for cross-context behavioral advertising, so
+            there is no "Do Not Sell or Share My Personal Information" opt-out to exercise. Where required by
+            applicable law, we treat a Global Privacy Control (GPC) browser signal as a valid opt-out request and,
+            where required, will confirm that it has been honored. See our{' '}
+            <a onClick={() => navigate('/privacy')} style={styles.link}>Privacy Policy</a> for more information
+            about your choices and rights.
+          </p>
         </section>
 
         <section style={styles.section}>

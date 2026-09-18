@@ -126,7 +126,7 @@ export default function TermsPage() {
         </button>
 
         <h1 style={styles.title}>Terms of Use</h1>
-        <p style={styles.updated}>Last Updated: May 26, 2026</p>
+        <p style={styles.updated}>Last Updated: September 18, 2026</p>
 
         <section style={styles.section}>
           <h2 style={styles.h2}>1. Agreement to These Terms</h2>
@@ -141,7 +141,8 @@ export default function TermsPage() {
             By accessing or using the Service, you agree to be bound by these Terms, by our{' '}
             <a onClick={() => navigate('/privacy')} style={{ ...styles.link, textTransform: 'none' }}>Privacy Policy</a>,
             our <a onClick={() => navigate('/cookies')} style={{ ...styles.link, textTransform: 'none' }}>Cookie Policy</a>,
-            and our <a onClick={() => navigate('/contest-terms')} style={{ ...styles.link, textTransform: 'none' }}>Contest Terms &amp; Conditions</a>,
+            our <a onClick={() => navigate('/contest-terms')} style={{ ...styles.link, textTransform: 'none' }}>Contest Terms &amp; Conditions</a>,
+            and our <a onClick={() => navigate('/acceptable-use')} style={{ ...styles.link, textTransform: 'none' }}>Acceptable Use &amp; Community Guidelines</a>,
             each of which is incorporated into these Terms by reference. If you do not agree, do not use the Service.
           </p>
           <p style={styles.p}>
@@ -192,9 +193,17 @@ export default function TermsPage() {
             suspect unauthorized access.
           </p>
           <p style={styles.p}>
-            We may suspend, restrict, or terminate your account at any time if we reasonably believe you have
-            violated these Terms, our Contest Terms &amp; Conditions, applicable law, or if your conduct presents a
-            risk to other users, the Service, or third parties.
+            We may suspend, restrict, or terminate your account, in whole or in part, at any time, with or without
+            cause, and with or without notice, to the fullest extent permitted by applicable law. Without limiting
+            the foregoing, we may act if we reasonably believe you have violated these Terms, our Contest Terms &amp;
+            Conditions, our Acceptable Use &amp; Community Guidelines, or applicable law, or if your conduct or your
+            account presents a risk to other users, the Service, or third parties.
+          </p>
+          <p style={styles.p}>
+            Enforcement decisions may be reviewed as described in our{' '}
+            <a onClick={() => navigate('/acceptable-use')} style={styles.link}>Acceptable Use &amp; Community Guidelines</a>.
+            Any suspension or termination preserves obligations that have already accrued, as described in Section
+            13 (Termination).
           </p>
         </section>
 
@@ -330,10 +339,26 @@ export default function TermsPage() {
         <section style={styles.section}>
           <h2 style={styles.h2}>13. Termination</h2>
           <p style={styles.p}>
-            You may stop using the Service and close your account at any time. We may suspend or terminate your
-            access to the Service at any time, with or without notice, including for violation of these Terms.
-            Sections 5 (license), 9 (IP), 11&ndash;13 (disclaimers, liability, indemnity), 15 (governing law), and
-            any other provisions that by their nature should survive termination, will survive.
+            You may stop using the Service and close your account at any time, and may request deletion of your
+            account and personal data as described in our{' '}
+            <a onClick={() => navigate('/privacy')} style={styles.link}>Privacy Policy</a>. We may suspend,
+            restrict, or terminate your access to the Service at any time, with or without cause, and with or
+            without notice, including for any violation of these Terms or of our Acceptable Use &amp; Community
+            Guidelines.
+          </p>
+          <p style={styles.p}>
+            <span style={styles.strong}>Accrued obligations survive.</span> Termination does not deprive you of any
+            right that has already accrued. In particular, if a prize has already been finally awarded to you in
+            accordance with a competition's Official Rules and you complied with the Prize Claim requirements, we
+            will not use termination to avoid that award; and any refund required by applicable law or by the
+            Contest Terms &amp; Conditions remains due. Where the Host is the merchant of record or is otherwise
+            responsible for a prize or refund, that obligation remains the Host's.
+          </p>
+          <p style={styles.p}>
+            If we suspend or terminate your account, you may request a review of that decision as described in the
+            Acceptable Use &amp; Community Guidelines. Sections 5 (license), 9 (IP), 11&ndash;13 (disclaimers,
+            liability, indemnity), 15 (governing law), and any other provisions that by their nature should survive
+            termination, will survive.
           </p>
         </section>
 
@@ -371,9 +396,10 @@ export default function TermsPage() {
           <p style={styles.p}>
             If any provision of these Terms is held to be unlawful, void, or unenforceable, that provision will be
             severed to the minimum extent necessary, and the remaining provisions will remain in full force and
-            effect. These Terms, together with the Privacy Policy, Cookie Policy, and Contest Terms &amp;
-            Conditions, constitute the entire agreement between you and EliteRank concerning the Service, and
-            supersede any prior agreements between you and EliteRank concerning the Service.
+            effect. These Terms, together with the Privacy Policy, Cookie Policy, Acceptable Use &amp; Community
+            Guidelines, and Contest Terms &amp; Conditions, constitute the entire agreement between you and
+            EliteRank concerning the Service, and supersede any prior agreements between you and EliteRank
+            concerning the Service.
           </p>
         </section>
 
