@@ -25,9 +25,16 @@ import { supabase } from './supabase';
  * applies (HOST_PAYOUT_DELAY_DAYS, default 14) to new and existing accounts, so it
  * is no longer doc-ahead. The discretionary payout-pause + reserve model (former
  * §9.3/§13.3) was removed in 2026-07-v1.
+ *
+ * CHANGELOG
+ *   2026-07-v1 — removed the discretionary payout-pause + reserve model; §9.3 now
+ *                describes the uniform rolling payout delay.
+ *   2026-09-v1 — §11.5 now names the actual participant-facing documents (Terms of
+ *                Use, Contest Terms & Conditions, Acceptable Use & Community
+ *                Guidelines) instead of the non-existent "Voter Terms" page.
  */
 
-export const HOST_AGREEMENT_VERSION = '2026-07-v1';
+export const HOST_AGREEMENT_VERSION = '2026-09-v1';
 
 export const HOST_AGREEMENT_TITLE = 'EliteRank Host Agreement';
 
@@ -114,7 +121,7 @@ D. The parties therefore agree as follows.
 11.2 The Organizer must comply with all applicable privacy and anti-spam laws, including CAN-SPAM (U.S.), Canada's Anti-Spam Legislation (CASL) and PIPEDA (Canada), the GDPR / UK GDPR (EU/UK), and other applicable anti-spam and privacy laws for any non-U.S. individuals, and must obtain any consent those laws require before marketing.
 11.3 The Organizer must handle contestant photographs and any biometric data in compliance with applicable law (including the Illinois Biometric Information Privacy Act, where applicable) and obtain all required consents.
 11.4 The Organizer must honor data-subject and consumer requests as required by law and cooperate with EliteRank on any privacy request relating to its Competitions.
-11.5 Voters and contestants are also governed by the Platform's participant-facing terms (including the Voter Terms and each Competition's Official Rules). The Organizer must not, in any Competition or communication, contradict those terms, misstate how votes work or what a vote buys, or contravene applicable consumer-protection law.
+11.5 Voters and contestants are also governed by the Platform's participant-facing terms (including the Terms of Use, the Contest Terms & Conditions, the Acceptable Use & Community Guidelines, and each Competition's Official Rules). The Organizer must not, in any Competition or communication, contradict those terms, misstate how votes work or what a vote buys, or contravene applicable consumer-protection law.
 
 12. Organizer Conduct & Integrity
 12.1 The Organizer must operate Competitions honestly and must not manipulate, rig, or falsify judging or voting, create fake entries or votes, or otherwise misuse the Platform.
