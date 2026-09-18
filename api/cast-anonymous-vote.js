@@ -483,6 +483,14 @@ export default async function handler(request, response) {
         code: 'ALREADY_VOTED',
       });
       }
+      // The enforce_account_active_on_vote trigger raises this for a
+      // suspended/banned account; surface it instead of a generic 500.
+      if ((voteErr.message || '').includes('account_not_active')) {
+        return response.status(403).json({
+          error: `This account is suspended or banned and cannot vote. If you believe this is a mistake, email ${HELP}.`,
+          code: 'ACCOUNT_RESTRICTED',
+        });
+      }
       // Include error details in non-production for debugging
       const isDev = process.env.NODE_ENV !== 'production' || process.env.VERCEL_ENV === 'preview';
       const errorPayload = isDev

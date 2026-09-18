@@ -129,6 +129,35 @@ export async function getTodaysVote(userId, competitionId) {
   }
 }
 
+const ACCOUNT_RESTRICTED_MESSAGE =
+  'This account is currently suspended or banned and cannot vote. If you believe this is a mistake, contact info@eliterank.co.';
+
+/**
+ * Best-effort client-side gate for suspended/banned accounts.
+ * Reads the caller's own account_status row (RLS exposes only the owner's row,
+ * so this cannot probe other users). The authoritative enforcement is the
+ * `enforce_account_active_on_vote` DB trigger; this only lets the UI fail fast
+ * with a clear message. Fails open so the trigger remains the source of truth.
+ */
+async function isAccountActive(userId) {
+  if (!supabase || !userId) return true;
+  try {
+    const { data, error } = await supabase
+      .from('account_status')
+      .select('status, suspended_until')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return true;
+    if (data.status === 'active') return true;
+    if (data.status === 'suspended' && data.suspended_until) {
+      return new Date(data.suspended_until).getTime() <= Date.now();
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Submit a free daily vote
  * @param {Object} params - Vote parameters
@@ -154,6 +183,10 @@ export async function submitFreeVote({
 
   if (!userId || !competitionId || !contestantId) {
     return { success: false, error: 'Missing required parameters' };
+  }
+
+  if (!(await isAccountActive(userId))) {
+    return { success: false, error: ACCOUNT_RESTRICTED_MESSAGE, code: 'ACCOUNT_RESTRICTED' };
   }
 
   try {
@@ -203,6 +236,10 @@ export async function submitFreeVote({
       // Check for unique constraint violation
       if (voteError.code === '23505') {
         return { success: false, error: 'You have already used your free vote today' };
+      }
+      // The DB trigger is the authoritative block for restricted accounts.
+      if ((voteError.message || '').includes('account_not_active')) {
+        return { success: false, error: ACCOUNT_RESTRICTED_MESSAGE, code: 'ACCOUNT_RESTRICTED' };
       }
       return { success: false, error: voteError.message };
     }
@@ -396,6 +433,10 @@ export async function createVotePaymentIntent({
 
   if (voteCount < 1 || voteCount > 1000) {
     return { success: false, error: 'Invalid vote count' };
+  }
+
+  if (voterId && !(await isAccountActive(voterId))) {
+    return { success: false, error: ACCOUNT_RESTRICTED_MESSAGE, code: 'ACCOUNT_RESTRICTED' };
   }
 
   try {

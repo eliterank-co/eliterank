@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Trophy, FileText, Users, Building2, MapPin, Gift, Package, Settings,
-  Crown, ChevronLeft, ChevronRight, Menu, X,
+  Crown, ChevronLeft, ChevronRight, Menu, X, ShieldAlert,
 } from 'lucide-react';
 import { colors, spacing, borderRadius, typography, transitions } from '@shared/styles/theme';
 import { useResponsive } from '@shared/hooks/useResponsive';
@@ -19,6 +19,7 @@ const NAV_GROUPS = [
     items: [
       { key: 'hosts', label: 'Hosts', icon: Users },
       { key: 'organizations', label: 'Organizations', icon: Building2 },
+      { key: 'accounts', label: 'Accounts', icon: ShieldAlert },
     ],
   },
   {
