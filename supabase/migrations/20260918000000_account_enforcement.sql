@@ -109,8 +109,22 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+  v_uid UUID;
 BEGIN
-  IF NEW.voter_id IS NOT NULL AND NOT public.account_is_active(NEW.voter_id) THEN
+  v_uid := NEW.voter_id;
+
+  -- Guest/paid checkout can carry a null voter_id and only an email (the
+  -- Stripe webhook inserts the row that way). Resolve the profile by email so a
+  -- suspended account cannot bypass enforcement by checking out logged out.
+  IF v_uid IS NULL AND NEW.voter_email IS NOT NULL THEN
+    SELECT id INTO v_uid
+    FROM public.profiles
+    WHERE lower(email) = lower(NEW.voter_email)
+    LIMIT 1;
+  END IF;
+
+  IF v_uid IS NOT NULL AND NOT public.account_is_active(v_uid) THEN
     RAISE EXCEPTION 'account_not_active'
       USING ERRCODE = 'P0001',
             HINT = 'This account is suspended or banned and cannot cast or purchase votes.';
@@ -181,7 +195,7 @@ BEGIN
     v_until := NULL;
   END IF;
 
-  v_reason := CASE WHEN p_action = 'restore' THEN NULL ELSE NULLIF(BTRIM(p_reason), '') END;
+  v_reason := NULLIF(BTRIM(p_reason), '');
 
   SELECT public.account_effective_status(p_user_id) INTO v_before;
 
@@ -257,8 +271,12 @@ REVOKE ALL ON FUNCTION public.account_effective_status(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.account_is_active(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.admin_set_account_status(UUID, TEXT, TEXT, TIMESTAMPTZ) FROM PUBLIC;
 
--- The client may ask whether an account is active (used to fail fast in the
--- vote UI); this leaks nothing beyond the boolean, and only for a supplied id.
-GRANT EXECUTE ON FUNCTION public.account_is_active(UUID) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.account_effective_status(UUID) TO authenticated;
+-- The status helpers are intentionally NOT granted to anon/authenticated: a
+-- granted `account_effective_status(uid)` would let any signed-in client probe
+-- whether any other user is suspended or banned, bypassing the RLS policy on
+-- account_status. They are used only inside SECURITY DEFINER functions
+-- (the trigger and admin_set_account_status) and can also be granted to
+-- service_role if a server-side caller needs them.
+GRANT EXECUTE ON FUNCTION public.account_effective_status(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.account_is_active(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_account_status(UUID, TEXT, TEXT, TIMESTAMPTZ) TO authenticated;

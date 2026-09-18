@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { colors, spacing, borderRadius, typography } from '@shared/styles/theme';
 import { supabase } from '@shared/lib/supabase';
+import { useAuthStore } from '@shared/stores/authStore';
 import { useToast } from '@shared/contexts/ToastContext';
 import StatRow from '../../../components/StatRow';
 import FilterBar from '../../../components/FilterBar';
@@ -28,7 +29,17 @@ const ACTION_LABEL = {
 };
 
 function statusOf(account) {
-  return account?.account_status?.status || 'active';
+  const st = account?.account_status;
+  if (!st) return 'active';
+  // Mirror account_effective_status: an elapsed temporary suspension is active.
+  if (
+    st.status === 'suspended' &&
+    st.suspended_until &&
+    new Date(st.suspended_until).getTime() <= Date.now()
+  ) {
+    return 'active';
+  }
+  return st.status || 'active';
 }
 
 function describeError(err) {
@@ -43,6 +54,7 @@ function describeError(err) {
 
 export default function AccountsManager() {
   const toast = useToast();
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchValue, setSearchValue] = useState('');
@@ -67,19 +79,25 @@ export default function AccountsManager() {
         .from('profiles')
         .select(PROFILE_COLUMNS)
         .order('created_at', { ascending: false })
-        .limit(500);
+        .limit(200);
       if (error) throw error;
 
       const rows = profiles || [];
-      let statusByUser = {};
-      if (rows.length > 0) {
+      const statusByUser = {};
+      // Chunk the IN(...) lookup: 200 UUIDs in one query string overflows
+      // PostgREST/proxy URI limits and comes back as HTTP 414.
+      const CHUNK = 100;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const ids = rows.slice(i, i + CHUNK).map((p) => p.id);
         const { data: statuses, error: statusErr } = await supabase
           .from('account_status')
           .select('user_id,status,reason,suspended_until,updated_at')
-          .in('user_id', rows.map((p) => p.id));
-        if (!statusErr) {
-          statusByUser = Object.fromEntries((statuses || []).map((s) => [s.user_id, s]));
+          .in('user_id', ids);
+        if (statusErr) {
+          console.error('Error fetching account statuses:', statusErr);
+          continue;
         }
+        for (const s of statuses || []) statusByUser[s.user_id] = s;
       }
 
       setAccounts(rows.map((p) => ({ ...p, account_status: statusByUser[p.id] || null })));
@@ -127,7 +145,7 @@ export default function AccountsManager() {
       const { error } = await supabase.rpc('admin_set_account_status', {
         p_user_id: account.id,
         p_action: mode,
-        p_reason: mode === 'restore' ? null : reason.trim(),
+        p_reason: reason.trim() || null,
         p_suspended_until: mode === 'suspend' && suspendUntil
           ? new Date(suspendUntil).toISOString()
           : null,
@@ -270,16 +288,21 @@ export default function AccountsManager() {
         emptyMessage="No accounts found."
         actions={(row) => {
           const status = statusOf(row);
+          const isSelf = row.id === currentUserId;
+          const isAdmin = row.is_super_admin === true;
+          // The DB refuses enforcement on self and other super admins; don't
+          // offer the action in the first place.
+          const canEnforce = !isSelf && !isAdmin;
           const actions = [
             { label: 'History', icon: History, onClick: () => openHistory(row) },
           ];
-          if (status !== 'suspended') {
+          if (canEnforce && status !== 'suspended') {
             actions.push({ label: 'Suspend', icon: PauseCircle, onClick: () => openEnforcement('suspend', row) });
           }
-          if (status !== 'banned') {
+          if (canEnforce && status !== 'banned') {
             actions.push({ label: 'Ban', icon: Ban, variant: 'danger', onClick: () => openEnforcement('ban', row) });
           }
-          if (status !== 'active') {
+          if (canEnforce && status !== 'active') {
             actions.push({ label: 'Restore', icon: RotateCcw, onClick: () => openEnforcement('restore', row) });
           }
           return <ActionMenu actions={actions} />;
@@ -307,6 +330,16 @@ export default function AccountsManager() {
                 This clears the current suspension or ban and lets the account vote and
                 transact again. The enforcement history is kept.
               </p>
+              <FormField
+                label="Reason (optional)"
+                description="Recorded in the enforcement log — e.g. appeal approved."
+              >
+                <TextInput
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="e.g. Appeal approved"
+                />
+              </FormField>
             </div>
           ) : (
             <>

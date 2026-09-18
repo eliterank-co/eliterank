@@ -134,17 +134,25 @@ const ACCOUNT_RESTRICTED_MESSAGE =
 
 /**
  * Best-effort client-side gate for suspended/banned accounts.
- * The authoritative enforcement is the `enforce_account_active_on_vote` DB
- * trigger on `votes`; this only lets the UI fail fast with a clear message.
- * Fails open (returns true) if the RPC is unavailable, so the trigger remains
- * the source of truth.
+ * Reads the caller's own account_status row (RLS exposes only the owner's row,
+ * so this cannot probe other users). The authoritative enforcement is the
+ * `enforce_account_active_on_vote` DB trigger; this only lets the UI fail fast
+ * with a clear message. Fails open so the trigger remains the source of truth.
  */
 async function isAccountActive(userId) {
   if (!supabase || !userId) return true;
   try {
-    const { data, error } = await supabase.rpc('account_is_active', { p_user_id: userId });
-    if (error) return true;
-    return data !== false;
+    const { data, error } = await supabase
+      .from('account_status')
+      .select('status, suspended_until')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return true;
+    if (data.status === 'active') return true;
+    if (data.status === 'suspended' && data.suspended_until) {
+      return new Date(data.suspended_until).getTime() <= Date.now();
+    }
+    return false;
   } catch {
     return true;
   }

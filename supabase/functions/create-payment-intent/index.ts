@@ -39,6 +39,42 @@ function bundledPricePerVote(voteCount: number, basePrice: number): number {
   return basePrice * tier.pricePerVote
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Resolve the buyer (by id when present and well-formed, else by email) and
+// report whether their account is suspended or banned right now. The votes
+// insert trigger is the authoritative backstop, but blocking here prevents
+// charging a card for votes that would then be refused by that trigger.
+// deno-lint-ignore no-explicit-any
+async function isRestrictedVoter(supabase: any, voterId?: string, voterEmail?: string): Promise<boolean> {
+  let userId: string | null = null
+  if (voterId && UUID_RE.test(voterId.trim())) {
+    userId = voterId.trim()
+  } else if (voterEmail) {
+    const escaped = voterEmail.replace(/([\\%_])/g, '\\$1')
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', escaped)
+      .limit(1)
+      .maybeSingle()
+    userId = data?.id ?? null
+  }
+  if (!userId) return false
+
+  const { data: st } = await supabase
+    .from('account_status')
+    .select('status, suspended_until')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!st) return false
+  if (st.status === 'active') return false
+  if (st.status === 'suspended' && st.suspended_until && new Date(st.suspended_until).getTime() <= Date.now()) {
+    return false
+  }
+  return true
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -84,6 +120,17 @@ serve(async (req) => {
         persistSession: false,
       },
     })
+
+    // Account enforcement gate: refuse restricted accounts before charging.
+    if (await isRestrictedVoter(supabase, voterId, voterEmail)) {
+      return new Response(
+        JSON.stringify({
+          error: 'This account is currently suspended or banned and cannot purchase votes. If you believe this is a mistake, contact info@eliterank.co.',
+          code: 'ACCOUNT_RESTRICTED',
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Fetch competition to get vote price + the host org (merchant of record).
     const { data: competition, error: compError } = await supabase
